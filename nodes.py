@@ -1,7 +1,34 @@
+ROOT = 0
+CHANCE = 1
+TERMINAL = 2
+PLAYER = 3
+
+
 class Root(object):
-    __slots__ = ['children']
+    __slots__ = [
+        'children',
+        'type',
+        'strategy'
+    ]
+
     def __init__(self):
         self.children = {}
+        self.type = ROOT
+
+class Chance(object):
+    __slots__ = [
+        'action',
+        'public_cards',
+        'active_players',
+        'type'
+    ]
+
+    def __init__(self, action):
+        self.action = action
+        self.public_cards = ()
+        self.active_players = {}
+        self.type = CHANCE
+
 
 class Node(object):
     __slots__ = [
@@ -20,11 +47,16 @@ class Node(object):
         'p0',
         'p1',
         'terminal',
-        'chip_size',
-        'player_idx'
+        'player_idx',
+        'type',
+        'raises',
+        'round',
+        'bet_sizes',
+        'chip_sizes',
+        'explorations'
     ]
 
-    def __init__(self, action=-1):
+    def __init__(self, action):
         self.action = action
         self.children = {}
         self.regret_sum = []
@@ -33,27 +65,23 @@ class Node(object):
         self.actions = ()
         self.strategy = []
         self.player_idx = 0
-        #players that are actually playing (not eliminated)
-        self.active_players = set()
-        #exposed cards from the deck
-        self.public_cards = ()
         self.utility = 0
-        self.p0 = 1
-        self.p1 = 1
-        self.terminal = False
-        self.chip_size = 0
+        self.type = PLAYER
+        self.explorations = 0
 
 class TerminalNode(object):
     __slots__ = [
         'public_cards',
         'terminal',
         'children',
-        'active_players'
+        'active_players',
+        'type',
+        'bet_sizes',
+        'chip_sizes'
     ]
 
     def __init__(self):
-        #utilities is a vector indexed by player
-        self.public_cards = ()
+        # utilities is a vector indexed by player
         self.terminal = True
         self.children = {}
-        self.active_players = set()
+        self.type = TERMINAL

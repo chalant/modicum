@@ -1,30 +1,15 @@
-from collections import deque
 import random
+from collections import deque
 
 from games import card
-
 import nodes as nd
 
-def train(players, iterations, game, game_type):
-    #game_time could be: cash-game (where you can re-cave and where players can come and go)
-    # tournament (where players gets eliminated one after another) examples are sit and go
-    # tournaments => We will be focusing on tournaments (simpler). There can be heads-up sit an go,
-    # six players sit and go etc. (Note: the less player, the less computing needed)
-    '''
+def simulate(game, root, deck, players, iterations, action_sampler):
+    #plays a game starting from the "root" which represents a certain
+    #state
 
-    Parameters
-    ----------
-    players: tuple
-    iterations: int
-    game: games.Game
-
-    Returns
-    -------
-
-    '''
-
-    def shuffle(deck):
-        random.shuffle(deck)
+    # def shuffle(deck):
+    #     random.shuffle(deck)
 
     def sample_actions(node, policy, actions):
         # policy is the strategy
@@ -63,8 +48,6 @@ def train(players, iterations, game, game_type):
     round_bet_map = game.round_bet_map
     hand_size_map = game.hand_size_map
 
-    root = nd.Root()
-
     for t in range(iterations):
         # players must be arranged by playing order
         players_queue = deque(players)
@@ -72,6 +55,7 @@ def train(players, iterations, game, game_type):
         # note: each player plays a hand at each iteration
         # todo: should a player be eliminated if it has not enough chips?
         for player in players:
+            #todo: we don't need a deck if the root is not a new game
             deck = card.get_deck()
             random.shuffle(deck)
             #the order of distribution is always the same
@@ -150,46 +134,39 @@ def train(players, iterations, game, game_type):
                 if opp == player:
                     p0 = curr_node.p0
                     strategy = get_strategy(p0, curr_node, curr_node.strategy, actions)
-                    # play each action
-                    for a in actions:
-                        play(
+                    nodes_itr.append(
+                        iter(play(
                             cards_cache,
                             players_queue,
                             curr_node,
                             sub_nodes,
-                            a,
+                            actions,
                             p0 * strategy[a],
                             curr_node.p1,
                             max_raises,
                             action_map,
-                            round_bet_map
-                        )
-
-                    nodes_itr.append(iter(sub_nodes))
+                            round_bet_map)))
                     continue
 
                 # only sample action if it is a different player (chance or opponent)
                 elif opp != player:
                     # sample action using previous policy (strategy)
                     strategy = curr_node.strategy
-                    sample = sample_actions(curr_node, strategy, actions)
+                    sample = action_sampler(curr_node, strategy, actions)
                     p1 = curr_node.p1
                     strategy = get_strategy(p1, curr_node, strategy, sample)
-                    for a in sample:
-                        play(
-                            cards_cache,
-                            players_queue,
-                            curr_node.children,
-                            a,
-                            curr_node.p0,
-                            p1 * strategy[a],
-                            max_raises,
-                            action_map,
-                            round_bet_map
-                        )
 
                     # add iterator to the iterator stack
-                    nodes_itr.append(iter(sub_nodes))
+                    nodes_itr.append(iter(play(
+                        cards_cache,
+                        players_queue,
+                        curr_node.children,
+                        sample,
+                        curr_node.p0,
+                        p1 * strategy[a],
+                        max_raises,
+                        action_map,
+                        round_bet_map)))
                     continue
 
             players_queue = arrange_players(players_queue)
@@ -199,7 +176,4 @@ def train(players, iterations, game, game_type):
             #  in a tournament, players can't re-cave, so they are eliminated if they have not enough
             #  chips (not enough for the small blind or the big blind)
             #  depending on the type of "game"
-
-    #todo: return the root node, that contains the strategy
     return root
-
