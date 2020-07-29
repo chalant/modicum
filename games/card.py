@@ -1,3 +1,47 @@
+import numpy as np
+import numba as nb
+
+PRIMES = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41], dtype='int32')
+INT_RANKS = range(13)
+
+@nb.njit
+def prime_product_from_rankbits(rankbits):
+    """
+    Returns the prime product using the bitrank (b)
+    bits of the hand. Each 1 in the sequence is converted
+    to the correct prime and multiplied in.
+    Params:
+        rankbits = a single 32-bit (only 13-bits set) integer representing
+                the ranks of 5 _different_ ranked cards
+                (5 of 13 bits are set)
+    Primarily used for evaulating flushes and straights,
+    two occasions where we know the ranks are *ALL* different.
+    Assumes that the input is in form (set bits):
+                          rankbits
+                    +--------+--------+
+                    |xxxbbbbb|bbbbbbbb|
+                    +--------+--------+
+    """
+    product = 1
+    for i in range(13):
+        # if the ith bit is set
+        if rankbits & (1 << i):
+            product *= PRIMES[i]
+
+    return product
+
+@nb.njit
+def prime_product_from_hand(card_ints):
+    """
+    Expects a list of cards in integer form.
+    """
+
+    product = 1
+    for c in card_ints:
+        product *= (c & 0xFF)
+
+    return product
+
 class Card:
     """
     Static class that handles cards. We represent cards as 32-bit integers, so
@@ -23,7 +67,6 @@ class Card:
     # the basics
     STR_RANKS = '23456789TJQKA'
     INT_RANKS = range(13)
-    PRIMES = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41]
 
     # conversion from string => int
     CHAR_RANK_TO_INT_RANK = dict(zip(list(STR_RANKS), INT_RANKS))
@@ -58,7 +101,7 @@ class Card:
         suit_char = string[1]
         rank_int = Card.CHAR_RANK_TO_INT_RANK[rank_char]
         suit_int = Card.CHAR_SUIT_TO_INT_SUIT[suit_char]
-        rank_prime = Card.PRIMES[rank_int]
+        rank_prime = PRIMES[rank_int]
 
         bitrank = 1 << rank_int << 16
         suit = suit_int << 12
@@ -205,5 +248,6 @@ class Card:
 
 def get_deck():
     # create the standard 52 card deck
-    return [Card.new(rank + suit) for rank in Card.STR_RANKS
-            for suit,val in Card.CHAR_SUIT_TO_INT_SUIT.items()]
+    return np.array(
+        [Card.new(rank + suit) for rank in Card.STR_RANKS
+         for suit, val in Card.CHAR_SUIT_TO_INT_SUIT.items()], dtype='int32')

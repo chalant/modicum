@@ -1,31 +1,35 @@
 import math
 from itertools import combinations
 
-from tqdm import tqdm
-#todo: implement game_shrink
-# we will be using a utility function that assigns a probability value to
-# a hand. The probability is conditional
 
+from collections import OrderedDict
+from orderedset import OrderedSet
+
+from tqdm import tqdm
+import numpy as np
+from numba import typed, njit, types
+
+from games.evaluation import lookup
 from games.evaluation import evaluator
 from games import card
+
 
 # To build the information tree from top to bottom, then from the bottom, perform the
 # game shrink algorithm.
 
-#1) generate information tree
+# 1) generate information tree
 
 class UnionFind(object):
-    def __init__(self, count, forest):
+    def __init__(self, count, sizes):
         self._count = count
-        self._max = count
-        self._sizes = {key:1 for key in forest.keys()}
+        self._sizes = sizes
 
     def find(self, hand, forest):
         path = [hand]
         while hand != forest[hand]:
             hand = forest[hand]
             path.append(hand)
-        #link each encountered hand directly to the root
+        # link each encountered hand directly to the root
         for h in path:
             forest[h] = hand
         return hand
@@ -35,7 +39,7 @@ class UnionFind(object):
         l = self.find(left, forest)
         r = self.find(right, forest)
         sz = self._sizes
-        #only connect when they are not already connected
+        # only connect when they are not already connected
         if l != r:
             # add node to tree
             if sz[l] < sz[r]:
@@ -45,109 +49,137 @@ class UnionFind(object):
                 forest[r] = l
                 sz[l] += sz[r]
             self._count -= 1
-            print('Compressed to:', 100 * self._max/self._count)
+            # compression = 100 * self._count / self._max
+            # if not compression % 10:
+            #     print('Compressed to {}% of original size'.format(compression))
+            # elif compression < 10:
+            #     if not compression % 1:
+            #         print('Compressed to {}% of original size'.format(compression))
 
     @property
     def count(self):
         return self._count
 
-def count(iterable):
-    i = 0
-    for _ in iterable:
-        i += 1
-    return i
+@njit
+def find(hand, forest):
+    path = typed.List.empty_list(types.int32)
+    path.append(hand)
+    while hand != forest[hand]:
+        hand = forest[hand]
+        path.append(hand)
+    # link each encountered hand directly to the root
+    for h in path:
+        forest[h] = hand
+    return hand
 
-def brute_force(cards):
-    combos = list(combinations(cards, 5))
+@njit
+def union(u, v, forest, sizes):
+    l = find(u, forest)
+    r = find(v, forest)
 
+    # only connect when they are not already connected
+    if l != r:
+        # add node to tree
+        if sizes[l] < sizes[r]:
+            forest[l] = r
+            sizes[r] += sizes[l]
+        else:
+            forest[r] = l
+            sizes[l] += sizes[r]
+        return -1
+    return 0
 
+@njit
+def river(forest, flush_lookup, unsuited_lookup):
+    '''
 
+    Parameters
+    ----------
+    forest: numpy.ndarray
+
+    Returns
+    -------
+
+    '''
+    # function for evaluating hands
     evl = evaluator.five
-    lkp_tbl = evaluator._TABLE
 
-    forest = {c: c for c in combinations(cards, 5)}
-    uf = UnionFind(count(combinations(cards, 5)), forest)
+    N = len(forest)
+    sizes = np.array([1 for _ in range(N)])
+    idx_arr = np.array([i for i in range(N)])
+    combos = idx_arr.copy()
 
-    for lft in combos[0:len(combos)-1]:
-        for rgt in combos[0:len(combos)-1]:
-            if evl(lft, lkp_tbl) == evl(rgt, lkp_tbl):
-                uf.union(lft, rgt, forest)
-    return forest, uf.count
+    # uf = UnionFind(N, sizes)
+    count = N
 
-
-
-def river(cards):
-
-    combos = list(combinations(cards, 5))
-
-
-    #function for evaluating hands
-    evl = evaluator.five
-    lkp_tbl = evaluator._TABLE
-
-    # map every combination of hands to itself
-    # problem: the dict is huge!
-    forest = {c:c for c in combinations(cards, 5)}
-    uf = UnionFind(count(combinations(cards, 5)), forest)
-    N = count(combinations(cards, 5))
-
-    def shrink(combos, lo, mid, hi):
-        j = mid+1
-
-        for k in range(lo, j):
-            for l in range(j, hi+1):
-                lft = combos[k]
-                rgt = combos[l]
-                if evl(lft, lkp_tbl) == evl(rgt, lkp_tbl):
-                    uf.union(lft, rgt, forest)
-
+    init_size = N
     sz = 1
-
-    while sz <= N:
-        lo = 0
-        while lo < N - sz:
-            shrink(combos, lo, lo+sz-1, min(lo+(2*sz)-1, N-1))
-            lo += sz + sz
-        sz += sz
-
-    return forest, uf.count
-
-def merge_sort(arr):
-    N = len(arr)
-
-    aux = [0] * N
-
-    sz = 1
-
-    def merge(arr, lo, mid, hi):
-        i = lo
-        j = mid + 1
-
-        for k in range(lo, hi+1):
-            aux[k] = arr[k]
-
-        for k in range(lo, j):
-            for l in range(j, hi + 1):
-                lft = aux[k]
-                rgt = aux[l]
-                if lft == rgt:
-                    arr[l] = lft
-
+    total_comps = 0
     while sz < N:
         lo = 0
         while lo < N - sz:
-            print(arr[lo: min(lo+2*sz, N)])
-            merge(arr, lo, lo + sz - 1, min(lo + (2 * sz) - 1, N - 1))
-            lo += sz + sz
-        sz += sz
+            mid = int(math.ceil(lo + sz - 1))
+            hi = min(lo + (2 * sz) - 1, N - 1)
+            j = mid + 1
+            i = lo
+            comps = (hi - mid) * (j - lo)
+            total_comps += comps
+            for _ in range(comps):
+                lft = forest[i]
+                rgt = forest[j]
+                if evl(lft, flush_lookup, unsuited_lookup) == evl(rgt, flush_lookup, unsuited_lookup):
+                    count -= union(idx_arr[i], idx_arr[j], idx_arr, sizes)
+                    # uf.union(lft, rgt, forest)
+                j += 1
+                if j > hi:
+                    # reset j
+                    j = mid + 1
+                    i += 1
+                # j += 1
+                # if j > hi:
+                #     i += 1
+                #     j = mid + 1
+            # for i in range(lo, mid + 1):
+            #     for j in range(mid + 1, hi + 1):
+            #         lft = combos[i]
+            #         rgt = combos[j]
+            #         if evl(lft, lkp_tbl) == evl(rgt, lkp_tbl):
+            #             uf.union(lft, rgt, forest)
+            lo += int(2 * sz)
+        # print(l1, mid, hi)
+        # set the list to compressed version
+        combos = np.unique(combos)
+        cz = len(combos)
+        sz = int(math.ceil(2 * (2 * sz - ((N - cz) * (sz / cz)))) / 2)
+        # sz = sz * 2
+        # print('Compressed to {}% of original size\n'
+        #       'Current size: {}, Initial size: {}\n'
+        #       'Comparisons {}\n'
+        #       'Comparison space {}\n'.format(
+        #     100 * count / init_size,
+        #     count,
+        #     init_size,
+        #     total_comps,
+        #     sz))
+        print(100 * count / init_size, "%\n")
+        total_comps = 0
+        N = cz
+    return forest, count
 
-    return arr
+def river_input(cards):
+    # this function just passes the input to a numba function since combinations
+    # isn't supported
+    flh_lkp, uns_lkp = lookup.create_tables()
+    river(np.array([c for c in combinations(cards, 5)], dtype='int64'), flh_lkp, uns_lkp)
+
 
 def turn(cards):
     pass
 
+
 def flop(cards):
     pass
 
+
 if __name__ == '__main__':
-    river(card.get_deck())
+    river_input(card.get_deck())
