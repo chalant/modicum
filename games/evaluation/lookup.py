@@ -159,7 +159,7 @@ def create_tables():
     rank = MAX_FULL_HOUSE + 1
     for f in flh:
         prime_product = card.prime_product_from_rankbits(f)
-        unsuited_lookup[prime_product] = rank
+        flush_lookup[prime_product] = rank
         rank += 1
 
     # we can reuse these bit sequences for straights

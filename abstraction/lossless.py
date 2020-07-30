@@ -1,11 +1,6 @@
 import math
 from itertools import combinations
 
-
-from collections import OrderedDict
-from orderedset import OrderedSet
-
-from tqdm import tqdm
 import numpy as np
 from numba import typed, njit, types
 
@@ -89,7 +84,7 @@ def union(u, v, forest, sizes):
         return -1
     return 0
 
-@njit
+@njit(nogil=True)
 def river(forest, flush_lookup, unsuited_lookup):
     '''
 
@@ -124,11 +119,14 @@ def river(forest, flush_lookup, unsuited_lookup):
             i = lo
             comps = (hi - mid) * (j - lo)
             total_comps += comps
+            #todo: comparisons takes the most computation, so parallelize it.
             for _ in range(comps):
-                lft = forest[i]
-                rgt = forest[j]
-                if evl(lft, flush_lookup, unsuited_lookup) == evl(rgt, flush_lookup, unsuited_lookup):
-                    count -= union(idx_arr[i], idx_arr[j], idx_arr, sizes)
+                #lookup get the corresponding hand
+                l = combos[i]
+                r = combos[j]
+                if evl(forest[l], flush_lookup, unsuited_lookup) \
+                        == evl(forest[r], flush_lookup, unsuited_lookup):
+                    count += union(l, r, idx_arr, sizes)
                     # uf.union(lft, rgt, forest)
                 j += 1
                 if j > hi:
@@ -148,7 +146,7 @@ def river(forest, flush_lookup, unsuited_lookup):
             lo += int(2 * sz)
         # print(l1, mid, hi)
         # set the list to compressed version
-        combos = np.unique(combos)
+        combos = np.unique(idx_arr)
         cz = len(combos)
         sz = int(math.ceil(2 * (2 * sz - ((N - cz) * (sz / cz)))) / 2)
         # sz = sz * 2
