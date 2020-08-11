@@ -1,10 +1,10 @@
 import numpy as np
 import numba as nb
 
-PRIMES = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41], dtype='int32')
+PRIMES = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41], dtype='uint32')
 INT_RANKS = range(13)
 
-@nb.njit
+@nb.njit(nogil=True)
 def prime_product_from_rankbits(rankbits):
     """
     Returns the prime product using the bitrank (b)
@@ -30,7 +30,7 @@ def prime_product_from_rankbits(rankbits):
 
     return product
 
-@nb.njit
+@nb.njit(nogil=True)
 def prime_product_from_hand(card_ints):
     """
     Expects a list of cards in integer form.

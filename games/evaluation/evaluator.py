@@ -1,12 +1,11 @@
-import itertools
-
 import numba as nb
 
+from utils import combinations
 from games import card
 from games.evaluation import lookup
 
 
-@nb.njit
+@nb.njit(nogil=True)
 def five(cards, flush_lookup, unsuited_lookup):
     """
     Performs an evaluation given cards in integer form, mapping them to
@@ -26,7 +25,7 @@ def five(cards, flush_lookup, unsuited_lookup):
         return unsuited_lookup[prime]
 
 
-@nb.njit
+@nb.njit(nogil=True)
 def six(cards, flush_lookup, unsuited_lookup):
     """
     Performs five_card_eval() on all (6 choose 5) = 6 subsets
@@ -35,9 +34,7 @@ def six(cards, flush_lookup, unsuited_lookup):
     """
     minimum = lookup.MAX_HIGH_CARD
 
-    # todo: this won't work in numba we need to generate combinations
-    all5cardcombobs = itertools.combinations(cards, 5)
-    for combo in all5cardcombobs:
+    for combo in combinations(cards, 5):
 
         score = five(combo, flush_lookup, unsuited_lookup)
         if score < minimum:
@@ -45,8 +42,7 @@ def six(cards, flush_lookup, unsuited_lookup):
 
     return minimum
 
-
-@nb.jit
+@nb.njit(nogil=True)
 def seven(cards, flush_lookup, unsuited_lookup):
     """
     Performs five_card_eval() on all (7 choose 5) = 21 subsets
@@ -56,7 +52,7 @@ def seven(cards, flush_lookup, unsuited_lookup):
     minimum = lookup.MAX_HIGH_CARD
 
     # todo: this won't work in numba we need to generate combinations
-    all5cardcombos = itertools.combinations(cards, 5)
+    all5cardcombos = combinations(cards, 5)
     for combo in all5cardcombos:
 
         score = five(combo, flush_lookup, unsuited_lookup)
@@ -179,7 +175,6 @@ def hand_summary(board, hands):
         # otherwise on all other streets
         else:
             hand_result = class_to_string(get_rank_class(evaluate(hands[winners[0]], board)))
-            print()
             print("{} HAND OVER {}".format(line, line))
             if len(winners) == 1:
                 print("Player {} is the winner with a {}\n".format(winners[0] + 1, hand_result))
