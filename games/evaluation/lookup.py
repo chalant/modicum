@@ -1,6 +1,6 @@
 import itertools
 
-from numba import typed, types
+from numba import typed, types, njit
 
 from games import card
 
@@ -60,7 +60,7 @@ RANK_CLASS_TO_STRING = {
 
 # FLUSH_LOOKUP = typed.Dict.empty(types.int64, types.int32)
 # UNSUITED_LOOKUP = typed.Dict.empty(types.int64, types.int32)
-
+@njit(nogil=True, cache=True)
 def straight_and_highcards(straights, highcards, unsuited_lookup):
     """
     Unique five card sets. Straights and highcards.
@@ -101,10 +101,10 @@ def create_tables():
     xxxbbbbb bbbbbbbb => integer hand index
     """
 
-    flush_lookup = typed.Dict.empty(types.int64, types.int64)
-    unsuited_lookup = typed.Dict.empty(types.int64, types.int64)
+    flush_lookup = typed.Dict.empty(types.uint32, types.uint32)
+    unsuited_lookup = typed.Dict.empty(types.uint32, types.uint32)
     # straight flushes in rank order
-    straight_flushes = [
+    straight_flushes = typed.List([
         7936,  # int('0b1111100000000', 2), # royal flush
         3968,  # int('0b111110000000', 2),
         1984,  # int('0b11111000000', 2),
@@ -115,13 +115,12 @@ def create_tables():
         62,  # int('0b111110', 2),
         31,  # int('0b11111', 2),
         4111  # int('0b1000000001111', 2) # 5 high
-    ]
+    ])
 
     # now we'll dynamically generate all the other
     # flushes (including straight flushes)
-    flh = []
+    flh = typed.List.empty_list(types.uint32)
     gen = get_lexographically_next_bit_sequence(int('0b11111', 2))
-
     # 1277 = number of high cards
     # 1277 + len(str_flushes) is number of hands with all cards unique rank
     for i in range(1277 + len(straight_flushes) - 1):  # we also iterate over SFs
@@ -169,11 +168,12 @@ def create_tables():
     multiples(unsuited_lookup)
     return flush_lookup, unsuited_lookup
 
+
 def multiples(unsuited_lookup):
     """
     Pair, Two Pair, Three of a Kind, Full House, and 4 of a Kind.
     """
-    backwards_ranks = list(range(len(card.INT_RANKS) - 1, -1, -1))
+    backwards_ranks = list(range(len(card.Card.INT_RANKS) - 1, -1, -1))
 
     # 1) Four of a Kind
     rank = MAX_STRAIGHT_FLUSH + 1

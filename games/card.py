@@ -2,9 +2,8 @@ import numpy as np
 import numba as nb
 
 PRIMES = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41], dtype='uint32')
-INT_RANKS = range(13)
 
-@nb.njit(nogil=True)
+@nb.njit(nogil=True, cache=True)
 def prime_product_from_rankbits(rankbits):
     """
     Returns the prime product using the bitrank (b)
@@ -30,7 +29,7 @@ def prime_product_from_rankbits(rankbits):
 
     return product
 
-@nb.njit(nogil=True)
+@nb.njit(nogil=True, cache=True)
 def prime_product_from_hand(card_ints):
     """
     Expects a list of cards in integer form.
@@ -246,8 +245,46 @@ class Card:
 
         return output
 
+@nb.njit(nogil=True, cache=True)
+def new(string, rank_char_to_int, suit_char_to_int):
+    """
+    Converts Card string to binary integer representation of card, inspired by:
+
+    http://www.suffecool.net/poker/evaluator.html
+    """
+
+    rank_char = string[0]
+    suit_char = string[1]
+    rank_int = rank_char_to_int[rank_char]
+    suit_int = suit_char_to_int[suit_char]
+    rank_prime = PRIMES[rank_int]
+
+    bitrank = 1 << rank_int << 16
+    suit = suit_int << 12
+    rank = rank_int << 8
+
+    return bitrank | suit | rank | rank_prime
+
+@nb.njit(nogil=True, cache=True)
 def get_deck():
     # create the standard 52 card deck
+    STR_RANKS = '23456789TJQKA'
+    INT_RANKS = np.array([i for i in range(13)], np.uint32)
+    CHAR_RANK_TO_INT_RANK = nb.typed.Dict.empty(
+        nb.types.string,
+        nb.types.uint32)
+
+    for i, j in zip(list(STR_RANKS), INT_RANKS):
+        CHAR_RANK_TO_INT_RANK[i] = j
+
+    CHAR_SUIT_TO_INT_SUIT = nb.typed.Dict.empty(
+        nb.types.string,
+        nb.types.uint32)
+
+    for i, j in zip(['s', 'h', 'd', 'c'], [1, 2, 4, 8]):
+        CHAR_SUIT_TO_INT_SUIT[i] = j
+
     return np.array(
-        [Card.new(rank + suit) for rank in Card.STR_RANKS
-         for suit, val in Card.CHAR_SUIT_TO_INT_SUIT.items()], dtype='int32')
+        [new(rank + suit, CHAR_RANK_TO_INT_RANK, CHAR_SUIT_TO_INT_SUIT) for rank in STR_RANKS
+         for suit, val in CHAR_SUIT_TO_INT_SUIT.items()],
+        np.uint32)

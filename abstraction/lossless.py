@@ -4,30 +4,30 @@ import time
 from functools import partial
 
 import numpy as np
-from numba import typed, njit, types
+from numba import typed, njit, types, jit
 from scipy import special
 
 from games.evaluation import lookup
 from games.evaluation import evaluator
 from games import card
+
+
 # from utils import combinations
 
-import graph_tool as gt
-from graph_tool import topology
-
-from itertools import combinations
+# import graph_tool as gt
+# from graph_tool import topology
 
 @njit(nogil=True)
 def find(hand, forest):
     hd = hand
-    path = typed.List.empty_list(types.uint64)
-    path.append(hd)
+    # path = typed.List.empty_list(types.uint64)
+    # path.append(hd)
     while hd != forest[hd]:
         hd = forest[hd]
-        path.append(hd)
+        # path.append(hd)
     # link each encountered hand directly to the root
-    for h in path:
-        forest[h] = hd
+    # for h in path:
+    #     forest[h] = hd
     return hd
 
 
@@ -56,6 +56,7 @@ def union(u, v, forest, sizes):
         return -1
     return 0
 
+
 @njit(nogil=True)
 def uni(array):
     dct = typed.Dict.empty(types.uint32, types.uint32)
@@ -64,11 +65,12 @@ def uni(array):
             dct[i] = i
     return dct
 
+
 def map_to_strength(cards):
     flh_lkp, uns_lkp = lookup.create_tables()
     array = np.array([evaluator.five(c, flh_lkp, uns_lkp) for c in combinations(cards, 5)], dtype='uint32')
     press = len(uni(array))
-    print('Compression', 100 * press/special.binom(len(cards),5))
+    print('Compression', 100 * press / special.binom(len(cards), 5))
     print(array)
 
 
@@ -178,6 +180,7 @@ def compress_river(forest, flush_lookup, unsuited_lookup):
 
     return idx_arr
 
+
 def create_river_mapping(cards):
     # this function just passes the input to a numba function since combinations
     # isn't supported
@@ -186,13 +189,11 @@ def create_river_mapping(cards):
     idx = compress_river(array, flh_lkp, uns_lkp)
     return array, idx
 
+
 @njit(nogil=True, cache=True)
 def river_compression(forest, flush_lkp, unsuited_lkp):
     evl = evaluator.five
-
-    s = sorted([1,2,3])
     utilities = np.array([evl(c, flush_lkp, unsuited_lkp) for c in forest], dtype=np.uint32)
-    utilities = np.sort(utilities)
 
     # the index maps a hand to an equivalent hand.
     N = len(forest)
@@ -210,10 +211,57 @@ def river_compression(forest, flush_lkp, unsuited_lkp):
         j += 1
 
     print('Compression', 100 * count / N)
+    print('Count', count)
 
-@njit(nogil=True, cache=True)
+@jit(nogil=True, cache=True, nopython=True)
+def strength_array(hand, cards, flush_lkp, unsuited_lkp):
+    lst = typed.List.empty_list(types.uint32)
+    for c in cards - set(hand):
+        lst.append(c)
+
+    N = len(lst)
+    valid_cards = np.array([[lst[c]] for c in range(N)], np.uint32)
+    hands = np.array([np.concatenate((hand, valid_cards[i])) for i in range(N)], np.uint32)
+    return np.sort(np.array(
+        [evaluator.six(hands[i], flush_lkp, unsuited_lkp)
+         for i in range(N)], np.uint32)), N
+
+@jit(nogil=True, cache=True, nopython=True)
 def turn_compression(forest, flush_lkp, unsuited_lkp):
-    pass
+    cards = set(card.get_deck())
+    evl7 = evaluator.seven
+    for hand in forest:
+        arr, N = strength_array(hand, cards, flush_lkp, unsuited_lkp)
+        i = 0
+        j = 1
+
+        while j < N:
+            u = arr[i]
+            v = arr[j]
+            if u == v:
+                broke = False
+                x = np.array([u], np.uint32)
+                y = np.array([v], np.uint32)
+                for c in set(np.concatenate((
+                        hands[i],
+                        hands[j]))):
+                    c = np.array([c], np.uint32)
+                    h1 = evl7(
+                        np.concatenate((x, c)),
+                        flush_lkp,
+                        unsuited_lkp)
+                    h2 = evl7(
+                        np.concatenate((y, c)),
+                        flush_lkp,
+                        unsuited_lkp)
+                    if h1 != h2:
+                        broke = True
+                        break
+                if not broke:
+                    pass
+            i += 1
+            j += 1
+
 
 def time_it(f, *args):
     t0 = time.time()
@@ -221,85 +269,29 @@ def time_it(f, *args):
     print('Took ', time.time() - t0)
 
 
-def create_turn_mapping(cards):
-    flh_lkp, uns_lkp = lookup.create_tables()
-    riv_arr, riv_idx = create_river_mapping(cards)
-    hands = combinations(cards, 6)
-    turn_idx = np.array([])
-    evl = evaluator.six
-    #flattening doesn't work! returns the same number of cards!
-
-    #for a pair of hands, for every outcome, if is OGI add an edge,
-
-    #from a combination of 6 cards, we can map to a 3-set of 5 cards
-    #if all
-    # compress combinations of 6 cards using 5 cards
-
-    #select a pair of hands (of 5 cards),
-    #create 
-    # sz = 1
-    # N = len(unique(riv_idx, len(riv_idx)))
-    #
-    # while sz < N:
-    #     lo = 0
-    #
-    #     while lo < N - sz:
-    #         mid = lo + sz - 1
-    #         hi = min(lo + (2 * sz) - 1, N - 1)
-    #
-    #         i = lo
-    #         j = mid + 1
-    #         comps = (hi - mid) * (j - lo)
-    #
-    #         for c in range(comps):
-    #             gr = gt.Graph()
-    #             h1 = hands[riv_idx[i]]
-    #             h2 = hands[riv_idx[j]]
-    #
-    #             gr.add_vertex(i)
-    #             gr.add_vertex(j)
-    #
-    #             un = set(h1) | set(h2)
-    #             crd = set(cards) - un
-    #
-    #             broke = False
-    #             for card in crd:
-    #                 print(card)
-    #                 if evl(np.concatenate(h1, card), flh_lkp, uns_lkp) != \
-    #                         evl(np.concatenate(h2, card), flh_lkp, uns_lkp):
-    #                     broke = True
-    #                     break
-    #                     # gr.add_edge(i,j)
-    #
-    #             if not broke:
-    #                 print('Perfect Match!')
-    #                 # match = topology.max_cardinality_matching(gr, edges=True)
-    #
-    #                 # #todo: should we get a perfect match
-    #                 # mth_arr = match.get_array()
-    #                 # if tot == len(match.get_array()):
-    #                 #     if not np.alltrue(mth_arr):
-    #
-    #
-    #         lo = 2 * sz
-
-
 def compress_flop(cards):
     pass
+
+
+@njit
+def test():
+    lst = [1, 2, 3, 4, 5, 6]
+    arr = np.array([lst[i] for i in range(len(lst))])
+    arr1 = np.array([lst[i] for i in range(len(lst))])
+    return np.concatenate((arr, arr1))
 
 
 if __name__ == '__main__':
     # create_turn_mapping(card.get_deck()[0:21])
     a, b = lookup.create_tables()
     # np.array([c for c in combinations(card.get_deck(), 6)], 'uint32')
-
-    #hands are sorted by strength
-    t0 = time.time()
-    # hands = np.array(sorted(
-    #     combinations(card.get_deck(), 5),
-    #     key=partial(evaluator.five, flush_lookup=a, unsuited_lookup=b)),
-    #     'uint32')
-
-    hands = np.array([c for c in combinations(card.get_deck(), 5)], 'uint32')
-    print('Sorting ', time.time() - t0)
+    # # hands are sorted by strength
+    hands = np.array(sorted(
+        combinations(card.get_deck(), 5),
+        key=partial(evaluator.five, flush_lookup=a, unsuited_lookup=b)),
+        'uint32')
     time_it(river_compression, hands, a, b)
+    # # time_it(turn_compression, hands, a, b)
+    # turn_compression(hands, a, b)
+    # time_it(turn_compression, hands, a, b)
+    # print(len(sorted([k for k in b.keys()])), len(sorted([k for k in a.keys()])))

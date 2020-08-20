@@ -51,7 +51,6 @@ def seven(cards, flush_lookup, unsuited_lookup):
     """
     minimum = lookup.MAX_HIGH_CARD
 
-    # todo: this won't work in numba we need to generate combinations
     all5cardcombos = combinations(cards, 5)
     for combo in all5cardcombos:
 
