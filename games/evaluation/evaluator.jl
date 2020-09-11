@@ -23,6 +23,7 @@ function five(
         return unsuited_lookup[prime]
     end
 end
+
 function evaluate(
     hand::Vector{UInt64},
     flush_lookup::Dict{UInt64, UInt64},
@@ -40,8 +41,33 @@ function evaluate(
             if score < minimum
                 minimum = score
             end
+        end
         return minimum
     end
 end
 end
+
+function highest_hand(hand, flush_lookup, unsuited_lookup)
+    """
+    Returns a hand of 5 cards with the highest score
+    """
+
+    h = hand
+    if length(hand) > 5
+        for combo in subsets(hand, 5)
+            score = five(combo, flush_lookup, unsuited_lookup)
+            if score < minimum
+                minimum = score
+                h = combo
+            end
+        end
+    return h
+    end
+end
+
+function ranks(hand, flush_lookup, unsuited_lookup)
+    """
+    Returns the all the rankings of the hand
+    """
+    return [five(c, flush_lookup, unsuited_lookup) for c in subsets(hand, 5)]
 end

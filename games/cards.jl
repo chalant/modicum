@@ -4,6 +4,8 @@ export PRIMES,
     prime_product_from_rankbits,
     get_deck
 
+export pretty_print_cards
+
 const PRIMES = Vector{UInt64}(
     [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41])
 
@@ -64,5 +66,54 @@ function get_deck()
         for rank in str_ranks
             for suit in suits]
     return arr
+end
+
+function pretty_print_cards(cards::Vector{UInt64})
+    pretty_suits = Dict{UInt64,String}(
+        1 => "♠",
+        2 => "♡",
+        4 => "♢",
+        8 => "♣"
+    )
+
+    str_ranks::Vector{String} = [
+        "2","3","4",
+        "5","6","7",
+        "8","9","T",
+        "J","Q","K",
+        "A"]
+
+
+    function int_to_pretty_str(card::UInt64)
+        suit_int = get_suit_int(card)
+        rank_int = get_rank_int(card) + 1
+
+        r = str_ranks[rank_int]
+        s = pretty_suits[suit_int]
+
+        return string(r, s)
+    end
+
+    function get_suit_int(card::UInt64)
+        return (card >> 12) & 0xF
+    end
+
+    function get_rank_int(card::UInt64)
+        return (card >> 8) & 0xF
+    end
+
+    lc = length(cards)
+    output = ""
+
+    for i in 1:lc
+        if i != lc
+            output = string(output, int_to_pretty_str(cards[i]), " ")
+        else
+            output = string(output, int_to_pretty_str(cards[i]))
+        end
+    end
+
+    return output
+
 end
 end

@@ -149,7 +149,9 @@ def compress_river(forest, flush_lookup, unsuited_lookup):
         # combination list
         combos = unique(idx_arr, N)
         cz = len(combos)
+        print("Size")
         sz = math.ceil(2 * (2 * sz - ((N - cz) * (sz / cz)))) / 2
+        print("Size", sz, N, cz, N - cz)
         print('Compressed to ', 100 * count / init_size, '% of original size')
 
         N = cz
@@ -290,7 +292,7 @@ if __name__ == '__main__':
         combinations(card.get_deck(), 5),
         key=partial(evaluator.five, flush_lookup=a, unsuited_lookup=b)),
         'uint32')
-    time_it(river_compression, hands, a, b)
+    time_it(compress_river, hands, a, b)
     # # time_it(turn_compression, hands, a, b)
     # turn_compression(hands, a, b)
     # time_it(turn_compression, hands, a, b)
