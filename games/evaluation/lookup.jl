@@ -235,6 +235,19 @@ function create_lookup_tables()
         flh,
         unsuited_lookup)
     unsuited_lookup = multiples(unsuited_lookup)
-    return flush_lookup, unsuited_lookup
+
+    highest_card_lookup = Dict{UInt64, UInt64}()
+
+    m = MAX_HIGH_CARD
+
+    for hand in subsets(get_deck(), 2)
+        key = prime_product_from_hand(hand)
+        if !haskey(highest_card_lookup, key)
+            highest_card_lookup[key] = m
+            m -= 1
+        end
+    end
+
+    return flush_lookup, unsuited_lookup, highest_card_lookup
 end
 end

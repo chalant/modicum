@@ -128,6 +128,12 @@ version = "1.0.1"
 deps = ["Random", "Serialization", "Sockets"]
 uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
+[[Fire]]
+deps = ["Test"]
+git-tree-sha1 = "e6c17598e29f663cd9dc924b598cfeab6103ce18"
+uuid = "652a1917-b8e5-5d9b-be38-bbf27e56fe44"
+version = "0.1.0"
+
 [[ForwardDiff]]
 deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "NaNMath", "Random", "SpecialFunctions", "StaticArrays"]
 git-tree-sha1 = "1d090099fb82223abc48f7ce176d3f7696ede36d"
