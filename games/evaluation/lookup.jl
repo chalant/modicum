@@ -182,8 +182,6 @@ function multiples(unsuited_lookup)
     return unsuited_lookup
 end
 
-
-
 function create_lookup_tables()
     flush_lookup::Dict{UInt64,UInt64} = Dict()
     unsuited_lookup::Dict{UInt64,UInt64} = Dict()

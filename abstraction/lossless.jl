@@ -10,7 +10,6 @@ using LightGraphsMatching
 using Base.Threads
 using ProgressMeter
 using Mmap
-using Fire
 
 using .evaluator
 using .lookup
@@ -43,58 +42,118 @@ function get_compressed_hands(
     return compressed
 end
 
+function get_hand_index(
+    cards::Vector{UInt64},
+    hand::Vector{UInt64},
+    deck_length::Int64,
+    hand_length::Int64)
+
+    a = binomial(deck_length, hand_length)
+
+    i = 0
+    for h in hand
+        a -= binomial(
+            deck_length - searchsortedfirst(cards, h),
+            hand_length - i)
+        i += 1
+    end
+    return a
+end
+
+function get_absolute_hand_index(
+    cards::Vector{UInt64},
+    hand::Vector{UInt64},
+    deck_length::Int64,
+    hand_length::Int64,
+    chance_card_length::Int64)
+
+    pr_hand = hand[1:2]
+    pl_hand = hand[3:hand_length]
+
+    rel_cards = setdiff(cards, pr_hand)
+    nc = length(cards)
+
+    l = get_hand_index(cards, pr_hand, nc, 2)
+    r = get_hand_index(rel_cards, pl_hand, nc - 2, chance_card_length)
+
+    return (l - 1) * binomial(nc - 2, chance_card_length) + r
+end
+
 function _create_hands_matrix(
     cards::Vector{UInt64},
-    num_hand_cards::Int64,
+    num_chance_cards::Int64,
     round_name::String,
-    dims::Tuple{Int64},
     dir::String)
 
-    println("Creating ", round_name, " hands matrix...")
-
-    io = open(joinpath(dir, "hands_matrix"), "w+")
-
-    matrix = Mmap.mmap(
-        io, Matrix{UInt64},
-        (num_hand_cards, binomial(length(cards), num_hand_cards)))
-
-    @showprogress for (j, h) in enumerate(subsets(cards, num_hand_cards))
-        matrix[:, j] = h
+    function get_size(m::Int64)
+        return 8 * (2 + m)
     end
-    Mmap.sync!(matrix)
-    close(io)
+
+    println("Building " , round_name, " index and hand matrix...")
+
+    dir = joinpath(dir, round_name)
+
+    try
+        mkdir(dir)
+    catch
+    end
+
+    temp_hands = joinpath(dir, "hands.bin")
+
+    hd_io = open(temp_hands, "w+")
+    nc = length(cards)
+
+    if round_name != "pre_flop"
+        m = num_chance_cards + 2
+        n = binomial(nc, 2) * binomial(nc - 2, num_chance_cards)
+        hands = Mmap.mmap(
+            hd_io,
+            Matrix{UInt8},
+            (m,n))
+
+        pos1 = card_position_mappings(cards)
+        leap = binomial(nc - 2, num_chance_cards)
+
+        z = 1
+        @showprogress for hand in subsets(cards, 2)
+            idx1 = get_hand_index(hand, cards, pos1, nc, 2)
+            cards2 = setdiff(cards, hand)
+            pos2 = card_position_mappings(cards2)
+
+            for board in subsets(cards2, num_chance_cards)
+                idx2 = get_hand_index(
+                    board, cards2,
+                    pos2, nc - 2,
+                    num_chance_cards)
+
+                hands[:, z] = vcat(hand, board)
+                z += 1
+            end
+        end
+    else
+        m = 2
+        n = binomial(nc, 2)
+        hands = Mmap.mmap(hd_io, Matrix{UInt8}, (m, n))
+        @showprogress for (l, h) in enumerate(subsets(cards, 2))
+            hands[:, l] = h
+        end
+    end
+
+    close(hd_io)
+    # close(f)
+    # rm(temp_hands)
 end
 
 function get_equivalent_hand(
     hand::Vector{UInt64},
-    hashes::Vector{UInt64},
+    hands::Vector{UInt64},
     order_index::Vector{UInt64},
-    id_array::Vector{UInt64},
-    index_array::Vector{UInt64},
-    hands_matrix::Matrix{UInt64})
+    index_array::Vector{UInt64})
 
-    hand_id = hash(string(hand))
-
-    idx::UInt64 = 1
-    for h in hashes
-        if hand_id == h
-            break
-        end
-        idx += 1
-    end
-
+    idx = findall(x -> hands[:, x] == hand, 1:size(hands)[2])[1]
     f = find_hand(order_index[idx], index_array)
 
-    i = 1
-    for j in order_index
-        if f == j
-            return hands_matrix[:, i]
-        end
-        i += 1
-    end
-
-    # #return a view of the hands array
-    # return hands_matrix[:, id_array[find_hand(order_index[idx], index_array)]]
+    return hands_matrix[:, findall(x -> x == f, order_index)[0]]
 end
 
 function find_hand(hand::UInt64, forest::Vector{UInt64})
@@ -355,7 +414,6 @@ function compute_ranks_3(
 
     path = joinpath(dir, "ranks.bin")
     temp = joinpath(dir, "ranks_temp.bin")
-    idx = joinpath(dir, "hands_index.bin")
     order_path = joinpath(dir, "order.bin")
 
     cols = 1
@@ -465,7 +523,6 @@ function compute_ranks_3(
         function view_col(index::Int64)
             return view(ranks, :, index)
         end
-        # itspace = _compute_itspace(ranks, Val{2}())
 
         println("Computing order vector")
         perms = Mmap.mmap(orderio, Vector{Int64}, cols)
@@ -473,21 +530,12 @@ function compute_ranks_3(
         for i in 1:cols
             perms[i] = i
         end
-        # vecs = Mmap.mmap(orderio, Array{Int64}, cols)
-        # vecs = map(its->view(ranks, its...), itspace)
 
         sort!(perms, by=view_col)
 
         s_ranks = Mmap.mmap(io, Matrix{Int16}, dms)
 
-        # s_ranks[:, p] = ranks[:, p]
-
         println("Sorting ranks...")
-
-        # @showprogress for (x, its) in zip(p, itspace)
-        #     s_ranks[its...] = vecs[x]
-        # end
-
 
         @showprogress for (i, j) in enumerate(perms)
             s_ranks[:, i] = ranks[:, j]
@@ -496,37 +544,6 @@ function compute_ranks_3(
         Mmap.sync!(s_ranks)
 
         compress_round(s_ranks, round_name, dir)
-
-        println("Building " , round_name, " index and hand matrix...")
-        hd_io = open(idx, "w+")
-        hd_mtxio = open(joinpath(dir, "hands_matrix"), "w+")
-
-        hand_to_idx = Mmap.mmap(hd_io, Matrix{UInt64}, (3, cols))
-        hand_matrix = Mmap.mmap(
-            hd_mtxio,
-            Matrix{UInt64},
-            (pvt, cols))
-
-        if round_name != "pre_flop"
-            z = 1
-            @showprogress for hand in subsets(cards, 2)
-                for board in subsets(setdiff(cards, hand), num_chance_cards)
-                    hd = vcat(hand, board)
-                    hand_to_idx[1, z] = hash(string(hd))
-                    hand_to_idx[2, z] = z
-                    hand_to_idx[3, z] = z
-                    hand_matrix[:, z] = hd
-                    z += 1
-                end
-            end
-        else
-            @showprogress for (l, m) in enumerate(subsets(cards, 2))
-                hand_to_idx[1, l] = hash(string(m))
-                hand_to_idx[2, l] = l
-                hand_to_idx[3, l] = l #id of the hand
-                hand_matrix[:, l] = m
-            end
-        end
 
         println("Re-indexing index matrix...")
         #re-index positions
@@ -539,14 +556,11 @@ function compute_ranks_3(
         Mmap.sync!(hand_to_idx)
         Mmap.sync!(hand_matrix)
 
-        close(hd_mtxio)
         close(tempio)
-        close(hd_io)
         close(orderio)
         close(io)
 
         rm(temp)
-        rm(order_path)
     end
 end
 
@@ -748,10 +762,16 @@ function compress_round(
 
     # display(ranks)
     io = open(joinpath(dir, "compression_index"), "w+")
+    sizes_path = joinpath(dir, "size")
+    sizesio = open(sizes_path, "w+")
 
     num_hands = size(ranks)[2]
-    sizes = ones(UInt64, num_hands)
+    sizes = Mmap.mmap(sizesio, Vector{UInt64}, num_hands)
     index_array = Mmap.mmap(io, Vector{UInt64}, num_hands)
+
+    for i in 1:num_hands
+        sizes[i] = 1
+    end
 
     for i in 1:length(index_array)
         index_array[i] = i
@@ -774,7 +794,10 @@ function compress_round(
     println("Total Compression ", 100 * ct / num_hands)
     println("Number of hands ", ct)
 
+    close(sizesio)
     close(io)
+
+    rm(sizes_path)
 end
 
 function five_hand_compression(
@@ -808,6 +831,7 @@ end
 
 function print_equivalent_hands(
         cards::Vector{UInt64},
+        num_chance_cards::Int64,
         round_name::String,
         hand_size::Int64,
         dir::String)
@@ -815,28 +839,42 @@ function print_equivalent_hands(
 
     dir = joinpath(dir, round_name)
 
-    io = open(joinpath(dir, "hands_index.bin"))
-    io1 = open(joinpath(dir, "hands_matrix"))
     io2 = open(joinpath(dir, "compression_index"))
+    hd_io = open(joinpath(dir, "hands.bin"))
+    orderio = open(joinpath(dir, "order.bin"))
 
-    subs = binomial(50, 3) * binomial(52, 2)
+    nc = length(cards)
 
-    idx_mat = Mmap.mmap(io, Matrix{UInt64}, (subs, 3))
-    hands_mat = Mmap.mmap(io1, Matrix{UInt64}, (5, subs))
-    idx_arr = Mmap.mmap(io2, Vector{UInt64}, subs)
+    if round_name != "pre_flop"
+        subs = binomial(nc - 2, num_chance_cards) * binomial(nc, 2)
 
-    hashes = idx_mat[1, :]
-    orders = idx_mat[2, :]
-    ids = idx_mat[3, :]
+        idx_arr = Mmap.mmap(io2, Vector{UInt64}, subs)
+        hands = Mmap.mmap(hd_io, Matrix{UInt64}, subs)
+        orders = Mmap.mmap(orderio, Vector{UInt64}, subs)
 
-    for hand in subsets(cards, 2)
-        for board in subsets(setdiff(cards, hand), 3)
-            hd = vcat(hand, board)
-            println(
-            pretty_print_cards(hd),", ",
-            pretty_print_cards(get_equivalent_hand(
-                hd, hashes, orders, ids, idx_arr, hands_mat)))
+        for hand in subsets(cards, 2)
+            for board in subsets(setdiff(cards, hand), num_chance_cards)
+                hd = vcat(hand, board)
+                println(
+                pretty_print_cards(hd),", ",
+                pretty_print_cards(
+                    get_equivalent_hand(hd, hands, orders, idx_arr)))
+            end
         end
+    else
+        subs = binomial(nc, 2)
+
+        idx_arr = Mmap.mmap(io2, Vector{UInt64}, subs)
+        hands = Mmap.mmap(hd_io, Matrix{UInt64}, (2, subs))
+        orders = Mmap.mmap(orderio, Vector{UInt64}, subs)
+
+        for hand in subsets(cards, 2)
+            println(
+                pretty_print_cards(hand),", ",
+                pretty_print_cards()
+            )
+        end
+
     end
 
     close(io)
@@ -898,10 +936,9 @@ function compress()
 
     rdn_to_nhd = Dict{String, Int64}(
         "pre_flop" => 2,
-        "flop" => 5,
+        "flop" => 3,
         "turn" => 4,
-        "river" => 7,
-        "test2" => 5
+        "river" => 5
     )
 
     try
@@ -915,13 +952,23 @@ function compress()
     # compute_ranks(cards, a, b, 3, 2, "pre_flop", dir)
     # compute_ranks(cards, a, b, 0, 5, "flop", dir)
     # compute_ranks(cards, a, b, c, 0, 6, "turn", dir)
+    # compute_ranks(cards, a, b, c, 0, 7, "river", dir)
     # compute_ranks_3(cards, a, b, c, 3, "flop", dir)
     # compute_ranks_3(cards, a, b, c, 0, "pre_flop", dir)
     # compute_ranks_3(cards, a, b, c, 4, "turn", dir)
-    compute_ranks_3(cards, a, b, c, 5, "river", dir)
+    # compute_ranks_3(cards, a, b, c, 5, "river", dir)
     # round_name = "flop"
     # print_equivalent_hands(cards, round_name, rdn_to_nhd[round_name], dir)
     # compression_info(cards, rdn_to_nhd[round_name], round_name, dir)
+
+    # round_name = "pre_flop"
+    # _create_hands_matrix(cards, rdn_to_nhd[round_name], round_name, dir)
+    # round_name = "flop"
+    # _create_hands_matrix(cards, rdn_to_nhd[round_name], round_name, dir)
+    # round_name = "turn"
+    # _create_hands_matrix(cards, rdn_to_nhd[round_name], round_name, dir)
+    round_name = "river"
+    # _create_hands_matrix(cards, rdn_to_nhd[round_name], round_name, dir)
 
 end
 

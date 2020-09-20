@@ -2,12 +2,17 @@ module cards
 export PRIMES,
     prime_product_from_hand,
     prime_product_from_rankbits,
-    get_deck
+    get_deck,
+    card_position_mappings
 
 export pretty_print_cards
 
 const PRIMES = Vector{UInt64}(
     [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41])
+
+function card_position_mappings(deck::Vector{UInt64})
+    return Dict{UInt64,Int64}([(j, i) for (i, j) in enumerate(deck)]))
+end
 
 function prime_product_from_rankbits(rankbits::UInt64)
     product::UInt64 = 1
