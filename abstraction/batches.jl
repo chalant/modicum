@@ -1,15 +1,23 @@
 module batches
 
+using HDF5
+
 export Batch
 
 struct Batch
-    array::Vector{Int64}
+    array::Union{UnitRange, Vector, HDF5Dataset}
     length::Int64
     chunk::Int64
 end
 
+struct Packet
+    array::AbstractArray
+    start::Int64
+    finish::Int64
+end
+
 function Base.iterate(batch::Batch)
-    return batch, (1, 0, Int64(ceil(batch.length/batch.chunk)))
+    return iterate(batch, (1, 0, Int64(ceil(batch.length/batch.chunk))))
 end
 
 function Base.iterate(batch::Batch, state::Tuple{Int64,Int64,Int64})
@@ -29,4 +37,9 @@ function Base.iterate(batch::Batch, state::Tuple{Int64,Int64,Int64})
     state = (j, i, itr)
     return res, state
 end
+
+function Base.length(batch::Batch)
+    return Int64(ceil(batch.length/batch.chunk))
+end
+
 end

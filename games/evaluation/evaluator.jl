@@ -42,19 +42,21 @@ function evaluate(
     elseif l > 5 && l < 8
         minimum = lookup.MAX_HIGH_CARD
 
-        i = 0
-        for combo in subsets(vcat(private_cards, board_cards), 5)
+        j = 0
+        for (i, combo) in enumerate(subsets(vcat(private_cards, board_cards), 5))
             score = five(combo, flush_lookup, unsuited_lookup)
             if score < minimum
-                i += 1
+                j = i
                 minimum = score
             end
         end
 
-        if i != 21
+        if j != 21
             return minimum
+        else
+            return hh_lookup[prime_product_from_hand(private_cards) + 91]
         end
-        return hh_lookup[prime_product_from_hand(private_cards)]
+        return minimum
     end
 end
 

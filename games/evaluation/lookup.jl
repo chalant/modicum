@@ -236,13 +236,13 @@ function create_lookup_tables()
 
     highest_card_lookup = Dict{UInt64, UInt64}()
 
-    m = MAX_HIGH_CARD
+    m = MAX_HIGH_CARD + 1
 
     for hand in subsets(get_deck(), 2)
         key = prime_product_from_hand(hand)
         if !haskey(highest_card_lookup, key)
             highest_card_lookup[key] = m
-            m -= 1
+            m += 1
         end
     end
 
