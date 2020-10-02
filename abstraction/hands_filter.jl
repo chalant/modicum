@@ -1,122 +1,88 @@
 module hands_filter
 
-struct Indexer
-    leap::Int64
-    hand_length::Int64
-    private_cards_length::Int64
-    board_cards_length::Int64
-    cards::Vector{UInt64}
-    missing_index::Vector{Int64}
-    deck_length::Int64
+export filter_hand
+export get_filter_data
+export get_indexer
+
+include("../abstraction/hands_indexer.jl")
+
+using JSON
+using Mmap
+using Serialization
+
+using .hands_indexer
+
+struct FilterData
+    compression_index::Vector{UInt32}
+    compressed_hands::Dict{UInt32,Vector{UInt64}}
+    indexer::Indexer
+    index_io::IOStream
+    hands_io::IOStream
 end
 
-function get_indexer(
-        cards::Vector{UInt64},
-        private_cards_length::Int64,
-        board_cards_length::Int64,
-)
-
-    nc = length(cards)
-    return Indexer(
-        binomial(nc - 2, board_cards_length),
-        private_cards_length + board_cards_length,
-        private_cards_length,
-        board_cards_length,
-        cards,
-        Vector{Int64}(undef, private_cards_length),
-        nc
-    )
+function filter_hand(filter_data::FilterData, private_hand::Vector{UInt64})
+    return filter_data.compressed_hands[filter_data.compression_index[
+        get_hand_index(
+            filter_data.indexer,
+            private_hand,
+    )]]
 end
 
-function get_hand_index(
-    indexer::Indexer,
-    hand::Vector{UInt64},
-)
-    deck_length = indexer.deck_length
-    hand_length = indexer.hand_length
-
-    a = binomial(deck_length, hand_length)
-    i = 0
-
-    for h in hand
-        a -=
-            binomial(deck_length - searchsortedfirst(cards, h), hand_length - i)
-        i += 1
-    end
-    return a
-end
-
-function get_hand_index(
-    indexer::Indexer,
-    hand::Vector{UInt64},
-    missing_idx::Vector{Int64},
-)
-
-    deck_length = indexer.deck_length - indexer.private_cards_length
-    hand_length = indexer.hand_length - indexer.private_cards_length
-
-    a = binomial(deck_length, hand_length)
-    i = 0
-    for h in hand
-        f = searchsortedfirst(cards, h)
-
-        for m in missing_idx
-            if f > m
-                f -= 1
-            end
-        end
-
-        a -= binomial(deck_length - f,
-            hand_length - i)
-        i += 1
-    end
-    return a
-end
-
-function get_hand_index(
-    indexer::Indexer,
-    public_hand::Vector{UInt64},
-    missing_index::Vector{Int64},
-    private_hand_index::Int64,
-)
-    return (private_hand_index - 1) * indexer.leap + get_hand_index(
-        indexer,
-        public_hand,
-        missing_index,
-    )
-
-end
-
-function get_hand_index(
-    indexer::Indexer,
+function filter_hand(
+    filter_data::FilterData,
     private_hand::Vector{UInt64},
     public_hand::Vector{UInt64},
-    missing_index::Vector{Int64},
 )
+    return filter_data.compressed_hands[filter_data.compression_index[
+        get_hand_index(
+            filter_data.indexer,
+            private_hand,
+            public_hand,
+    )]]
+end
 
-    a = get_hand_index(indexer, private_hand)
-    missing_index = get_missing_index(
-        indexer.cards,
-        private_hand,
-        indexer.missing_index)
+function get_filter_data(indexer::Indexer, directory::String)
+    f = open(joinpath(directory, "metadata.json"))
+    metadata = JSON.parse(f)
+    close(f)
 
-    return (a - 1) * indexer.leap + get_hand_index(
-        indexer, public_hand, missing_index
+    idx_io = open(joinpath(directory, "compression_index"))
+    hd_io = open(joinpath(directory, "hands.bin"))
+
+    return FilterData(
+        Mmap.mmap(idx_io, Vector{UInt32}, metadata["total_hands"]),
+        deserialize(hd_io),
+        indexer,
+        idx_io,
+        hd_io
     )
 end
 
-function get_missing_index(
+function get_filter_data(
     cards::Vector{UInt64},
-    hand::Vector{UInt64},
-    missing_index::Vector{Int64},
-    hand_length::Int64,
-)
+    private_cards_length::Int64,
+    public_cards_length::Int64,
+    directory::String)
 
-    for i in 1:hand_length
-        # missing_index[2] = searchsortedfirst(cards, hand[1])
-        missing_index[(hand_length - i) + 1] = searchsortedfirst(cards, hand[i])
-    return missing_index
+    f = open(joinpath(directory, "metadata.json"))
+    metadata = JSON.parse(f)
+    close(f)
+
+    idx_io = open(joinpath(directory, "compression_index"))
+    hd_io = open(joinpath(directory, "hands.bin"))
+
+    return FilterData(
+        Mmap.mmap(idx_io, Vector{UInt32}, metadata["total_hands"]),
+        deserialize(hd_io),
+        get_indexer(cards, private_cards_length, public_cards_length),
+        idx_io,
+        hd_io
+    )
 end
 
+function Base.close(filter_data::FilterData)
+    close(filter_data.index_io)
+    close(filter_data.hands_io)
 end
+
 end

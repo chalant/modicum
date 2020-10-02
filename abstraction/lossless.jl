@@ -13,6 +13,7 @@ using ProgressMeter
 using Mmap
 using JSON
 using HDF5
+using Serialization
 
 using .evaluator
 using .lookup
@@ -55,10 +56,8 @@ function _create_hands_matrix(
     println("Building ", round_name, " index and hand matrix...")
 
     hd_io = open(joinpath(dir, "hands.bin"), "w+")
-    permio = open(joinpath(dir, "order.bin"))
     compio = open(joinpath(dir, "compression_index"))
 
-    # mappingsio = open(joinpath(dir, "mappings.bin"), "w+")
     tmp_hd_path = joinpath(dir, "tmp_hands.bin")
     tmp_hdio = open(tmp_hd_path, "w+")
 
@@ -71,96 +70,40 @@ function _create_hands_matrix(
     n = metadata["total_hands"]
     num_chance_cards = metadata["board_cards_length"]
 
-    compr = Mmap.mmap(compio, Vector{UInt64}, n)
-    # hands = Mmap.mmap(hd_io, Matrix{UInt64}, (m, comp_sz))
-    # hands = Matrix{UInt64}(undef, (m, comp_sz))
-    perms = Mmap.mmap(permio, Vector{Int64}, n)
-    # mappings = Mmap.mmap(
-    #     mappingsio,
-    #     Vector{UInt64},
-    #     comp_sz)
-    hands = Dict{Int64, Vector{UInt64}}()
+    compr = Mmap.mmap(compio, Vector{UInt32}, n)
+    hands = Dict{UInt32, Vector{UInt64}}()
     hands_tmp = Mmap.mmap(tmp_hdio, Matrix{UInt64}, (m, n))
 
+    println("Creating temporary hands...")
+
     if round_name != "pre_flop"
-
-        # z = 1
-        # missing_idx = Vector{Int64}(undef, 2)
-        # leap = binomial(nc - 2, num_chance_cards)
-        # indices_path = joinpath(dir, "indices.bin")
-        # indicesio = open(indices_path, "w+")
-        # indices = Mmap.mmap(
-        #     indicesio,
-        #     Matrix{UInt64},
-        #     (2 + num_chance_cards, binomial(nc, 2) * binomial(nc - 2, num_chance_cards)))
-
-        # buffer = Vector{UInt64}(undef, 100000)
-        #
-        # for l in 1:100000
-        #     buffer[l] = perms[l]
-        # end
-
         z = 1
-        println("Creating temporary hands...")
+
         @showprogress for hand in subsets(cards, 2)
             for board in subsets(setdiff(cards, hand), num_chance_cards)
-
-                #if the hand is the root
-                # hands[:, k] = vcat(hand, board)
-                @inbounds hands_tmp[:, z] = vcat(hand, board)
-                # mappings[k] = j
+                hands_tmp[:, z] = vcat(hand, board)
                 z += 1
             end
         end
-
-        println("Compressing hands...")
-        @showprogress for j in distinct(compr)
-            hands[j] = hands_tmp[:, j]
-        end
-
-        rm(tmp_hd_path)
-        # k = 1
-        # # z = 1
-        # println("Compressing hands...")
-        # @showprogress for j in perms
-        #
-        #         #if the hand is the root
-        #         # j = perms[z]
-        #         if compr[j] == j
-        #             # hands[:, k] = vcat(hand, board)
-        #             hands[:, k] = hands_tmp[:, j]
-        #             # mappings[k] = j
-        #             k += 1
-        #         end
-        #         # z += 1
-        # end
-
-        # close(indicesio)
-        # rm(indices_path)
-
     else
-
-        k = 1
         @showprogress for (l, h) in enumerate(subsets(cards, 2))
-            j = UInt64(perms[l])
-            if compr[j] == j
-                hands[:, k] = h
-                mappings[k] = j
-                k += 1
-            end
+            hands_tmp[:, l] = h
         end
     end
 
+    println("Compressing hands...")
+    p = Progress(comp_sz)
+    for j in distinct(compr)
+        hands[j] = hands_tmp[:, j]
+        next!(p)
+    end
+
     serialize(hd_io, hands)
-    # serialize(mappingsio, mappings)
 
     close(hd_io)
-    close(permio)
-    # close(mappingsio)
     close(compio)
-    close(tmp_hands)
-    # close(f)
-    # rm(temp_hands)
+    close(tmp_hdio)
+    rm(tmp_hd_path)
 end
 
 function get_equivalent_hand(
@@ -690,83 +633,11 @@ function compute_ranks_2(
 end
 
 function equal_ranks_array(arr1::Vector{Int16}, arr2::Vector{Int16})
-
-    # for i in 1:length(arr1)
-    #     u = arr1[i]
-    #     v = arr2[i]
-    #     if u != v
-    #         return false
-    #     end
-    # end
-    # return true
-
     if length(setdiff(arr1, arr2)) > 0
         return false
     end
     return true
 
-    # k = 1
-    # l = 1
-    #
-    # while arr1[k] == 0
-    #     k += 1
-    # end
-    #
-    # while arr2[l] == 0
-    #     l += 1
-    # end
-    #
-    # # l1 = length(arr1) - k
-    # # l2 = length(arr2) - l
-    #
-    # # graph = SimpleGraph(l1 + l2)
-    #
-    # # println(k, " ", l, " ", l1, " ", l2)
-    # i = k
-    # j = l
-    #
-    # a = length(arr1)
-    # b = length(arr2)
-    #
-    # while true
-    #
-    #     if (k > a || l > b)
-    #         break
-    #     end
-    #
-    #     u = arr1[k]
-    #     v = arr2[l]
-    #
-    #     if u > v
-    #         l += 1
-    #
-    #     elseif u == v
-    #         # add_edge!(graph, k - i, (l - j) + l1)
-    #         k += 1
-    #         l += 1
-    #
-    #     elseif u < v
-    #         k += 1
-    #     end
-    # end
-    #
-    # if k != l
-    #     return true
-    # else
-    #     return false
-    # end
-    # try
-    #     match = maximum_weight_matching(graph, of)
-    #     # println(match.mate)
-    #     # println(arr1)
-    #     # println(arr2)
-    #     if in(-1, match.mate)
-    #         return false
-    #     end
-    #     return true
-    # catch
-    #     return false
-    # end
 end
 
 function compute_ranks_4(
@@ -791,7 +662,7 @@ function compute_ranks_4(
     path = joinpath(dir, "ranks.bin")
     temp = joinpath(dir, "ranks_temp.bin")
     order_path = joinpath(dir, "order.bin")
-    tmp_order = joinpath(dir, "rev_perm.bin")
+    # tmp_order = joinpath(dir, "rev_perm.bin")
 
     cols = 1
     rows = 1
@@ -811,11 +682,10 @@ function compute_ranks_4(
 
     dms = (rows, cols)
 
-    io = open(path, "w+")
+    # io = open(path, "w+")
     tempio = open(temp, "w+")
     orderio = open(order_path, "w+")
-    tmp_orderio = open(tmp_order, "w+")
-    # ta = table([Int16[] for j in 1:length(hands)]...,)
+    # tmp_orderio = open(tmp_order, "w+")
     ranks = Mmap.mmap(tempio, Matrix{Int16}, dms)
 
     if round_name == "pre_flop"
@@ -861,13 +731,7 @@ function compute_ranks_4(
 
     println("Creating permutation vector...")
     perms = Mmap.mmap(orderio, Vector{UInt32}, cols)
-    rev_perms = Mmap.mmap(tmp_orderio, Vector{UInt32}, cols)
-
-    # fid = h5open("perms.h5", "w")
-    # g = g_create(fid, "perms")
-    # g["perms", "chunk", 1000000] = perms
-    # close(fid)
-    #
+    # rev_perms = Mmap.mmap(tmp_orderio, Vector{UInt32}, cols)
 
     @showprogress for i in 1:cols
         perms[i] = i
@@ -883,7 +747,7 @@ function compute_ranks_4(
     # # g["perms", "chunk", 1000000] = perms
     # batches = Batch(perms, cols, 1000000)
     # println("Number of batches ", length(batches))
-    println("Sorting reverse permutations...")
+    # println("Sorting reverse permutations...")
     # p = Progress(cols)
     # i = 1
     # for batch in batches
@@ -893,27 +757,27 @@ function compute_ranks_4(
     #         next!(p)
     #     end
     # end
-    @showprogress for (i, j) in enumerate(perms)
-        rev_perms[j] = i
-    end
+    # @showprogress for (i, j) in enumerate(perms)
+    #     rev_perms[j] = i
+    # end
     # close(fid)
     # #
-    s_ranks = Mmap.mmap(io, Matrix{Int16}, dms)
+    # s_ranks = Mmap.mmap(io, Matrix{Int16}, dms)
+    # #
+    # println("Sorting ranks...")
     #
-    println("Sorting ranks...")
+    # @showprogress for (i, j) in enumerate(perms)
+    #     s_ranks[:, i] = ranks[:, j]
+    # end
+    #
+    # Mmap.sync!(s_ranks)
 
-    @showprogress for (i, j) in enumerate(perms)
-        s_ranks[:, i] = ranks[:, j]
-    end
-
-    Mmap.sync!(s_ranks)
-
-    compress_round(s_ranks, rev_perms, pvt, ncc, round_name, dir)
+    compress_round(ranks, perms, pvt, ncc, round_name, dir)
 
     close(tempio)
     close(orderio)
-    close(io)
-    close(tmp_orderio)
+    # close(io)
+    # close(tmp_orderio)
 
     # rm(temp)
     # rm(order_path)
@@ -929,8 +793,8 @@ function compress_round(
 
     tmp_path = joinpath(dir, "tmp_compression_index")
     # display(ranks)
-    io = open(joinpath(dir, "compression_index"), "w+")
-    tmp_io = open(tmp_path, "w+")
+    # io = open(joinpath(dir, "compression_index"), "w+")
+    tmp_io = open(joinpath(dir, "compression_index"), "w+")
 
     sizes_path = joinpath(dir, "size")
     sizesio = open(sizes_path, "w+")
@@ -938,7 +802,7 @@ function compress_round(
 
     num_hands = size(ranks)[2]
     sizes = Mmap.mmap(sizesio, Vector{UInt32}, num_hands)
-    index_array = Mmap.mmap(io, Vector{UInt32}, num_hands)
+    # index_array = Mmap.mmap(io, Vector{UInt32}, num_hands)
     tmp_idx_array = Mmap.mmap(tmp_io, Vector{UInt32}, num_hands)
 
     # for i = 1:num_hands
@@ -946,7 +810,7 @@ function compress_round(
     # end
 
     println("Initializing arrays...")
-    @showprogress for i = 1:num_hands
+    @showprogress for i in 1:num_hands
         # index_array[i] = i
         tmp_idx_array[i] = i
         sizes[i] = 1
@@ -959,8 +823,9 @@ function compress_round(
     j::UInt32 = 2
 
     # of = with_optimizer(Clp.Optimizer, LogLevel=0)
-    @showprogress for i = 1:num_hands-1
-        if equal_ranks_array(ranks[:, i], ranks[:, j])
+    @showprogress for i in 1:num_hands-1
+        if equal_ranks_array(ranks[:, permutations[i]],
+            ranks[:, permutations[j]])
             ct += hand_union(k, j, tmp_idx_array, sizes)
         end
         k += 1
@@ -986,10 +851,10 @@ function compress_round(
         empty!(path)
     end
 
-    println("Re-indexing index array")
-    @showprogress for (i, j) in enumerate(permutations)
-        index_array[i] = tmp_idx_array[j]
-    end
+    # println("Re-indexing index array")
+    # @showprogress for (i, j) in enumerate(rev_permutations)
+    #     index_array[i] = tmp_idx_array[j]
+    # end
 
 
     println("Total Compression ", 100 * ct / num_hands)
@@ -1005,7 +870,8 @@ function compress_round(
     end
 
     close(sizesio)
-    close(io)
+    # close(io)
+    close(tmp_io)
 
     # rm(tmp_path)
     rm(sizes_path)
@@ -1145,10 +1011,10 @@ function compress()
     a, b, c = create_lookup_tables()
     cards = get_deck()
 
-    # dir = "/media/yves/Data/lossless_test"
+    dir = "/media/yves/Data/lossless_test"
     # dir = "/media/yves/Data/ranks"
     # dir = "/media/yves/Data/lossless_1"
-    dir = "/home/yves/PycharmProjects/hermes"
+    # dir = "/home/yves/PycharmProjects/hermes"
     # dir = "/media/yves/Data/lossless_test1"
 
     rdn_to_nhd = Dict{String,Int64}(
@@ -1180,9 +1046,9 @@ function compress()
     # compute_ranks_3(cards, a, b, c, 0, "pre_flop", dir)
     # compute_ranks_4(cards, a, b, c, 3, "flop", dir)
     # compute_ranks_3(cards, a, b, c, 4, "turn", dir)
-    compute_ranks_4(cards, a, b, c, 5, "river", dir)
-    # dir = joinpath(dir, "river")
-    # _create_hands_matrix(cards, "river", dir)
+    # compute_ranks_4(cards, a, b, c, 5, "river", dir)
+    dir = joinpath(dir, "river")
+    _create_hands_matrix(cards, "river", dir)
     # round_name = "pre_flop"
     # _create_hands_matrix(cards, rdn_to_nhd[round_name], round_name, dir)
     # round_name = "flop"

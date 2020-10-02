@@ -21,6 +21,7 @@ Examples:
 module lookup
 
 export create_lookup_tables
+export highest_card_score
 
 include("../cards.jl")
 using .cards
@@ -182,6 +183,17 @@ function multiples(unsuited_lookup)
     return unsuited_lookup
 end
 
+function highest_card_score(hand::Vector{UInt64})
+    h1 = prime_product_from_hand(hand[1])
+    h2 = prime_product_from_hand(hand[2])
+    if h1 >= h2
+        value = h1*10 + h2
+    else
+        value = h2*10 + h1
+    end
+    return MAX_HIGH_CARD + (1326 - value)
+end
+
 function create_lookup_tables()
     flush_lookup::Dict{UInt64,UInt64} = Dict()
     unsuited_lookup::Dict{UInt64,UInt64} = Dict()
@@ -236,15 +248,14 @@ function create_lookup_tables()
 
     highest_card_lookup = Dict{UInt64, UInt64}()
 
-    m = MAX_HIGH_CARD + 1
-
-    for hand in subsets(get_deck(), 2)
-        key = prime_product_from_hand(hand)
-        if !haskey(highest_card_lookup, key)
-            highest_card_lookup[key] = m
-            m += 1
-        end
-    end
+    # m = MAX_HIGH_CARD
+    # highest_card_key(hand)
+    # for hand in subsets(get_deck(), 2)
+    #     if !haskey(highest_card_lookup, highest_card_score(hand))
+    #         highest_card_lookup[key] = m
+    #         m -= 1
+    #     end
+    # end
 
     return flush_lookup, unsuited_lookup, highest_card_lookup
 end

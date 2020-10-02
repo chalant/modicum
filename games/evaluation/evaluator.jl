@@ -54,9 +54,11 @@ function evaluate(
         if j != 21
             return minimum
         else
-            return hh_lookup[prime_product_from_hand(private_cards) + 91]
+            #if the best hand that does not include the private cards,
+            #the highest hand wins
+            return highest_card_score(private_cards)
         end
-        return minimum
+        # return minimum
     end
 end
 
