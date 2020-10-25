@@ -20,6 +20,10 @@ struct FilterData
     hands_io::IOStream
 end
 
+struct FilterState
+
+end
+
 function filter_hand(filter_data::FilterData, private_hand::Vector{UInt64})
     return filter_data.compressed_hands[filter_data.compression_index[
         get_hand_index(

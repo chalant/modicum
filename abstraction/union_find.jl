@@ -38,12 +38,6 @@ function hand_union(
         end
         return -1
     end
-
-    # if l != r
-    #     idx_array[l] = r
-    #     return -1
-    # end
-
     return 0
 end
 

@@ -20,8 +20,9 @@ Examples:
 """
 module lookup
 
-export create_lookup_tables
+export create_lookup_table
 export highest_card_score
+export LookupTables
 
 include("../cards.jl")
 using .cards
@@ -194,9 +195,13 @@ function highest_card_score(hand::Vector{UInt64})
     return MAX_HIGH_CARD + (1326 - value)
 end
 
-function create_lookup_tables()
-    flush_lookup::Dict{UInt64,UInt64} = Dict()
-    unsuited_lookup::Dict{UInt64,UInt64} = Dict()
+mutable struct LookupTables
+    flush::Dict{UInt64,UInt64}
+    unsuited::Dict{UInt64,UInt64}
+end
+
+function create_lookup_table()
+    lkp = LookupTables(Dict(), Dict())
 
     straight_flushes::Array{UInt64,1} = [
         7936,  # royal flush
@@ -228,7 +233,7 @@ function create_lookup_tables()
     rank = UInt64(1)
     for sf in straight_flushes
         prime_product = prime_product_from_rankbits(sf)
-        flush_lookup[prime_product] = rank
+        lkp.flush[prime_product] = rank
         rank += 1
     end
 
@@ -237,16 +242,15 @@ function create_lookup_tables()
     rank = MAX_FULL_HOUSE + 1
     for f in flh
         prime_product = prime_product_from_rankbits(f)
-        flush_lookup[prime_product] = rank
+        lkp.flush[prime_product] = rank
         rank += 1
     end
-    unsuited_lookup = straight_and_highcards(
+
+    lkp.unsuited = straight_and_highcards(
         straight_flushes,
         flh,
-        unsuited_lookup)
-    unsuited_lookup = multiples(unsuited_lookup)
-
-    highest_card_lookup = Dict{UInt64, UInt64}()
+        lkp.unsuited)
+    lkp.unsuited = multiples(lkp.unsuited)
 
     # m = MAX_HIGH_CARD
     # highest_card_key(hand)
@@ -257,6 +261,6 @@ function create_lookup_tables()
     #     end
     # end
 
-    return flush_lookup, unsuited_lookup, highest_card_lookup
+    return lkp
 end
 end

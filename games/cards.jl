@@ -23,6 +23,7 @@ const str_ranks = Vector{String}([
     "K",
     "A",
 ])
+
 const char_rank_to_int_rank =
     Dict{String,UInt64}(zip(str_ranks, [i for i = 0:12]))
 const suits = Vector{String}(["s", "h", "d", "c"])
