@@ -24,9 +24,13 @@ export create_lookup_table
 export highest_card_score
 export LookupTables
 
+export MAX_RANK
+
 include("../cards.jl")
-using .cards
+
 using IterTools
+
+using .cards
 
 const MAX_STRAIGHT_FLUSH = UInt64(10)
 const MAX_FOUR_OF_A_KIND = UInt64(166)
@@ -37,6 +41,7 @@ const MAX_THREE_OF_A_KIND = UInt64(2467)
 const MAX_TWO_PAIR = UInt64(3325)
 const MAX_PAIR = UInt64(6185)
 const MAX_HIGH_CARD = UInt64(7462)
+const MAX_RANK = 7462
 
 const MAX_TO_RANK_CLASS = Dict{UInt64,UInt64}(
     MAX_STRAIGHT_FLUSH => 1,

@@ -46,14 +46,14 @@ const ACTION_SET1 = Tuple{Vararg{Int8}}([CALL_ID, FOLD_ID, RAISE_ID, ALL_ID])
 const ACTION_SET2 = Tuple{Vararg{Int8}}([CHECK_ID, BET_ID, ALL_ID])
 const ACTION_SET3 = Tuple{Vararg{Int8}}([CHECK_ID, RAISE_ID, ALL_ID])
 
-const AFTER_CALL = ACTION_SET1
+const AFTER_CALL = Tuple{Vararg{Int8}}([CALL_ID, FOLD_ID, CHECK_ID, RAISE_ID, ALL_ID])
 const AFTER_RAISE = ACTION_SET1
 const AFTER_CHECK = ACTION_SET2
 const AFTER_BET = ACTION_SET1
-const AFTER_FOLD = ACTION_SET1
+const AFTER_FOLD = AFTER_CALL
 const AFTER_CHANCE = ACTION_SET2
 const AFTER_BB = ACTION_SET1
-const AFTER_ALL = Tuple{Vararg{Int8}}([CALL_ID, FOLD_ID])
+const AFTER_ALL = Tuple{Vararg{Int8}}([CALL_ID, FOLD_ID, CHECK_ID, ALL_ID])
 const AFTER_SB = Tuple{Vararg{Int8}}([BB_ID])
 
 abstract type Action end

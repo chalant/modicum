@@ -2,19 +2,27 @@ module players
 
 export Player
 export PlayerState
+
 export state
+export position
 
 mutable struct PlayerState
     chips::AbstractFloat
     bet::AbstractFloat
+    pot::AbstractFloat
     position::Int
     id::Int
     active::Bool
+    rank::Int
     PlayerState() = new()
 end
 
 struct Player
     id::Int
+end
+
+function position(ps::PlayerState)
+    return ps.position
 end
 
 function Base.:(==)(p1::Player, p2::Player)
@@ -51,6 +59,7 @@ function Base.copy!(p::PlayerState, s::PlayerState)
     p.position = s.position
     p.id = s.id
     p.active = s.active
+    p.rank = s.rank
     return p
 end
 

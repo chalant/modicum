@@ -24,7 +24,7 @@ function message(action::Raise, game::Game)
 end
 
 function message(action::All, game::Game)
-    return string("Play all ", state(game.player, game.players_states).chips)
+    return string("Play all ", chips(game))
 end
 
 function message(action::Fold, game::Game)
@@ -32,9 +32,7 @@ function message(action::Fold, game::Game)
 end
 
 function message(action::Call, game::Game)
-    return string(
-        "Call ",
-        amount(action, game, state(game.player, game.players_states)))
+    return string("Call ", amount(action, game, game.player))
 end
 
 function message(action::Bet, game::Game)
@@ -134,17 +132,25 @@ function random_action(game::Game)
     return sample(viewactions(game), game.actions_mask)
 end
 
-function turn(g::Game, state::Ended)
-    # wait for player input (yes/no)
-    if choice("Continue ?") == true
-        update!(g, state)
-        start!(g)
-    else
-        return false
+function cont(g::Game, s::Terminated)
+    if choice("New game ?") == true
+        start!(g, s)
+        return true
     end
+    return false
 end
 
-function turn(g::Game, state::Started)
+function cont(g::Game, s::Ended)
+    # wait for player input (y/n)
+    # update!(g, s)
+    if choice("Continue ?") == true
+        start!(g, s)
+        return true
+    end
+    return false
+end
+
+function cont(g::Game, s::Started)
     # update!(g, state)
     return true
 end
@@ -155,7 +161,6 @@ function play()
         GAME = game(SETUP, SHARED)
 
         shuffle!(DECK)
-        shuffle!(SHARED.players_queue)
 
         #user player
         player = selectplayer(GAME)
@@ -163,31 +168,27 @@ function play()
         initplayersstate!(GAME)
         start!(GAME)
 
-        println("Players order: ", SHARED.players_queue)
-        println("Dealer: ", last(SHARED.players_queue))
-
         while true
             pl = GAME.player
             if pl == player
                 #display available actions and wait for user input
                 println("Your Turn")
                 println(
-                    "Public cards: ", pretty_print_cards(SHARED.public_cards),
-                    "Private cards: ", pretty_print_cards(privatecards(player, SHARED)),
-                    "Pot: ", GAME.pot_size)
-                st = perform!(
-                        choose_action(GAME, setup(GAME).actions),
-                        GAME,
-                        state(pl, GAME.players_states))
+                    "Public cards: ",
+                    pretty_print_cards(SHARED.public_cards),
+                    " Private cards: ",
+                    pretty_print_cards(privatecards(player, SHARED)),
+                    " Pot: ",
+                    GAME.pot_size)
+                st = perform!(choose_action(GAME, setup(GAME).actions), GAME, pl)
             else
                 act = sample(setup(GAME).actions, GAME.actions_mask)
-                println("Player ", pl, ": ", message(act, GAME))
-                st = perform!(act, GAME, state(pl, GAME.players_states))
+                println("Player", pl.id, ": ", message(act, GAME))
+                st = perform!(act, GAME, pl)
             end
             # if it is not the players turn, perform random moves until it is
             # the users turn, display available actions, then wait for input
-            GAME.state = st
-            if turn(GAME, st) == false
+            if cont(GAME, update!(GAME, st)) == false
                 break
             end
         end

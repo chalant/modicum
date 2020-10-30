@@ -2,12 +2,15 @@ module games
 
 export Game
 export GameState
-export Started
-export Ended
 export SharedData
 export GameSetup
-export game
 
+export Initializing
+export Started
+export Ended
+export Terminated
+
+export game
 export setup
 export shared
 export bigblind
@@ -15,12 +18,13 @@ export smallblind
 export update!
 export privatecards
 export viewactions
+export chips
 
 using Reexport
 using Random
 
-include("../games/players.jl")
-include("../games/actions.jl")
+include("players.jl")
+include("actions.jl")
 
 @reexport using .actions
 @reexport using .players
@@ -35,6 +39,7 @@ struct GameSetup
     num_public_cards::Int
     num_players::Int
     num_rounds::Int
+    chips::Int
 end
 
 #mutable shared data
@@ -58,11 +63,15 @@ end
 struct Ended <: GameState
 end
 
+struct Terminated <: GameState
+end
+
 mutable struct Game
     state::GameState
     initializing::Initializing
     started::Started
     ended::Ended
+    terminated::Terminated
 
     setup::GameSetup
     shared::SharedData
@@ -70,18 +79,20 @@ mutable struct Game
     action::Action
     actions_mask::BitArray
 
-    deck_cursor::Int
-
-    player::Player
-    active_players::Int
+    player::PlayerState
     players_states::Vector{PlayerState}
 
+    deck_cursor::Int
+    active_players::Int # players that have not folded
     round::Int
     position::Int
     pot_size::Float32
     last_bet::Float32
     num_actions::Int
     turns::Int
+    all_in::Int # players that went all-in (cumulative)
+    r_all_in::Int # player that went all-in during current round
+
 
     Game() = new()
 end
@@ -109,21 +120,24 @@ function shared(setup::GameSetup, deck::Vector{UInt64})
     )
 end
 
-function game(setup::GameSetup, shared_data::SharedData)
+function game(setup::GameSetup, data::SharedData)
     g = Game()
     g.state = INIT
     g.started = STARTED
     g.ended = ENDED
     g.setup = setup
-    g.shared = shared_data
+    g.shared = data
 
-    states = Vector{PlayerState}(undef, length(shared_data.players_queue))
+    states = Vector{PlayerState}(undef, length(data.players_queue))
 
-    for (i, pl) in enumerate(shared_data.players_queue)
+    i = 1
+    for pl in data.players_queue
         ps = PlayerState()
         ps.id = pl.id
         ps.active = true
+        ps.rank = Int16(7463)
         states[i] = ps
+        i += 1
     end
 
     g.players_states = states
@@ -138,7 +152,8 @@ function setup(
     num_private_cards::Int,
     num_public_cards::Int,
     num_players::Int,
-    num_rounds::Int
+    num_rounds::Int,
+    chips::Int=1000,
 )
     sort!(actions)
     return GameSetup(
@@ -148,7 +163,8 @@ function setup(
         num_private_cards,
         num_public_cards,
         num_players,
-        num_rounds
+        num_rounds,
+        chips
     )
 end
 
@@ -164,8 +180,21 @@ function privatecards(player::Player, data::SharedData)
     return data.private_cards[player.id]
 end
 
+function privatecards(ps::PlayerState, data::SharedData)
+    return data.private_cards[ps.id]
+end
+
 function publiccards(game::Game)
     return shared(game).public_cards
+end
+
+
+function playerstate(g::Game)
+    return g.player
+end
+
+function chips(g::Game)
+    return playerstate(g).chips
 end
 
 function bigblind(setup::GameSetup)

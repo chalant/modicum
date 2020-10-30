@@ -6,9 +6,12 @@ include("lookup.jl")
 include("../cards.jl")
 
 using IterTools
+using Reexport
 
-using .lookup
+@reexport using .lookup
 using .cards
+
+const lkp = create_lookup_table()
 
 function five(
     hand::Vector{UInt64},
@@ -26,7 +29,7 @@ function five(
     end
 end
 
-function evaluate(
+@inline function evaluate(
     private_cards::Vector{UInt64},
     board_cards::Vector{UInt64},
     flush_lookup::Dict{UInt64, UInt64},
@@ -63,7 +66,14 @@ function evaluate(
         #     return highest_card_score(private_cards)
         # end
         # return minimum
+        return minimum
     end
+end
+
+function evaluate(
+    private_cards::Vector{UInt64},
+    public_cards::Vector{UInt64},)
+    return evaluate(private_cards, public_cards, lkp)
 end
 
 function evaluate(
