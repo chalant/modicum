@@ -7,13 +7,13 @@ export state
 export position
 
 mutable struct PlayerState
-    chips::AbstractFloat
-    bet::AbstractFloat
-    pot::AbstractFloat
-    position::Int
-    id::Int
+    chips::Float16
+    bet::Float16 # player current round bet
+    pot::Float16 # player potential gain in case of a win
+    position::UInt8 # player position
+    id::UInt8 # player id
     active::Bool
-    rank::Int
+    rank::UInt16 # player card rank
     PlayerState() = new()
 end
 
@@ -57,6 +57,7 @@ function Base.copy!(p::PlayerState, s::PlayerState)
     p.chips = s.chips
     p.bet = s.bet
     p.position = s.position
+    p.rposition = s.rposition
     p.id = s.id
     p.active = s.active
     p.rank = s.rank

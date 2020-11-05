@@ -29,7 +29,7 @@ function amount(a::All, g::Game, ps::PlayerState)
 end
 
 function amount(a::Bet, g::Game, ps::PlayerState)
-    return bigblind(g.setup).amount * a.amount
+    return bigblind(g.setup).amount * a.amount + g.last_bet
 end
 
 function amount(a::Blind, g::Game, ps::PlayerState)
@@ -66,7 +66,7 @@ end
 end
 
 @inline function _nextround!(g::Game, ps::PlayerState)
-    _nextround!(g, setup(g), ps)
+    _nextround!(g, g.mode, setup(g), ps)
 end
 
 @inline function _nextround!(g::Game, stp::GameSetup, ps::PlayerState)
@@ -85,13 +85,22 @@ end
 end
 
 function update!(g::Game, action::Action, ps::PlayerState)
+    ap = g.active_players
+    all_in = g.all_in
+    #avoid infinit loop when all players went all-in
     if g.active_players != g.r_all_in + g.all_in
+        lp = ps.position
         ps = nextplayer(g)
         #update actions for next player
         g.num_actions = update!(action, g, ps)
         g.player = ps
         st = g.started
         g.state = st
+        if g.round == 0 && lp >= ap - all_in && g.turn == false
+            # previous player was last =>
+            # mark first turn of pre-flop as complete
+            g.turn = true
+        end
         return st
     else
         return _nextround!(g, ps)
@@ -225,15 +234,19 @@ function perform!(a::Chance, g::Game, ps::PlayerState)
             g.deck_cursor -= 1
         end
         #next player will be player 1
-        g.position = setup(g).num_players
+        # g.position = setup(g).num_players
         updates[round] = true
 
         #reset all bets
         for ps in g.players_states
             ps.bet = 0
         end
+        #reset last bet
+        g.last_bet = 0
     end
-    if g.active_players == 1 || g.r_all_in + g.all_in == g.active_players
+    ap = g.active_players
+    all_in = g.all_in
+    if ap - all_in == 1 || g.r_all_in + all_in == ap
         # all players have played (all-in or call) or all except one have
         # folded
         return _nextround!(g, ps)
@@ -265,10 +278,9 @@ end
 function perform!(a::Check, g::Game, ps::PlayerState)
     #move to chance if we haven't reached the last round
     # if it is the last player that checks => move to next round
-    stp = setup(g)
-    if ps.position >= g.active_players - g.all_in
+    if ps.position >= g.active_players - (g.all_in + g.r_all_in)
         # if the last player checks, move to next round
-        return _nextround!(g, stp, ps)
+        return _nextround!(g, ps)
     end
     return update!(g, a, ps)
 end
@@ -278,6 +290,14 @@ function perform!(a::Fold, g::Game, ps::PlayerState)
     ps.active = false
     g.active_players -= 1
     stp = setup(g)
+
+    # drop relative position by one
+    for p in g.players_states
+        if p.position > ps.position
+            p.position -= 1
+        end
+    end
+
     if g.active_players - g.all_in == 1
         # some players might have went all_in the previous round.
         # => we compute the players that folded during this round
@@ -288,10 +308,13 @@ end
 
 function perform!(a::Call, g::Game, ps::PlayerState)
     bet!(a, g, ps)
-    stp = setup(g)
-    if g.active_players - (g.all_in + g.r_all_in) == 1
+    d = g.active_players - g.all_in
+    if d - g.r_all_in == 1
         # if it is the last player to call and all the other players went all-in
         g.r_all_in += 1 #consider it as an all-in
+        return _nextround!(g, ps)
+    elseif g.turn == true && ps.position >= d
+        # small blind has played and last player to call
         return _nextround!(g, ps)
     end
     return update!(g, a, ps)
@@ -320,24 +343,22 @@ function start!(g::Game, s::Terminated)
     stp = setup(g)
     states = g.players_states
 
-    a = 0
     #re-initialize players states
     for st in states
         p = st.position
         #shift player position by one place to the right
         if p == stp.num_players
-            st.position = p
+            st.position = 1
         else
             st.position += 1
         end
-        #set player with enough chips to active
-        st.chips = stp.chips
+        st.chips = stp.chips # reset chips
         st.active = true
-        a += 1
         st.bet = 0
     end
     #set the number of active players
-    g.active_players = a
+    g.active_players = stp.num_players
+
     start!(g, shared(g))
 end
 
@@ -352,7 +373,7 @@ function start!(g::Game, s::Ended)
         p = st.position
         #shift player position by one place to the right
         if p == stp.num_players
-            st.position = p
+            st.position = 1
         else
             st.position += 1
         end
@@ -371,6 +392,14 @@ function start!(g::Game, s::Ended)
         #set the number of active players
         g.active_players = a
         pushfirst!(g.players_states, pop!(g.players_states))
+        # set relative positions
+        i = 1
+        for st in states
+           if st.active == true
+               st.position = i
+           end
+           i += 1
+        end
         return start!(g, shared(g))
     else
         #game terminates if there is only one player left
@@ -395,8 +424,6 @@ function start!(g::Game, gs::Initializing)
     shuffle!(states)
     println("Dealer ", last(states).id)
     println("Players Order ", [p.id for p in states])
-
-    n = length(states)
 
     #initialize players states
     i = 1
@@ -460,8 +487,9 @@ function start!(g::Game, data::SharedData)
     g.position = 0
     g.all_in = 0
     g.r_all_in = 0
+    g.turn = false #reset smallblind flag
 
-    #get next available player
+    #get next available player from position 0
     st = nextplayer(g)
 
     if stp.num_players == 2
@@ -546,9 +574,9 @@ function _activate(a::Call, g::Game, ps::PlayerState)
 end
 
 function _update!(
-    actions::Tuple{Vararg{Action}},
+    actions::Vector{Action},
     actions_mask::BitArray,
-    ids::Tuple{Vararg{Int8}},
+    ids::Vector{Int8},
     g::Game,
     ps::PlayerState)
 

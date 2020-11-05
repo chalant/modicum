@@ -1,7 +1,6 @@
-include("../games/evaluation/evaluator.jl")
-include("../games/evaluation/lookup.jl")
-include("../games/cards.jl")
-include("../abstraction/hands_filter.jl")
+include("games/evaluation/evaluator.jl")
+include("games/evaluation/lookup.jl")
+include("games/cards.jl")
 
 using IterTools
 using ProgressMeter

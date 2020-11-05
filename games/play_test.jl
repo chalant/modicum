@@ -105,7 +105,7 @@ function availableactions!(game::Game, data::SharedData, stp::GameSetup, out::Ar
 end
 
 function choose_action(game::Game, actions::Tuple{Vararg{Action}})
-    #provide a function for displaying actions names
+    # todo provide a function for displaying actions names
     println("Choose action ")
     #display available actions
     for (i, (act, j)) in enumerate(zip(viewactions(game), game.actions_mask))

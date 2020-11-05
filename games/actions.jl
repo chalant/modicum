@@ -30,82 +30,80 @@ export AFTER_ALL
 export AFTER_SB
 export ACTION_SET3
 
-export update!
+const CALL_ID = UInt8(1)
+const FOLD_ID = UInt8(2)
+const CHECK_ID = UInt8(3)
+const RAISE_ID =  UInt8(4)
+const BET_ID =  UInt8(5)
+const SB_ID =  UInt8(6)
+const BB_ID =  UInt8(7)
+const CHANCE_ID =  UInt8(8)
+const ALL_ID =  UInt8(9)
 
-const CALL_ID = 1
-const FOLD_ID = 2
-const CHECK_ID = 3
-const RAISE_ID = 4
-const BET_ID = 5
-const SB_ID = 6
-const BB_ID = 7
-const CHANCE_ID = 8
-const ALL_ID = 9
+const ACTION_SET1 = Vector{UInt8}([CALL_ID, FOLD_ID, RAISE_ID, ALL_ID])
+const ACTION_SET2 = Vector{UInt8}([FOLD_ID, CHECK_ID, BET_ID, ALL_ID])
+const ACTION_SET3 = Vector{UInt8}([CHECK_ID, RAISE_ID, ALL_ID])
 
-const ACTION_SET1 = Tuple{Vararg{Int8}}([CALL_ID, FOLD_ID, RAISE_ID, ALL_ID])
-const ACTION_SET2 = Tuple{Vararg{Int8}}([CHECK_ID, BET_ID, ALL_ID])
-const ACTION_SET3 = Tuple{Vararg{Int8}}([CHECK_ID, RAISE_ID, ALL_ID])
-
-const AFTER_CALL = Tuple{Vararg{Int8}}([CALL_ID, FOLD_ID, CHECK_ID, RAISE_ID, ALL_ID])
+const AFTER_CALL = Vector{UInt8}([CALL_ID, FOLD_ID, CHECK_ID, RAISE_ID, ALL_ID])
 const AFTER_RAISE = ACTION_SET1
 const AFTER_CHECK = ACTION_SET2
 const AFTER_BET = ACTION_SET1
 const AFTER_FOLD = AFTER_CALL
 const AFTER_CHANCE = ACTION_SET2
 const AFTER_BB = ACTION_SET1
-const AFTER_ALL = Tuple{Vararg{Int8}}([CALL_ID, FOLD_ID, CHECK_ID, ALL_ID])
-const AFTER_SB = Tuple{Vararg{Int8}}([BB_ID])
+const AFTER_ALL = Vector{UInt8}([CALL_ID, FOLD_ID, CHECK_ID, ALL_ID])
+const AFTER_SB = Vector{UInt8}([BB_ID])
 
 abstract type Action end
 abstract type AbstractBet <: Action end
 abstract type Blind <: AbstractBet end
 
 struct Call <: AbstractBet
-    id::Int
+    id::UInt8
     Call() = new(CALL_ID)
 end
 
 struct Fold <: Action
-    id::Int
+    id::UInt8
     Fold() = new(FOLD_ID)
 end
 
 struct Check <: Action
-    id::Int
+    id::UInt8
     Check() = new(CHECK_ID)
 end
 
 struct Chance <: Action
-    id::Int
+    id::UInt8
     Chance() = new(CHANCE_ID)
 end
 
 struct Raise <: AbstractBet
-    id::Int
-    amount::AbstractFloat
+    id::UInt8
+    amount::Float16
     Raise(x::AbstractFloat) = new(RAISE_ID, x)
 end
 
 struct Bet <: AbstractBet
-    id::Int
-    amount::AbstractFloat
+    id::UInt8
+    amount::Float16
     Bet(x::AbstractFloat) = new(BET_ID, x)
 end
 
 struct All <: AbstractBet
-    id::Int
+    id::UInt8
     All() = new(ALL_ID)
 end
 
 struct SmallBlind <: Blind
-    id::Int
-    amount::AbstractFloat
+    id::UInt8
+    amount::Float16
     SmallBlind(x::AbstractFloat) = new(SB_ID, x)
 end
 
 struct BigBlind <: Blind
-    id::Int
-    amount::AbstractFloat
+    id::UInt8
+    amount::Float16
     BigBlind(x::AbstractFloat) = new(BB_ID, x)
 end
 

@@ -3,15 +3,23 @@ module evaluator
 export evaluate
 
 include("lookup.jl")
-include("../cards.jl")
+include("utils/concat.jl")
+include("utils/combinations.jl")
 
 using IterTools
 using Reexport
 
 @reexport using .lookup
-using .cards
 
-const lkp = create_lookup_table()
+const LOOKUP = create_lookup_table()
+#pre-allocate array for concatenation
+const CONCAT = Dict{Int64, Vector{UInt64}}(
+    5 => Vector{UInt64}(undef, 5),
+    6 => Vector{UInt64}(undef, 6),
+    7 => Vector{UInt64}(undef, 7)
+)
+#pre-allocate combinations
+const COMBOS = subsets(UInt64, 5)
 
 function five(
     hand::Vector{UInt64},
@@ -39,17 +47,21 @@ end
     l = length(private_cards) + length(board_cards)
     # @assert l < 8 "Can't evaluate more than 7 cards"
     # @asset l
+    conc = CONCAT[l]
     if l == 5
+        #concatenate in place
+        concatenate!(conc, private_cards, board_cards)
         return five(
-            vcat(private_cards, board_cards),
+            conc,
             flush_lookup,
             unsuited_lookup)
     elseif l > 5 && l < 8
         minimum = lookup.MAX_HIGH_CARD
-
         # j = 0
-        for (i, combo) in enumerate(subsets(vcat(private_cards, board_cards), 5))
-            score = five(combo, flush_lookup, unsuited_lookup)
+        for i in 1:length(COMBOS, l)
+            #concatenate in place
+            concatenate!(conc, private_cards, board_cards)
+            score = five(nextcombo!(conc, COMBOS), flush_lookup, unsuited_lookup)
             if score < minimum
                 # j = i
                 if i != 21
@@ -57,6 +69,7 @@ end
                 end
             end
         end
+        reset!(COMBOS)
 
         # if j != 21
         #     return minimum
@@ -73,7 +86,7 @@ end
 function evaluate(
     private_cards::Vector{UInt64},
     public_cards::Vector{UInt64},)
-    return evaluate(private_cards, public_cards, lkp)
+    return evaluate(private_cards, public_cards, LOOKUP)
 end
 
 function evaluate(
