@@ -7,6 +7,7 @@ using .games
 using .filtering
 
 abstract type Solver end
+abstract type Iterations end
 
 struct CFR <: Solver
 end
@@ -15,6 +16,14 @@ struct MCCFR <: Solver
 end
 
 struct CFRP <: Solver
+end
+
+struct Counter <: Iterations
+    it::UInt64
+end
+
+struct Timer <: Iterations
+    t::UInt64
 end
 
 # todo add compression data to resources folder
@@ -32,8 +41,8 @@ end
 
 function strategy!(n::Node, h::History, g::Game, stp::GameSetup, w::Float32)
     st = n.stg_profile
+    i = 1
     for a in stp.actions
-        i = a.id
         if g.actions_mask[a.id] == 1
             cr = n.cum_regret[i]
             r = cr > 0 ? cr : 0
@@ -45,13 +54,14 @@ function strategy!(n::Node, h::History, g::Game, stp::GameSetup, w::Float32)
         i += 1
     end
 
+    i = 1
     for a in stp.actions
-        i = a.id
         if g.actions_mask[i] == 1
             nr = norm > 0 ? st[i]/norm : 1/g.num_actions
             n.cum_strategy[i] += w * nr
             st[i] = nr
         end
+        i += 1
     end
 
     return st
@@ -61,26 +71,38 @@ function solve(h::History, game::Game, st::GameState, player::Player, p0::Float3
     return solve(h, game, state, p0, p1)
 end
 
-function train(g::Game, iterations::Int)
+function train(g::Game, itr::Counter, util::Float32=0.0)
     stp = setup(g) # game setup
     data = shared(g)
     n = length(stp.actions)
     # root history
     h = History(n, g, zeros(Float32, n))
+    #=println("Dealer ", last(states).id)
+    println("Players Order ", [p.id for p in states])=#
 
     # need average strategy here
     # need average regret here
-    for i in 1:iterations
+    util::Float32 = 0
+    for i in 1:itr.it
+        shuffle!(data.deck)
+        distributecards!(root, stp, data)
         for p in stp.players
-            #initialize game and run solve
-            solve(h, g, start!(g, g.state), player, 1, 1)
+            util += solve(h, g, start!(g), p, 1, 1)
         end
+        putbackcards!(root, stp, data)
     end
 end
 
-function solve(h::History, g::Game, st::Terminated, pl::Player, p0::Float32, p1::Float32)
+function train(g::Game, itr::Timer, util::Float32=0.0)
+    #todo
+end
+
+function solve(h::History, g::Game{Full,U}, st::Terminated, pl::Player, p0::Float32, p1::Float32) where U <: GameMode
     # todo: compute utility
     return
+end
+
+function solve(h::History, g::Game{DepthLimited{T},U}, st::Terminated, pl::Player, p0::Float32, p1::Float32) where {T <: Estimation, U <: GameMode}
 end
 
 # Implementation of solve functions could depend on the type of algorithm (MCsolve, solve+, ...)
@@ -99,10 +121,11 @@ function solve(h::History, g::Game, st::Started, pl::Player, p0::Float32, p1::Fl
 
     # This block could be specialized (to a type of solver )
     # =========================================================================
-    for a in stp.actions
-        i = a.id
+    i = 1
+    ply = g.player
+    for a in viewactions(g, ply)
         #only execute active actions
-        if g.actions_mask[i] == 1
+        if actionsmask(ply)[i] == 1
             # retrieve history associated with the action
             ha = history(h, a.id, utils, n)
             #copy game data to next history node
@@ -122,19 +145,16 @@ function solve(h::History, g::Game, st::Started, pl::Player, p0::Float32, p1::Fl
         end
         i += 1
     end
-    p = pl == g.player ? p1 : p0
+    p = pl == ply ? p1 : p0
     # =========================================================================
 
     # update regrets
+    i = 1
     for a in stp.actions
-        i = a.id
         if g.actions_mask[i] == 1
             info.cum_regret[i] += p * utils[i] - util
         end
+        i += 1
     end
     return util
-end
-
-function solve(h::History, g::Game, state::Initializing, pl::Player, p0::Float32, p1::Float32)
-    throw("Cannot compute unitialized game")
 end

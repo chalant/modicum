@@ -1,5 +1,5 @@
-include("../games/playing.jl")
-include("../games/cards.jl")
+include("games/playing.jl")
+include("games/cards.jl")
 
 using Random
 
@@ -8,12 +8,22 @@ using .cards
 
 const DECK = get_deck()
 const SETUP = setup(
+    Simulation,
     SmallBlind(1.0),
     BigBlind(2.0),
-    [CALL, FOLD, ALL, CHECK,
+    2, 5, 4, 4,
+    [3,1,1],
+    Float32(100))
+
+const ACTS = ActionSet([
+    CALL, FOLD, ALL, CHECK,
     Raise(0.5), Raise(0.75), Raise(1.0),
-    Bet(1.0), Bet(2.0), Bet(3.0)],
-    2, 5, 4, 4)
+    Bet(1.0), Bet(2.0), Bet(3.0)])
+
+# set players actions
+for p in values(SETUP.players)
+    p.actions = ACTS
+end
 
 function message(action::Check, game::Game)
     return string("Check")
@@ -62,7 +72,7 @@ end
 
 function initplayersstate!(game::Game)
     for ps in game.players_states
-        ps.chips = 1000
+        ps.chips = 100
     end
 end
 
@@ -76,12 +86,10 @@ function selectplayer(choices::Vector{Int})
     end
 end
 
-function selectplayer(game::Game)
-    # display players
-    # wait for user input
-    players_queue = shared(game).players_queue
+function selectplayer(gm::Game)
+    players_queue = values(setup(gm).players)
     println("Player selection ")
-    i = selectplayer(sort([pl.id for pl in players_queue]))
+    i = selectplayer(sort(players_queue))
     println("You've chosen player ", i)
 
     for pl in players_queue
@@ -91,7 +99,7 @@ function selectplayer(game::Game)
     end
 end
 
-function availableactions!(game::Game, data::SharedData, stp::GameSetup, out::Array{playing.Action})
+function availableactions!(game::Game, data::SharedData, stp::GameSetup, out::Array{Action})
     actions_mask = data.actions_mask
     acts = stp.actions
 
@@ -134,6 +142,7 @@ end
 
 function cont(g::Game, s::Terminated)
     if choice("New game ?") == true
+        # shuffle and distribute cards
         start!(g, s)
         return true
     end
@@ -144,6 +153,8 @@ function cont(g::Game, s::Ended)
     # wait for player input (y/n)
     # update!(g, s)
     if choice("Continue ?") == true
+        data = shared(g)
+        shuffle!(data.deck)
         start!(g, s)
         return true
     end
@@ -158,10 +169,9 @@ end
 function play()
     if choice("Start game ?") == true
         SHARED = shared(SETUP, DECK)
-        GAME = game(SETUP, SHARED)
+        GAME = game(SETUP, SHARED, Full())
 
         shuffle!(DECK)
-
         #user player
         player = selectplayer(GAME)
 
@@ -182,7 +192,7 @@ function play()
                     GAME.pot_size)
                 st = perform!(choose_action(GAME, setup(GAME).actions), GAME, pl)
             else
-                act = sample(setup(GAME).actions, GAME.actions_mask)
+                act = sample(setup(GAME).actions, actionsmask(pl))
                 println("Player", pl.id, ": ", message(act, GAME))
                 st = perform!(act, GAME, pl)
             end

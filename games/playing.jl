@@ -4,6 +4,9 @@ export perform!
 export start!
 export sample
 export amount
+export initialize!
+export putbackcards!
+export distributecards!
 
 include("games.jl")
 include("evaluation/evaluator.jl")
@@ -20,23 +23,12 @@ function amount(a::Call, g::Game, ps::PlayerState)
     return b >= 0 ? b : 0.0
 end
 
-function amount(a::Raise, g::Game, ps::PlayerState)
-    return g.pot_size * a.amount + g.last_bet
-end
+amount(a::All, g::Game, ps::PlayerState) = ps.chips
+amount(a::Bet, g::Game, ps::PlayerState) = bigblind(g.setup).amount * a.amount + g.last_bet
+amount(a::Blind, g::Game, ps::PlayerState) = a.amount
+amount(a::Raise, g::Game, ps::PlayerState) = g.pot_size * a.amount + g.last_bet
 
-function amount(a::All, g::Game, ps::PlayerState)
-    return ps.chips
-end
-
-function amount(a::Bet, g::Game, ps::PlayerState)
-    return bigblind(g.setup).amount * a.amount + g.last_bet
-end
-
-function amount(a::Blind, g::Game, ps::PlayerState)
-    return a.amount
-end
-
-@inline function bet!(a::All, g::Game, ps::PlayerState)
+function bet!(a::All, g::Game, ps::PlayerState)
     #player might have less chips than the previous bet.
     amt = amount(a, g, ps)
     ps.bet += amt
@@ -52,7 +44,7 @@ end
     ps.pot = g.pot_size
 end
 
-@inline function bet!(amt::AbstractFloat, game::Game, ps::PlayerState)
+function bet!(amt::AbstractFloat, game::Game, ps::PlayerState)
     ps.chips -= amt
     ps.bet += amt
     game.pot_size += amt
@@ -60,19 +52,14 @@ end
     ps.pot = game.pot_size
 end
 
-@inline function bet!(a::AbstractBet, g::Game, ps::PlayerState)
-    #update chips size
-    bet!(amount(a, g, ps), g, ps)
-end
+bet!(a::AbstractBet, g::Game, ps::PlayerState) = bet!(amount(a, g, ps), g, ps)
 
-@inline function _nextround!(g::Game, ps::PlayerState)
-    _nextround!(g, g.mode, setup(g), ps)
-end
+_nextround!(g::Game, ps::PlayerState) = _nextround!(g, setup(g), ps)
 
-@inline function _nextround!(g::Game, stp::GameSetup, ps::PlayerState)
-    # all players went all-in or
+function _nextround!(g::Game, stp::GameSetup, ps::PlayerState)
+    # all players went all-in or checked
     g.round += 1
-    if g.round < stp.num_rounds
+    if g.round < limit(g, stp)
         #store cumulative all-in, reset relative all-in
         g.all_in += g.r_all_in
         g.r_all_in = 0
@@ -107,11 +94,9 @@ function update!(g::Game, action::Action, ps::PlayerState)
     end
 end
 
-function update!(g::Game, gs::GameState)::GameState
-    return g.state
-end
+update!(g::Game, gs::GameState) = g.state
 
-@inline function _nlastround!(g::Game, gs::Ended, stp::GameSetup)
+function _nlastround!(g::Game, gs::Ended, stp::GameSetup)
     # game did not go to the last round => all except one player
     # have folded
     for ps in g.players_states
@@ -142,7 +127,7 @@ end
     return g.state
 end
 
-@inline function _lastround!(g::Game, gs::Ended, stp::GameSetup)
+function _lastround!(g::Game, gs::Ended, stp::GameSetup)
     #called when the game has reached the last round
     data = shared(g)
 
@@ -218,20 +203,15 @@ function update!(g::Game, gs::Ended)::GameState
     end
 end
 
-function perform!(a::Chance, g::Game, ps::PlayerState)
+function perform!(a::Chance, g::Game{Full, U}, ps::PlayerState) where U <: GameMode
     data = shared(g)
     round = g.round
     #update once per round
     updates = data.updates
     if !updates[round]
-        if round == 1
-            for i in 1:3
-                append!(data.public_cards, data.deck[g.deck_cursor])
-                g.deck_cursor -= 1
-            end
-        else
-            append!(data.public_cards, data.deck[g.deck_cursor])
-            g.deck_cursor -= 1
+        for i in setup(g).cards_per_round[round]
+            append!(data.public_cards, pop!(data.deck))
+            data.deck_cursor -= 1
         end
         #next player will be player 1
         # g.position = setup(g).num_players
@@ -255,9 +235,7 @@ function perform!(a::Chance, g::Game, ps::PlayerState)
     return update!(g, a, ps)
 end
 
-function perform!(a::Action, g::Game, ps::PlayerState)
-    return update!(g, a, ps)
-end
+perform!(a::Action, g::Game, ps::PlayerState) = update!(g, a, ps)
 
 function perform!(a::AbstractBet, g::Game, ps::PlayerState)
     bet!(a, g, ps)
@@ -320,14 +298,14 @@ function perform!(a::Call, g::Game, ps::PlayerState)
     return update!(g, a, ps)
 end
 
-@inline function _nextplayer(g::Game, n::Int)
+function _nextplayer(g::Game, n::Int)
     g.position == n ? g.position = 1 : g.position += 1
     # get the state with the corresponding position
     # players are arranged by position
     return g.players_states[g.position]
 end
 
-@inline function nextplayer(g::Game)
+function nextplayer(g::Game)
     stp = setup(g)
     n = stp.num_players
     st = _nextplayer(g, n)
@@ -337,8 +315,10 @@ end
     return st
 end
 
+start!(g::Game) = start!(g, g.state)
+start!(g::Game, gs::Started) = start!(g, shared(g))
+
 function start!(g::Game, s::Terminated)
-    #reactivate all players
     data = shared(g)
     stp = setup(g)
     states = g.players_states
@@ -409,28 +389,21 @@ function start!(g::Game, s::Ended)
     end
 end
 
-function start!(game::Game)
-    return start!(game, game.state)
+function start!(g::Game, st::Initializing)
+    error("Cannot start an unnitialized game!")
 end
 
-function start!(g::Game, gs::Initializing)
-    #called only once
-    data = shared(g)
+function initialize!(g::Game{Simulation}, data::SharedData{Simulation}, stp::GameSetup{Simulation})
+    #initialization function for simulations
     stp = setup(g)
-
-    shuffle!(data.deck)
-
-    states = g.players_states
-    shuffle!(states)
-    println("Dealer ", last(states).id)
-    println("Players Order ", [p.id for p in states])
 
     #initialize players states
     i = 1
-    for st in states
+    for st in g.players_states
         st.position = i
         st.bet = 0
         st.pot = 0
+        st.actions_mask = trues(length(stp.players[st]))
         i += 1
     end
 
@@ -442,43 +415,75 @@ function start!(g::Game, gs::Initializing)
     sort!(states, by=position)
     g.active_players = stp.num_players
     #create actions_mask array
-    g.actions_mask = BitArray(ones(Int, length(stp.actions)))
-    return start!(g, data)
-
+    return start!(g, shared(g))
 end
 
-function start!(g::Game, gs::Started)
-    return start!(g::Game, shared(data))
+function distributecards!(g::Game{RealTime}, stp::GameSetup{RealTime}, data::SharedData{RealTime})
+    #distribute private cards
+    main = stp.main_player
+    for i in 1:stp.num_private_cards
+        for state in g.players_states
+            #only distribute to opponents and active players
+            if main != state && state.active == true
+                privatecards(state, data)[i] = pop!(deck)
+            end
+        end
+    end
 end
 
-function start!(g::Game, data::SharedData)
+function distributecards!(g::Game{Simulation}, stp::GameSetup{Simulation}, data::SharedData{Simulation})
+    #distribute private cards
+    for i in 1:stp.num_private_cards
+        for state in g.players_states
+            if state.active == true
+                privatecards(state, data)[i] = pop!(deck)
+            end
+        end
+    end
+end
+
+function putbackcards!(g::Game{RealTime}, stp::GameSetup{RealTime}, data::SharedData{RealTime})
+    main = stp.main_player
+    for state in g.players_states
+        #only distribute to opponents and active players
+        if main != state && state.active == true
+            append!(deck, privatecards(state, data))
+        end
+    end
+    #remove public cards up until the relative root game round
+    n = stp.card_per_round[g.round] - stp.cards_per_round[data.round]
+    for i in 1:n
+        push!(data.deck, pop!(data.public_cards))
+    end
+end
+
+function putbackcards!(g::Game{Simulation}, stp::GameSetup{Simulation}, data::SharedData{Simulation})
+    for state in g.players_states
+        if state.active == true
+            append!(data.deck, privatecards(state, data))
+        end
+    end
+    append!(data.deck, data.public_cards)
+end
+
+function start!(g::Game{RealTime}, data::SharedData{RealTime})
     deck = data.deck
     n = length(deck)
     stp = setup(g)
 
     states = g.players_states
 
-    #distribute private cards
-    j = 0
-    for i in 1:stp.num_private_cards
-        for state in states
-            privatecards(state, data)[i] = deck[n-j]
-            j += 1
-        end
-    end
-
     #reset tracker array
     updates = data.updates
     for i in 1:length(updates)
         updates[i] = false
     end
+    # reset data from last root game
+    copy!(g, game(dg), data, stp)
+    return g.state
+end
 
-    #clear public cards array
-    empty!(data.public_cards)
-
-    g.deck_cursor = length(deck)
-    g.deck_cursor -= j
-
+function start!(g::Game{Simulation}, data::SharedData{Simulation})
     g.state = g.started
     g.round = 0
     g.last_bet = 0
@@ -494,19 +499,19 @@ function start!(g::Game, data::SharedData)
 
     if stp.num_players == 2
         #first player posts the bigblind
-        perform!(stp.big_blind, g, st)
-        perform!(stp.small_blind, g, g.player)
+        perform!(stp.bb, g, st)
+        perform!(stp.sb, g, g.player)
         # next player to play will be the dealer
         g.position = 1
     else
-        perform!(stp.small_blind, g, st)
-        perform!(stp.big_blind, g, g.player)
+        perform!(stp.sb, g, st)
+        perform!(stp.bb, g, g.player)
     end
 
     return g.state
 end
 
-function sample(a::Tuple{Vararg{Action}}, wv::BitArray)
+function sample(a::ActionSet, wv::BitArray)
     n = length(wv)
     t = rand()
     i = 1
@@ -527,11 +532,11 @@ function sample(a::Tuple{Vararg{Action}}, wv::BitArray)
         end
         i += 1
     end
-    return a[i]
+    return a.actions[i]
 end
 
-function _activate(action::AbstractBet, g::Game, ps::PlayerState)
-    amt = amount(action, g, ps)
+function _activate(act::AbstractBet, g::Game, ps::PlayerState)
+    amt = amount(act, g, ps)
     if amt > ps.chips || amt == 0
         return 0
     end
@@ -574,12 +579,13 @@ function _activate(a::Call, g::Game, ps::PlayerState)
 end
 
 function _update!(
-    actions::Vector{Action},
-    actions_mask::BitArray,
+    acts::ActionSet,
     ids::Vector{Int8},
     g::Game,
     ps::PlayerState)
 
+    actions_mask = ps.actions_mask
+    sort!(acts) # lazy sort
     iid = 1
     ia = 1
     l = length(ids)
@@ -592,12 +598,12 @@ function _update!(
 
     while iid < l + 1
         id = ids[iid]
-        a = actions[ia]
+        a = acts[ia]
 
         #skip elements that are not in available actions
         while id != a.id && ia < n
             ia += 1
-            a = actions[ia]
+            a = acts[ia]
         end
 
         #activate actions
@@ -605,14 +611,14 @@ function _update!(
             actions_mask[ia] = _activate(a, g, ps)
             c += 1
             ia += 1
-            a = actions[ia]
+            a = acts[ia]
         end
 
         iid += 1
     end
 
     #update last element
-    a = actions[ia]
+    a = acts[ia]
     if ids[l] == a.id
         actions_mask[ia] = _activate(a, g, ps)
         c += 1
@@ -621,40 +627,14 @@ function _update!(
     return c
 end
 
-function update!(action::Call, g::Game, ps::PlayerState)
-    return _update!(viewactions(g), g.actions_mask, AFTER_CALL, g, ps)
-end
-
-function update!(action::All, g::Game, ps::PlayerState)
-    return _update!(viewactions(g), g.actions_mask, AFTER_ALL, g, ps)
-end
-
-function update!(action::Fold, g::Game, ps::PlayerState)
-    return _update!(viewactions(g), g.actions_mask, AFTER_FOLD, g, ps)
-end
-
-function update!(action::Raise, g::Game, ps::PlayerState)
-    return _update!(viewactions(g), g.actions_mask, AFTER_RAISE, g, ps)
-end
-
-function update!(action::Bet, g::Game, ps::PlayerState)
-    return _update!(viewactions(g), g.actions_mask, AFTER_BET, g, ps)
-end
-
-function update!(action::Check, g::Game, ps::PlayerState)
-    return _update!(viewactions(g), g.actions_mask, AFTER_CHECK, g, ps)
-end
-
-function update!(action::Chance, g::Game, ps::PlayerState)
-    return _update!(viewactions(g), g.actions_mask, AFTER_CHANCE, g, ps)
-end
-
-function update!(action::BigBlind, g::Game, ps::PlayerState)
-    return _update!(viewactions(g), g.actions_mask, AFTER_BB, g, ps)
-end
-
-function update!(action::SmallBlind, g::Game, ps::PlayerState)
-    return _update!(viewactions(g), g.actions_mask, AFTER_SB, g, ps)
-end
+update!(action::Bet, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_BET, g, ps)
+update!(action::All, g::Game, ps::PlayerState)= _update!(viewactions(g, ps), AFTER_ALL, g, ps)
+update!(action::Call, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_CALL, g, ps)
+update!(action::Fold, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_FOLD, g, ps)
+update!(action::Raise, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_RAISE, g, ps)
+update!(action::Check, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_CHECK, g, ps)
+update!(action::Chance, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_CHANCE, g, ps)
+update!(action::BigBlind, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_BB, g, ps)
+update!(action::SmallBlind, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_SB, g, ps)
 
 end

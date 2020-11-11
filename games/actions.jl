@@ -12,6 +12,7 @@ export Bet
 export All
 export Blind
 export AbstractBet
+export ActionSet
 
 export CALL
 export FOLD
@@ -107,6 +108,13 @@ struct BigBlind <: Blind
     BigBlind(x::AbstractFloat) = new(BB_ID, x)
 end
 
+struct ActionSet
+    actions::Vector{Action}
+    sorted::Bool
+end
+
+ActionSet(acts::Vector{Action}) = ActionSet(acts::Vector{Action}, false)
+
 const CALL = Call()
 const FOLD = Fold()
 const CHECK = Check()
@@ -136,4 +144,31 @@ function Base.isless(a1::AbstractBet, a2::AbstractBet)
     return a1.id < a2.id
 end
 
+function Base.:(<)(p1::Action, p2::Action)
+    return isless(p1, p2)
+end
+
+function Base.sort!(s::ActionSet)
+    if s.sorted != true
+        sort!(s.actions)
+        s.sorted = false
+    end
+end
+
+function Base.push!(s::ActionSet, a::Action)
+    # add element by maintaining order.
+    sort!(s)
+    i = 1
+    for k in s
+        if a < k
+            # insert element in a sorted array
+            insert!(s.actions, i, a)
+        end
+        i += 1
+    end
+end
+
+function Base.iterate(a::ActionSet, i::Int)
+    return iterate(a.actions, i)
+end
 end
