@@ -196,8 +196,10 @@ function play()
                 println("Player", pl.id, ": ", message(act, GAME))
                 st = perform!(act, GAME, pl)
             end
+
             # if it is not the players turn, perform random moves until it is
             # the users turn, display available actions, then wait for input
+
             if cont(GAME, update!(GAME, st)) == false
                 break
             end

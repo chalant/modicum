@@ -50,9 +50,11 @@ end
 struct Simulation <: GameMode
 end
 
-struct RealTime <: GameMode
+struct LiveSimulation <: GameMode
 end
 
+struct Live <: GameMode
+end
 #invariant data (only created once)
 
 # todo: small blind and big blinds can change throughout a game

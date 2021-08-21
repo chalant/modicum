@@ -74,6 +74,7 @@ end
 function update!(g::Game, action::Action, ps::PlayerState)
     ap = g.active_players
     all_in = g.all_in
+
     #avoid infinit loop when all players went all-in
     if g.active_players != g.r_all_in + g.all_in
         lp = ps.position
@@ -309,9 +310,11 @@ function nextplayer(g::Game)
     stp = setup(g)
     n = stp.num_players
     st = _nextplayer(g, n)
+
     while !st.active || st.chips == 0
         st = _nextplayer(g, n)
     end
+
     return st
 end
 
@@ -418,7 +421,11 @@ function initialize!(g::Game{Simulation}, data::SharedData{Simulation}, stp::Gam
     return start!(g, shared(g))
 end
 
-function distributecards!(g::Game{RealTime}, stp::GameSetup{RealTime}, data::SharedData{RealTime})
+function distributecards!(
+    g::Game{LiveSimulation},
+    stp::GameSetup{LiveSimulation},
+    data::SharedData{LiveSimulation})
+
     #distribute private cards
     main = stp.main_player
     for i in 1:stp.num_private_cards
@@ -431,7 +438,11 @@ function distributecards!(g::Game{RealTime}, stp::GameSetup{RealTime}, data::Sha
     end
 end
 
-function distributecards!(g::Game{Simulation}, stp::GameSetup{Simulation}, data::SharedData{Simulation})
+function distributecards!(
+    g::Game{Simulation},
+    stp::GameSetup{Simulation},
+    data::SharedData{Simulation})
+
     #distribute private cards
     for i in 1:stp.num_private_cards
         for state in g.players_states
@@ -442,7 +453,11 @@ function distributecards!(g::Game{Simulation}, stp::GameSetup{Simulation}, data:
     end
 end
 
-function putbackcards!(g::Game{RealTime}, stp::GameSetup{RealTime}, data::SharedData{RealTime})
+function putbackcards!(
+    g::Game{LiveSimulation},
+    stp::GameSetup{LiveSimulation},
+    data::SharedData{LiveSimulation})
+
     main = stp.main_player
     for state in g.players_states
         #only distribute to opponents and active players
@@ -457,7 +472,11 @@ function putbackcards!(g::Game{RealTime}, stp::GameSetup{RealTime}, data::Shared
     end
 end
 
-function putbackcards!(g::Game{Simulation}, stp::GameSetup{Simulation}, data::SharedData{Simulation})
+function putbackcards!(
+    g::Game{Simulation},
+    stp::GameSetup{Simulation},
+    data::SharedData{Simulation})
+
     for state in g.players_states
         if state.active == true
             append!(data.deck, privatecards(state, data))
@@ -466,7 +485,7 @@ function putbackcards!(g::Game{Simulation}, stp::GameSetup{Simulation}, data::Sh
     append!(data.deck, data.public_cards)
 end
 
-function start!(g::Game{RealTime}, data::SharedData{RealTime})
+function start!(g::Game{LiveSimulation}, data::SharedData{LiveSimulation})
     deck = data.deck
     n = length(deck)
     stp = setup(g)

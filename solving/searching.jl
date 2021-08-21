@@ -11,14 +11,17 @@ function search(g::Game, h::History, act::Action, info::Node, p0::Float32, p1::F
     # end of the game but until some depth limit
     stp = setup(g)
     l = stp.num_rounds
+
     if g.round == l - 2
         tp = Full() # solve until the end if only 2 rounds remain
     else
         tp = DepthLimited(g.round + 1)
     end
+
     # create a game in depth limited mode
     # copy shared data to avoid overwriting while solving
     # todo: we also need to remove main player private cards from the deck in the shared data
+
     root = game(setup(g), tp)
     copy!(root, g) # copy current game state (before opponent action)
     profile = info.stg_profile
@@ -41,12 +44,14 @@ function search(g::Game, h::History, act::Action, info::Node, p0::Float32, p1::F
         # we could limit the training by number of iterations or by time.
         # note: if it is time limited, we measure the time it takes to make a single
         # loop on average and predict when to stop.
+
     data = shared(root)
     shuffle!(data.deck)
     distributecards!(root, stp, data)
     for p in stp.players
         util += solve(h, root, start!(root), root.player, p0/s, p1/s)
     end
+
     putbackcards!(root, stp, data)
     #######
 
