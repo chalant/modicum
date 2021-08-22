@@ -4,15 +4,15 @@ export nextcombo!
 export reset!
 export subsets
 
-mutable struct Binomial{T}
+mutable struct Binomial{T<:Union{Signed, Unsigned}}
     cache::Vector{T}
     idx::Vector{Int64}
     k::Int64
-    Binomial{T}() = new()
+    Binomial{T}(cache, idx, k) where {T} = new(cache, idx, k)
 end
 
-function subsets(::Type{T}, k::Int) where {T} <: Any
-    return Binomial{T}(Vector{T}(undef, k), collect(Int64, 1:k))
+function subsets(::Type{T}, k::Int) where T <: Any
+    return Binomial{T}(Vector{T}(undef, k), collect(Int64, 1:k), k)
 end
 
 function Base.length(bn::Binomial, n::Int)

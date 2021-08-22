@@ -15,26 +15,33 @@ export position
 
 abstract type ID end
 
+struct Player <: ID
+    id::UInt8
+    actions::ActionSet
+    position::UInt8
+
+    Player(id, actions, position) = new(id, actions, position)
+end
+
 mutable struct PlayerState <: ID
     chips::Float16
     bet::Float16 # player current round bet
     pot::Float16 # player potential gain in case of a win
-    position::UInt8 # player position
-    id::UInt8 # player id
     active::Bool
     rank::UInt16 # player card rank
     actions_mask::Vector{Bool}
 
+    player:: Player
+
     PlayerState() = new()
 end
 
-mutable struct Player <: ID
-    id::Int
-    acts::ActionSet
+function position(ps::PlayerState)
+    return position(ps.player)
 end
 
-function position(ps::PlayerState)
-    return ps.position
+function position(player::Player)
+    return player.position
 end
 
 function Base.:(==)(p1::Player, p2::Player)
@@ -108,7 +115,7 @@ end
 end
 
 @inline function id(pl::PlayerState)
-    return pl.id
+    return id(pl.player)
 end
 
 function Base.sort!(s::Vector{Player})

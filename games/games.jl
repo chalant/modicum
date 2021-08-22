@@ -9,7 +9,8 @@ export GameType
 export Full
 export DepthLimited
 export Simulation
-export RealTime
+export LiveSimulation
+export Live
 export Estimation
 
 export Initializing
@@ -18,6 +19,7 @@ export Ended
 export Terminated
 
 export game
+export creategame
 export setup
 export shared
 export bigblind
@@ -60,7 +62,7 @@ end
 # todo: small blind and big blinds can change throughout a game
 # move them to the game
 mutable struct GameSetup{T<:GameMode}
-    players::Dict{ID, Player} #list of players
+    players::Dict{ID, Player} #mapping of players
     main_player::Player
 
     sb::SmallBlind
@@ -74,19 +76,7 @@ mutable struct GameSetup{T<:GameMode}
 
     cards_per_round::Vector{UInt8}
 
-    GameSetup{T}() = new()
-end
-
-#mutable shared data
-mutable struct SharedData{T<:GameType, U<:GameMode}
-    #updated once per round
-    deck::Vector{UInt64}
-    public_cards::Vector{UInt64}
-    private_cards::Dict{ID, Vector{UInt64}}
-
-    deck_cursor::UInt8 # tracks position on deck
-    g::Game{T,U} # tracks root game
-    updates::Vector{Bool}
+    GameSetup{T}() where {T<:GameMode} = new()
 end
 
 abstract type GameState end
@@ -103,7 +93,19 @@ end
 struct Terminated <: GameState
 end
 
-struct Game{T<:GameType, U<:GameMode}
+#mutable shared data
+mutable struct SharedData{T<:GameType, U<:GameMode}
+    #updated once per round
+    deck::Vector{UInt64}
+    public_cards::Vector{UInt64}
+    private_cards::Dict{ID, Vector{UInt64}}
+
+    deck_cursor::UInt8 # tracks position on deck
+#     g::Game{T,U}# tracks root game
+    updates::Vector{Bool}
+end
+
+mutable struct Game{T<:GameType, U<:GameMode}
     state::GameState
     initializing::Initializing
     started::Started
@@ -129,7 +131,7 @@ struct Game{T<:GameType, U<:GameMode}
     r_all_in::UInt8 # current round all ins
     turn::Bool # flags if the small blind has played
 
-    Game{T,U}() = new()
+    Game{T,U}() where {T<:GameType, U<:GameMode} = new()
 end
 
 const INIT = Initializing()
@@ -146,7 +148,6 @@ function limit(dl::Full, stp::GameSetup{U}) where {U<:GameMode}
 end
 
 function shared(
-    g::Game{T,U},
     stp::GameSetup{U},
     deck::Vector{UInt64}) where {T<:GameType, U<:GameMode}
 
@@ -155,11 +156,10 @@ function shared(
         Vector{UInt64}(),
         Dict{ID, Vector{UInt64}}([(p, Vector{UInt64}(undef, stp.num_private_cards)) for p in keys(stp.players)]),
         length(deck),
-        g,
         Vector{Bool}([false for _ in 1:stp.num_rounds]))
 end
 
-function game(::Type{U}, gt::T) where {T<:GameType,U<:GameMode}
+function creategame(::Type{U}, data::SharedData{T,U}, stp::GameSetup{U}, gt::T) where {T<:GameType, U<:GameMode}
     g = Game{T,U}()
     g.state = INIT
     g.started = STARTED
@@ -169,14 +169,12 @@ function game(::Type{U}, gt::T) where {T<:GameType,U<:GameMode}
     g.tp = gt
 end
 
-function game(data::SharedData)
-    return data.g
-end
 
-function game(stp::GameSetup{U}, gt::T) where {T <: GameType, U <: GameMode}
+function _creategame(stp::GameSetup{U}, gt::T) where {T <: GameType, U <: GameMode}
     states = Vector{PlayerState}(undef, length(stp.players))
-    g = game(U,gt)
+    g = game(U, stp, gt)
     i = 1
+
     for pl in keys(stp.players)
         ps = PlayerState()
         ps.id = pl
@@ -185,19 +183,30 @@ function game(stp::GameSetup{U}, gt::T) where {T <: GameType, U <: GameMode}
         states[i] = ps
         i += 1
     end
+
     g.players_states = states
+
     return g
 end
 
 
-function game(stp::GameSetup{U}, data::SharedData{T,U}, tp::T) where {T <: GameType, U <: GameMode}
-    g = game(U,gt)
-    g.players_states = game(data).players_states
+function creategame(
+    data::SharedData{T,U},
+    stp::GameSetup{U},
+    players_states::Vector{PlayerState},
+    tp::T) where {T <: GameType, U <: GameMode}
+
+    g = _creategame(U, gt)
+
+    g.players_states = players_states
+
+    g.shared = data
     return g
 end
 
 function setup(
     ::Type{T},
+    players::Vector{Player},
     sb::SmallBlind,
     bb::BigBlind,
     num_private_cards::Int,
@@ -209,14 +218,16 @@ function setup(
 
     stp = GameSetup{T}()
     stp.sb = sb
-    stp.bb = sb
-    stp.t = t
+    stp.bb = bb
     stp.num_private_cards = num_private_cards
     stp.num_public_cards = num_public_cards
     stp.num_players = num_players
     stp.num_rounds = num_rounds
     stp.chips = chips
-    stp.cards_per_round
+    stp.cards_per_round = cards_per_round
+
+    players_dict = Dict{ID, Player}()
+    stp.players = players
 
     return stp
 end

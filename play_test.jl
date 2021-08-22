@@ -6,24 +6,52 @@ using Random
 using .playing
 using .cards
 
+function createplayerstate(player::Player, chips::Float16)
+    ps = PlayerState()
+
+    ps.chips = chips
+    ps.bet = 0
+    ps.active = true
+    ps.player = player
+
+    return ps
+end
+
+function createplayers(
+    num_players::Int64,
+    action_set::ActionSet,
+    chips::Float16)
+
+    players_dict = Dict{ID, Player}()
+    states = Vector{PlayerState}(undef, num_players)
+
+    for p in 0:num_players
+        ply = Player(p, action_set, p)
+        createplayerstate(ply, chips)
+        players_dict[ply] = ply
+        states[p] = states
+    end
+
+    return players_dict
+end
+
 const DECK = get_deck()
-const SETUP = setup(
-    Simulation,
-    SmallBlind(1.0),
-    BigBlind(2.0),
-    2, 5, 4, 4,
-    [3,1,1],
-    Float32(100))
 
 const ACTS = ActionSet([
     CALL, FOLD, ALL, CHECK,
     Raise(0.5), Raise(0.75), Raise(1.0),
     Bet(1.0), Bet(2.0), Bet(3.0)])
 
-# set players actions
-for p in values(SETUP.players)
-    p.actions = ACTS
-end
+const PLAYERS = createplayers(4, ACTS)
+
+const SETUP = setup(
+    Simulation,
+    PLAYERS,
+    SmallBlind(1.0),
+    BigBlind(2.0),
+    2, 5, 4, 4,
+    [UInt8(3), UInt8(1), UInt8(1)],
+    Float32(100))
 
 function message(action::Check, game::Game)
     return string("Check")
@@ -166,17 +194,19 @@ function cont(g::Game, s::Started)
     return true
 end
 
+SHARED = shared(SETUP, DECK)
+GAME = creategame(SHARED, SETUP, Full())
+
 function play()
     if choice("Start game ?") == true
-        SHARED = shared(SETUP, DECK)
-        GAME = game(SETUP, SHARED, Full())
-
         shuffle!(DECK)
         #user player
         player = selectplayer(GAME)
 
         initplayersstate!(GAME)
         start!(GAME)
+
+
 
         while true
             pl = GAME.player

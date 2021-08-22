@@ -3,13 +3,15 @@ module evaluator
 export evaluate
 
 include("lookup.jl")
-include("utils/concat.jl")
-include("utils/combinations.jl")
+include("../../utils/concat.jl")
+include("../../utils/combinations.jl")
 
-using IterTools
+# using IterTools
 using Reexport
 
 @reexport using .lookup
+using .combinations
+using .concat
 
 const LOOKUP = create_lookup_table()
 #pre-allocate array for concatenation

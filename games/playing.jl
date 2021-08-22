@@ -396,7 +396,7 @@ function start!(g::Game, st::Initializing)
     error("Cannot start an unnitialized game!")
 end
 
-function initialize!(g::Game{Simulation}, data::SharedData{Simulation}, stp::GameSetup{Simulation})
+function initialize!(g::Game{T, Simulation}, data::SharedData{T, Simulation}, stp::GameSetup{Simulation}) where T <: GameType
     #initialization function for simulations
     stp = setup(g)
 
@@ -422,9 +422,9 @@ function initialize!(g::Game{Simulation}, data::SharedData{Simulation}, stp::Gam
 end
 
 function distributecards!(
-    g::Game{LiveSimulation},
+    g::Game{T, LiveSimulation},
     stp::GameSetup{LiveSimulation},
-    data::SharedData{LiveSimulation})
+    data::SharedData{T, LiveSimulation}) where T <: GameType
 
     #distribute private cards
     main = stp.main_player
@@ -439,9 +439,9 @@ function distributecards!(
 end
 
 function distributecards!(
-    g::Game{Simulation},
+    g::Game{T, Simulation},
     stp::GameSetup{Simulation},
-    data::SharedData{Simulation})
+    data::SharedData{T, Simulation}) where T <: GameType
 
     #distribute private cards
     for i in 1:stp.num_private_cards
@@ -454,9 +454,9 @@ function distributecards!(
 end
 
 function putbackcards!(
-    g::Game{LiveSimulation},
+    g::Game{T, LiveSimulation},
     stp::GameSetup{LiveSimulation},
-    data::SharedData{LiveSimulation})
+    data::SharedData{T, LiveSimulation}) where T <: GameType
 
     main = stp.main_player
     for state in g.players_states
@@ -473,9 +473,9 @@ function putbackcards!(
 end
 
 function putbackcards!(
-    g::Game{Simulation},
+    g::Game{T, Simulation},
     stp::GameSetup{Simulation},
-    data::SharedData{Simulation})
+    data::SharedData{T, Simulation}) where T <: GameType
 
     for state in g.players_states
         if state.active == true
@@ -485,7 +485,7 @@ function putbackcards!(
     append!(data.deck, data.public_cards)
 end
 
-function start!(g::Game{LiveSimulation}, data::SharedData{LiveSimulation})
+function start!(g::Game{T, LiveSimulation}, data::SharedData{T, LiveSimulation}) where T <: GameType
     deck = data.deck
     n = length(deck)
     stp = setup(g)
@@ -502,7 +502,7 @@ function start!(g::Game{LiveSimulation}, data::SharedData{LiveSimulation})
     return g.state
 end
 
-function start!(g::Game{Simulation}, data::SharedData{Simulation})
+function start!(g::Game{T, Simulation}, data::SharedData{T, Simulation}) where T <: GameType
     g.state = g.started
     g.round = 0
     g.last_bet = 0
