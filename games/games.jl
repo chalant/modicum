@@ -29,6 +29,7 @@ export privatecards
 export viewactions
 export chips
 export limit
+export playerstate
 
 using Reexport
 using Random
@@ -62,7 +63,7 @@ end
 # todo: small blind and big blinds can change throughout a game
 # move them to the game
 mutable struct GameSetup{T<:GameMode}
-    players::Dict{ID, Player} #mapping of players
+    players::Vector{Player} #mapping of players
     main_player::Player
 
     sb::SmallBlind
@@ -73,6 +74,8 @@ mutable struct GameSetup{T<:GameMode}
     num_players::Int
     num_rounds::Int
     chips::Float32
+
+    actions::ActionSet
 
     cards_per_round::Vector{UInt8}
 
@@ -98,11 +101,14 @@ mutable struct SharedData{T<:GameType, U<:GameMode}
     #updated once per round
     deck::Vector{UInt64}
     public_cards::Vector{UInt64}
-    private_cards::Dict{ID, Vector{UInt64}}
+    private_cards::Vector{Vector{UInt64}}
 
     deck_cursor::UInt8 # tracks position on deck
 #     g::Game{T,U}# tracks root game
     updates::Vector{Bool}
+
+    SharedData{T, U}() where {T <: GameType, U <: GameMode} = new()
+
 end
 
 mutable struct Game{T<:GameType, U<:GameMode}
@@ -113,7 +119,7 @@ mutable struct Game{T<:GameType, U<:GameMode}
     terminated::Terminated
 
     setup::GameSetup{U} # game setup (invariant)
-    shared::SharedData # data shared by all games
+    shared::SharedData{T,U} # data shared by all games
 
     action::Action # previous action
     tp::T
@@ -147,66 +153,29 @@ function limit(dl::Full, stp::GameSetup{U}) where {U<:GameMode}
     return stp.num_rounds
 end
 
-function shared(
-    stp::GameSetup{U},
-    deck::Vector{UInt64}) where {T<:GameType, U<:GameMode}
-
-    return SharedData{T,U}(
-        deck,
-        Vector{UInt64}(),
-        Dict{ID, Vector{UInt64}}([(p, Vector{UInt64}(undef, stp.num_private_cards)) for p in keys(stp.players)]),
-        length(deck),
-        Vector{Bool}([false for _ in 1:stp.num_rounds]))
+function limit(game::Game{T, U}, stp::GameSetup{U}) where {T<:GameType, U<:GameMode}
+    return limit(game.tp, stp)
 end
 
-function creategame(::Type{U}, data::SharedData{T,U}, stp::GameSetup{U}, gt::T) where {T<:GameType, U<:GameMode}
+function creategame(
+    data::SharedData{T,U},
+    stp::GameSetup{U},
+    tp::T) where {T <: GameType, U <: GameMode}
+
     g = Game{T,U}()
     g.state = INIT
     g.started = STARTED
     g.ended = ENDED
     g.setup = stp
-    g.shared = data
-    g.tp = gt
-end
-
-
-function _creategame(stp::GameSetup{U}, gt::T) where {T <: GameType, U <: GameMode}
-    states = Vector{PlayerState}(undef, length(stp.players))
-    g = game(U, stp, gt)
-    i = 1
-
-    for pl in keys(stp.players)
-        ps = PlayerState()
-        ps.id = pl
-        ps.active = true
-        ps.rank = Int16(7463)
-        states[i] = ps
-        i += 1
-    end
-
-    g.players_states = states
-
-    return g
-end
-
-
-function creategame(
-    data::SharedData{T,U},
-    stp::GameSetup{U},
-    players_states::Vector{PlayerState},
-    tp::T) where {T <: GameType, U <: GameMode}
-
-    g = _creategame(U, gt)
-
-    g.players_states = players_states
+    g.tp = tp
 
     g.shared = data
+
     return g
 end
 
 function setup(
     ::Type{T},
-    players::Vector{Player},
     sb::SmallBlind,
     bb::BigBlind,
     num_private_cards::Int,
@@ -226,9 +195,6 @@ function setup(
     stp.chips = chips
     stp.cards_per_round = cards_per_round
 
-    players_dict = Dict{ID, Player}()
-    stp.players = players
-
     return stp
 end
 
@@ -237,7 +203,7 @@ setup(game::Game) = game.setup
 shared(game::Game) = game.shared
 
 privatecards(player::Player, data::SharedData) = data.private_cards[player.id]
-privatecards(ps::PlayerState, data::SharedData) = data.private_cards[ps.id]
+privatecards(ps::PlayerState, data::SharedData) = data.private_cards[id(ps)]
 
 publiccards(game::Game) = shared(game).public_cards
 
@@ -245,13 +211,19 @@ playerstate(g::Game) = g.player
 
 chips(g::Game) = playerstate(g).chips
 
-bigblind(setup::GameSetup) = setup.big_blind
+bigblind(setup::GameSetup) = setup.bb
 bigblind(game::Game) = bigblind(game.setup)
 
-smallblind(setup::GameSetup) = setup.small_blind
+smallblind(setup::GameSetup) = setup.sb
 smallblind(game::Game) = smallblind(game.setup)
 
-viewactions(g::Game, ps::PlayerState) = viewactions(setup(g).players[ps.id])
+function viewactions(game::Game{T,U}) where {T <: GameType, U <: GameMode}
+    return setup(game).actions
+end
+
+function viewactions(stp::GameSetup{T}) where T <: GameMode
+    return stp.actions
+end
 
 _copy!(dest::Game, src::Game) = _copy!(dest, src, src.shared, src.setup)
 

@@ -31,6 +31,8 @@ export AFTER_ALL
 export AFTER_SB
 export ACTION_SET3
 
+export viewactions
+
 const CALL_ID = UInt8(1)
 const FOLD_ID = UInt8(2)
 const CHECK_ID = UInt8(3)
@@ -108,7 +110,7 @@ struct BigBlind <: Blind
     BigBlind(x::AbstractFloat) = new(BB_ID, x)
 end
 
-struct ActionSet
+mutable struct ActionSet
     actions::Vector{Action}
     sorted::Bool
 end
@@ -123,6 +125,14 @@ const ALL = All()
 
 function amount(action::AbstractBet)
     return action.amount
+end
+
+function Base.getindex(actions::ActionSet, index::Int)
+    return actions.actions[index]
+end
+
+function Base.length(actions::ActionSet)
+    return length(actions.actions)
 end
 
 function Base.:(==)(p1::Action, p2::Action)
@@ -171,4 +181,13 @@ end
 function Base.iterate(a::ActionSet, i::Int)
     return iterate(a.actions, i)
 end
+
+function Base.iterate(a::ActionSet)
+    return iterate(a, 1)
+end
+
+function viewactions(a::ActionSet)
+    return a.actions
+end
+
 end

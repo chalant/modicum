@@ -77,7 +77,7 @@ function update!(g::Game, action::Action, ps::PlayerState)
 
     #avoid infinit loop when all players went all-in
     if g.active_players != g.r_all_in + g.all_in
-        lp = ps.position
+        lp = position(ps)
         ps = nextplayer(g)
         #update actions for next player
         g.num_actions = update!(action, g, ps)
@@ -137,7 +137,7 @@ function _lastround!(g::Game, gs::Ended, stp::GameSetup)
     #evaluate players hand ranks
     for ps in g.players_states
         if ps.active == true
-            rank = evaluate(data.private_cards[ps.id], data.public_cards)
+            rank = evaluate(data.private_cards[id(ps)], data.public_cards)
             ps.rank = rank
             if rank < best_rk
                 best_rk = rank
@@ -396,26 +396,29 @@ function start!(g::Game, st::Initializing)
     error("Cannot start an unnitialized game!")
 end
 
-function initialize!(g::Game{T, Simulation}, data::SharedData{T, Simulation}, stp::GameSetup{Simulation}) where T <: GameType
+function initialize!(
+    g::Game{T, Simulation},
+    data::SharedData{T, Simulation},
+    stp::GameSetup{Simulation}) where T <: GameType
+
     #initialization function for simulations
     stp = setup(g)
 
     #initialize players states
     i = 1
     for st in g.players_states
-        st.position = i
         st.bet = 0
         st.pot = 0
-        st.actions_mask = trues(length(stp.players[st]))
+        st.actions_mask = trues(length(stp.actions))
         i += 1
     end
 
-    function position(ps::PlayerState)
-        return ps.position
-    end
-
-    #order states by position
-    sort!(states, by=position)
+#     function position(ps::PlayerState)
+#         return position(ps.player)
+#     end
+#
+#     #order states by position
+#     sort!(states, by=position)
     g.active_players = stp.num_players
     #create actions_mask array
     return start!(g, shared(g))
@@ -425,6 +428,8 @@ function distributecards!(
     g::Game{T, LiveSimulation},
     stp::GameSetup{LiveSimulation},
     data::SharedData{T, LiveSimulation}) where T <: GameType
+
+    deck = data.deck
 
     #distribute private cards
     main = stp.main_player
@@ -443,6 +448,7 @@ function distributecards!(
     stp::GameSetup{Simulation},
     data::SharedData{T, Simulation}) where T <: GameType
 
+    deck = data.deck
     #distribute private cards
     for i in 1:stp.num_private_cards
         for state in g.players_states
@@ -503,6 +509,8 @@ function start!(g::Game{T, LiveSimulation}, data::SharedData{T, LiveSimulation})
 end
 
 function start!(g::Game{T, Simulation}, data::SharedData{T, Simulation}) where T <: GameType
+    stp = setup(g)
+
     g.state = g.started
     g.round = 0
     g.last_bet = 0
@@ -530,7 +538,7 @@ function start!(g::Game{T, Simulation}, data::SharedData{T, Simulation}) where T
     return g.state
 end
 
-function sample(a::ActionSet, wv::BitArray)
+function sample(a::ActionSet, wv::Vector{Bool})
     n = length(wv)
     t = rand()
     i = 1
@@ -556,9 +564,11 @@ end
 
 function _activate(act::AbstractBet, g::Game, ps::PlayerState)
     amt = amount(act, g, ps)
+
     if amt > ps.chips || amt == 0
         return 0
     end
+
     return 1
 end
 
@@ -599,9 +609,9 @@ end
 
 function _update!(
     acts::ActionSet,
-    ids::Vector{Int8},
-    g::Game,
-    ps::PlayerState)
+    ids::Vector{UInt8},
+    g::Game{T,U},
+    ps::PlayerState) where {T<:GameType, U<:GameMode}
 
     actions_mask = ps.actions_mask
     sort!(acts) # lazy sort
@@ -610,6 +620,7 @@ function _update!(
     l = length(ids)
     n = length(actions_mask)
     c = 0
+
     #disable all actions
     for i in 1:n
         actions_mask[i] = 0
@@ -646,14 +657,14 @@ function _update!(
     return c
 end
 
-update!(action::Bet, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_BET, g, ps)
-update!(action::All, g::Game, ps::PlayerState)= _update!(viewactions(g, ps), AFTER_ALL, g, ps)
-update!(action::Call, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_CALL, g, ps)
-update!(action::Fold, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_FOLD, g, ps)
-update!(action::Raise, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_RAISE, g, ps)
-update!(action::Check, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_CHECK, g, ps)
-update!(action::Chance, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_CHANCE, g, ps)
-update!(action::BigBlind, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_BB, g, ps)
-update!(action::SmallBlind, g::Game, ps::PlayerState)=_update!(viewactions(g, ps), AFTER_SB, g, ps)
+update!(action::Bet, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_BET, g, ps)
+update!(action::All, g::Game, ps::PlayerState)= _update!(viewactions(g.setup), AFTER_ALL, g, ps)
+update!(action::Call, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_CALL, g, ps)
+update!(action::Fold, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_FOLD, g, ps)
+update!(action::Raise, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_RAISE, g, ps)
+update!(action::Check, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_CHECK, g, ps)
+update!(action::Chance, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_CHANCE, g, ps)
+update!(action::BigBlind, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_BB, g, ps)
+update!(action::SmallBlind, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_SB, g, ps)
 
 end

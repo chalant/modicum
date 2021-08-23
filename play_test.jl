@@ -6,7 +6,7 @@ using Random
 using .playing
 using .cards
 
-function createplayerstate(player::Player, chips::Float16)
+function createplayerstate(player::Player, chips::Float32)
     ps = PlayerState()
 
     ps.chips = chips
@@ -17,22 +17,39 @@ function createplayerstate(player::Player, chips::Float16)
     return ps
 end
 
-function createplayers(
-    num_players::Int64,
-    action_set::ActionSet,
-    chips::Float16)
+function initialize(
+    game::Game{T,U},
+    shared::SharedData{T,U},
+    stp::GameSetup{U},
+    cards_deck::Vector{UInt64},
+    action_set::ActionSet) where {T <: GameType, U <: GameMode}
 
-    players_dict = Dict{ID, Player}()
+    num_players = stp.num_players
+    chips = stp.chips
+
+    players_list = Vector{Player}(undef, num_players)
     states = Vector{PlayerState}(undef, num_players)
+    private_cards = Vector{Vector{UInt64}}(undef, num_players)
 
-    for p in 0:num_players
-        ply = Player(p, action_set, p)
-        createplayerstate(ply, chips)
-        players_dict[ply] = ply
-        states[p] = states
+    for p in 1:num_players
+        ply = Player(p, p)
+        st = createplayerstate(ply, chips)
+        players_list[p] = ply
+        states[p] = st
+        st.rank = Int16(7463)
+        private_cards[p] = Vector{UInt64}(undef, stp.num_private_cards)
     end
 
-    return players_dict
+    stp.players = players_list
+    stp.actions = action_set
+    game.players_states = states
+
+    shared.private_cards = private_cards
+    shared.deck = cards_deck
+    shared.updates = Vector{Bool}([false for _ in 1:stp.num_rounds])
+    shared.public_cards = Vector{UInt64}()
+    shared.deck_cursor = length(cards_deck)
+
 end
 
 const DECK = get_deck()
@@ -42,16 +59,21 @@ const ACTS = ActionSet([
     Raise(0.5), Raise(0.75), Raise(1.0),
     Bet(1.0), Bet(2.0), Bet(3.0)])
 
-const PLAYERS = createplayers(4, ACTS)
 
 const SETUP = setup(
     Simulation,
-    PLAYERS,
     SmallBlind(1.0),
     BigBlind(2.0),
     2, 5, 4, 4,
     [UInt8(3), UInt8(1), UInt8(1)],
-    Float32(100))
+    Float32(1000))
+
+const SHARED = SharedData{Full, Simulation}()
+
+const GAME = creategame(SHARED, SETUP, Full())
+
+#intialize game
+initialize(GAME, SHARED, SETUP, DECK, ACTS)
 
 function message(action::Check, game::Game)
     return string("Check")
@@ -98,14 +120,9 @@ function choice(message::AbstractString)
     end
 end
 
-function initplayersstate!(game::Game)
-    for ps in game.players_states
-        ps.chips = 100
-    end
-end
-
 function selectplayer(choices::Vector{Int})
     println("Select any number ", choices)
+
     try
         return parse(Int, readline())
     catch
@@ -115,9 +132,21 @@ function selectplayer(choices::Vector{Int})
 end
 
 function selectplayer(gm::Game)
-    players_queue = values(setup(gm).players)
+    players_queue = setup(gm).players
+
     println("Player selection ")
-    i = selectplayer(sort(players_queue))
+
+    ids = Vector{Int}(undef, length(players_queue))
+
+    i = 1
+
+    for player in players_queue
+        ids[i] = player.id
+        i += 1
+    end
+
+    i = selectplayer(sort(ids))
+
     println("You've chosen player ", i)
 
     for pl in players_queue
@@ -140,11 +169,13 @@ function availableactions!(game::Game, data::SharedData, stp::GameSetup, out::Ar
     return arr
 end
 
-function choose_action(game::Game, actions::Tuple{Vararg{Action}})
+function choose_action(game::Game, actions::ActionSet)
     # todo provide a function for displaying actions names
     println("Choose action ")
+    ply = playerstate(game)
+
     #display available actions
-    for (i, (act, j)) in enumerate(zip(viewactions(game), game.actions_mask))
+    for (i, (act, j)) in enumerate(zip(viewactions(game), ply.actions_mask))
         if j == 1
             println("Press ", i, " to ", message(act, game))
         end
@@ -194,8 +225,6 @@ function cont(g::Game, s::Started)
     return true
 end
 
-SHARED = shared(SETUP, DECK)
-GAME = creategame(SHARED, SETUP, Full())
 
 function play()
     if choice("Start game ?") == true
@@ -203,13 +232,15 @@ function play()
         #user player
         player = selectplayer(GAME)
 
-        initplayersstate!(GAME)
+        initialize!(GAME, SHARED, SETUP)
+
+        distributecards!(GAME, SETUP, SHARED)
+
         start!(GAME)
-
-
 
         while true
             pl = GAME.player
+
             if pl == player
                 #display available actions and wait for user input
                 println("Your Turn")
@@ -218,12 +249,11 @@ function play()
                     pretty_print_cards(SHARED.public_cards),
                     " Private cards: ",
                     pretty_print_cards(privatecards(player, SHARED)),
-                    " Pot: ",
-                    GAME.pot_size)
+                    " Pot: ", GAME.pot_size)
                 st = perform!(choose_action(GAME, setup(GAME).actions), GAME, pl)
             else
                 act = sample(setup(GAME).actions, actionsmask(pl))
-                println("Player", pl.id, ": ", message(act, GAME))
+                println("Player", id(pl), ": ", message(act, GAME))
                 st = perform!(act, GAME, pl)
             end
 

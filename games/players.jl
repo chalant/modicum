@@ -8,6 +8,10 @@ export Player
 export PlayerState
 export ID
 
+export actionsmask
+export id
+export player
+
 export state
 export position
 
@@ -17,10 +21,9 @@ abstract type ID end
 
 struct Player <: ID
     id::UInt8
-    actions::ActionSet
     position::UInt8
 
-    Player(id, actions, position) = new(id, actions, position)
+    Player(id, position) = new(id, position)
 end
 
 mutable struct PlayerState <: ID
@@ -30,17 +33,18 @@ mutable struct PlayerState <: ID
     active::Bool
     rank::UInt16 # player card rank
     actions_mask::Vector{Bool}
+    position::UInt8
 
     player:: Player
 
     PlayerState() = new()
 end
 
-function position(ps::PlayerState)
-    return position(ps.player)
+function Base.position(ps::PlayerState)
+    return ps.position
 end
 
-function position(player::Player)
+function Base.position(player::Player)
     return player.position
 end
 
@@ -48,18 +52,18 @@ function Base.:(==)(p1::Player, p2::Player)
     return p1.id == p2.id
 end
 
-Base.:(==)(a::ID, b::ID) = a.id == b.id
+Base.:(==)(a::ID, b::ID) = id(a) == id(b)
 
 function Base.:(==)(p1::PlayerState, p2::PlayerState)
-    return p1.id == p2.id
+    return id(p1) == id(p2)
 end
 
 function Base.:(==)(p1::PlayerState, p2::Player)
-    return p1.id == p2.id
+    return id(p1) == p2.id
 end
 
 function Base.:(==)(p1::Player, p2::PlayerState)
-    return p1.id == p2.id
+    return p1.id == id(p2)
 end
 
 function Base.isless(p1::PlayerState, p2::Player)
@@ -128,6 +132,10 @@ end
 
 function state(player::Player, states::Vector{PlayerState})
     return states[searchsortedfirst(states, player)]
+end
+
+function player(state::PlayerState)
+    return state.player
 end
 
 @inline function viewactions(pl::Player)

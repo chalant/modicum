@@ -29,8 +29,9 @@ export MAX_RANK
 include("../cards.jl")
 
 using IterTools
+using Reexport
 
-using .cards
+@reexport using .cards
 
 const MAX_STRAIGHT_FLUSH = UInt64(10)
 const MAX_FOUR_OF_A_KIND = UInt64(166)
@@ -120,6 +121,7 @@ function multiples(unsuited_lookup)
     for i in backwards_ranks
         kickers::Array{UInt64,1} = copy(backwards_ranks)
         filter!(e->e!=i,kickers)
+
         for k in kickers
             product = (PRIMES[i + 1] ^ 4) * PRIMES[k + 1]
             unsuited_lookup[product] = rank
@@ -186,7 +188,9 @@ function multiples(unsuited_lookup)
             rank += 1
         end
     end
+
     return unsuited_lookup
+
 end
 
 function highest_card_score(hand::Vector{UInt64})
