@@ -209,10 +209,10 @@ function cont(g::Game, s::Terminated)
 end
 
 function cont(g::Game, s::Ended)
-    # wait for player input (y/n)
-    # update!(g, s)
     if choice("Continue ?") == true
         data = shared(g)
+        stp = setup(g)
+        putbackcards!(g, stp, data)
         shuffle!(data.deck)
         start!(g, s)
         return true
