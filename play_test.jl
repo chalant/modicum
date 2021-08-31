@@ -37,7 +37,7 @@ function initialize(
         players_list[p] = ply
         states[p] = st
         st.rank = Int16(7463)
-        private_cards[p] = Vector{UInt64}(undef, stp.num_private_cards)
+        private_cards[p] = Vector{UInt64}()
     end
 
     stp.players = players_list
@@ -208,12 +208,67 @@ function cont(g::Game, s::Terminated)
     return false
 end
 
+function activateplayers!(g::Game, stp::GameSetup)
+    states = g.players_states
+    bb = bigblind(stp).amount
+
+    a = 0
+    #re-initialize players states
+    for st in states
+        p = st.position
+        #shift player position by one place to the right
+        if p == stp.num_players
+            st.position = 1
+        else
+            st.position += 1
+        end
+        #set player with enough chips to active
+        if st.chips < bb
+            st.active = false
+        else
+            st.active = true
+            a += 1
+        end
+        st.bet = 0
+        st.pot = 0
+    end
+
+    if a != 1
+        #set the number of active players
+
+        g.active_players = a
+        pushfirst!(g.players_states, pop!(g.players_states))
+
+        # set relative positions
+        i = 1
+        for st in states
+           if st.active == true
+               st.position = i
+           end
+           i += 1
+        end
+
+        println(
+        "Small Blind ", id(g.players_states[1]),
+        " Big Blind ", id(g.players_states[2]))
+
+        println("Last Player ", id(last(g.players_states)))
+
+    else
+        #game terminates if there is only one player left
+        st = g.terminated
+        g.state = st
+    end
+end
+
 function cont(g::Game, s::Ended)
     if choice("Continue ?") == true
         data = shared(g)
         stp = setup(g)
         putbackcards!(g, stp, data)
         shuffle!(data.deck)
+        activateplayers!(g, stp)
+        distributecards!(g, stp, data)
         start!(g, s)
         return true
     end
@@ -225,6 +280,10 @@ function cont(g::Game, s::Started)
     return true
 end
 
+function cont(g::Game, s::Terminated)
+    println("Game Over!")
+    return false
+end
 
 function play()
     if choice("Start game ?") == true

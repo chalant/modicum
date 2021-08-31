@@ -126,6 +126,7 @@ mutable struct Game{T<:GameType, U<:GameMode}
 
     player::PlayerState
     players_states::Vector{PlayerState}
+    bet_player::PlayerState
 
     active_players::UInt8 # players that have not folded
     round::UInt8

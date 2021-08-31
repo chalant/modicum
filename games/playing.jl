@@ -32,6 +32,7 @@ function bet!(a::All, g::Game, ps::PlayerState)
     #player might have less chips than the previous bet.
     amt = amount(a, g, ps)
     ps.bet += amt
+
     if g.last_bet > ps.bet
         lb = g.last_bet
     else
@@ -60,6 +61,7 @@ function _nextround!(g::Game, stp::GameSetup, ps::PlayerState)
     # all players went all-in or checked
     g.round += 1
     if g.round < limit(g, stp)
+        println("Next Round! ", g.round)
         #store cumulative all-in, reset relative all-in
         g.all_in += g.r_all_in
         g.r_all_in = 0
@@ -93,6 +95,7 @@ function update!(g::Game, action::Action, ps::PlayerState)
 
         return st
     else
+        println("Next Round!")
         return _nextround!(g, ps)
     end
 end
@@ -109,7 +112,10 @@ function _nlastround!(g::Game, gs::Ended, stp::GameSetup)
             amt = ps.pot
             ps.chips += amt
             g.pot_size -= amt
-            println("Winner! ", id(ps), " Amount ", amt)
+            println(
+            "Winner! ", id(ps),
+            " Amount ", amt,
+            " Total Chips ", ps.chips)
         end
         ps.pot = 0
     end
@@ -167,7 +173,13 @@ function _lastround!(g::Game, gs::Ended, stp::GameSetup)
             g.pot_size -= amt
             wn += 1
 
-            println("Winner! ", id(ps), " Amount ", amt)
+            println(
+            "Winner! ", id(ps),
+            " Amount ", amt,
+            " Total Chips ", ps.chips,
+            " Cards ", pretty_print_cards(data.private_cards[id(ps)]),
+            " ", pretty_print_cards(data.public_cards)
+            )
 
             if w == wn
                 break
@@ -219,10 +231,6 @@ function perform!(a::Chance, g::Game{Full, U}, ps::PlayerState) where U <: GameM
     #update once per round
     updates = data.updates
 
-#     println("Active Players!!! ", [id(player) for player in g.players_states if player.active == true])
-
-    println("Cards Per Round ", length(data.deck))
-
     if !updates[round]
         for i in 1:setup(g).cards_per_round[round]
             append!(data.public_cards, pop!(data.deck))
@@ -244,7 +252,9 @@ function perform!(a::Chance, g::Game{Full, U}, ps::PlayerState) where U <: GameM
     ap = g.active_players
     all_in = g.all_in
 
-    if ap - all_in == 1 || g.r_all_in + all_in == ap
+#     ap - all_in == 1 || g.r_all_in +
+
+    if g.all_in == g.active_players
         # all players have played (all-in or call) or all went all-in
         return _nextround!(g, ps)
     end
@@ -256,27 +266,37 @@ perform!(a::Action, g::Game, ps::PlayerState) = update!(g, a, ps)
 
 function perform!(a::AbstractBet, g::Game, ps::PlayerState)
     bet!(a, g, ps)
+    g.bet_player = ps
     return update!(g, a, ps)
 end
 
 function perform!(a::All, g::Game, ps::PlayerState)
     bet!(a, g, ps)
+
     # add all-in players
-    g.r_all_in += 1
-    if g.active_players <= g.r_all_in + g.all_in
+#     g.r_all_in += 1
+    g.all_in += 1
+
+    if g.active_players == g.all_in
         # all players went all-in, move to the next round
         return _nextround!(g, ps)
     end
+
     return update!(g, a, ps)
 end
 
 function perform!(a::Check, g::Game, ps::PlayerState)
     #move to chance if we haven't reached the last round
-    # if it is the last player that checks => move to next round
-    if ps.position >= g.active_players - (g.all_in + g.r_all_in)
+#     if it is the last player that checks => move to next round
+    if ps.position >= g.active_players - g.all_in
         # if the last player checks, move to next round
         return _nextround!(g, ps)
+    #if it is the player that has bet last that checks, we move to the next round
+
+#     if g.bet_player == ps
+#         return _nextround!(g, ps)
     end
+
     return update!(g, a, ps)
 end
 
@@ -300,26 +320,32 @@ function perform!(a::Fold, g::Game, ps::PlayerState)
         end
     end
 
-    if g.active_players - g.all_in == 1
-        # some players might have went all_in the previous round.
-        return _nextround!(g, ps)
-    end
+#     if g.active_players - g.all_in == 1
+#         # some players might have went all_in the previous round.
+#         return _nextround!(g, ps)
+#     end
 
     return update!(g, a, ps)
 end
 
 function perform!(a::Call, g::Game, ps::PlayerState)
     bet!(a, g, ps)
-    d = g.active_players - g.all_in
 
-    if d - g.r_all_in == 1
-        # if it is the last player to call and all the other players went all-in
-        # consider it as an all-in
-        g.r_all_in += 1
+    nps = peekplayer(g)
+
+#     d = g.active_players - g.all_in
+
+    if g.active_players - g.all_in == 1
+        #if all the other players went all-in, move to next round
+#         g.r_all_in += 1
         return _nextround!(g, ps)
 
-    elseif g.turn == true && ps.position >= d
-        # small blind has played and last player to call
+#     elseif g.turn == true && ps.position >= d
+#         # small blind has played and last player to call
+#         return _nextround!(g, ps)
+
+    elseif g.bet_player == nps
+        # if it is the next player that bet, move to the next round
         return _nextround!(g, ps)
     end
 
@@ -344,6 +370,29 @@ function nextplayer(g::Game)
 
     return st
 end
+
+function peekplayer(g::Game)
+    stp = setup(g)
+    n = stp.num_players
+
+    position = g.position
+
+    players_states = g.players_states
+
+    position == n ? position = 1 : position += 1
+
+    st = players_states[position]
+
+    while !st.active || st.chips == 0
+
+        position == n ? position = 1 : position += 1
+        st = players_states[position]
+
+    end
+
+    return st
+end
+
 
 start!(g::Game) = start!(g, g.state)
 start!(g::Game, gs::Started) = start!(g, shared(g))
@@ -373,52 +422,11 @@ function start!(g::Game, s::Terminated)
 end
 
 function start!(g::Game, s::Ended)
-    stp = setup(g)
-    states = g.players_states
-    bb = bigblind(stp).amount
+    start!(g, shared(g))
+end
 
-    a = 0
-    #re-initialize players states
-    for st in states
-        p = st.position
-        #shift player position by one place to the right
-        if p == stp.num_players
-            st.position = 1
-        else
-            st.position += 1
-        end
-        #set player with enough chips to active
-        if st.chips < bb
-            st.active = false
-        else
-            st.active = true
-            a += 1
-        end
-        st.bet = 0
-        st.pot = 0
-    end
-
-    if a != 1
-        #set the number of active players
-
-        g.active_players = a
-        pushfirst!(g.players_states, pop!(g.players_states))
-
-        # set relative positions
-        i = 1
-        for st in states
-           if st.active == true
-               st.position = i
-           end
-           i += 1
-        end
-        return start!(g, shared(g))
-    else
-        #game terminates if there is only one player left
-        st = g.terminated
-        g.state = st
-        return st
-    end
+function start!(g::Game, s::Terminated)
+    error("Cannot start a terminated game")
 end
 
 function start!(g::Game, st::Initializing)
@@ -482,7 +490,7 @@ function distributecards!(
     for i in 1:stp.num_private_cards
         for state in g.players_states
             if state.active == true
-                privatecards(state, data)[i] = pop!(deck)
+                push!(privatecards(state, data), pop!(deck))
             end
         end
     end
@@ -513,10 +521,9 @@ function putbackcards!(
     data::SharedData{T, Simulation}) where T <: GameType
 
     for state in g.players_states
-        if state.active == true
-            pvt_cards = privatecards(state, data)
-            append!(data.deck, pvt_cards)
-        end
+        pvt_cards = privatecards(state, data)
+        append!(data.deck, pvt_cards)
+        empty!(pvt_cards)
     end
 
     append!(data.deck, data.public_cards)
@@ -548,7 +555,7 @@ function start!(
     data::SharedData{T, Simulation}) where T <: GameType
 
     stp = setup(g)
-    distributecards!(g, stp, data)
+#     distributecards!(g, stp, data)
 
     g.state = g.started
     g.round = 0

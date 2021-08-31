@@ -31,6 +31,7 @@ mutable struct PlayerState <: ID
     bet::Float16 # player current round bet
     pot::Float16 # player potential gain in case of a win
     active::Bool
+    all_in::Bool
     rank::UInt16 # player card rank
     actions_mask::Vector{Bool}
     position::UInt8
