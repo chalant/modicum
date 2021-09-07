@@ -29,26 +29,8 @@ amount(a::Bet, g::Game, ps::PlayerState) = bigblind(g.setup).amount * a.amount +
 amount(a::Blind, g::Game, ps::PlayerState) = a.amount
 amount(a::Raise, g::Game, ps::PlayerState) = g.pot_size * a.amount + g.last_bet
 
-# function bet!(a::All, g::Game, ps::PlayerState)
-#     #player might have less chips than the previous bet.
-#     amt = amount(a, g, ps)
-#     ps.bet = amt
-#
-#     ps.chips -= amt
-#     g.pot_size += amt
-#
-#     # if the player goes all-in but doesn't have enough chips
-#     # he can only win
-#
-#     if g.last_bet < amt
-#         g.last_bet = amt
-#     end
-#
-#     return amt
-#
-# end
 
-@inline function _setbetplayer!(t::AbstractBet , g::Game, ps::PlayerState)
+@inline function _setbetplayer!(g::Game, ps::PlayerState)
     try
         if totalbet(g.prev_player) < ps.total_bet
             g.bet_player = ps
@@ -106,12 +88,6 @@ function update!(g::Game, action::Action, ps::PlayerState)
         g.player = ps
         st = g.started
         g.state = st
-
-#         if g.round == 0 && lp >= ap - all_in && g.turn == false
-#             # previous player was last =>
-#             # mark first turn of pre-flop as complete
-#             g.turn = true
-#         end
 
         return st
     else
@@ -327,7 +303,7 @@ end
 @inline function rotateplayers!(pls::Vector{PlayerState}, bb::AbstractFloat)
     i = 1
 
-    @inbounds for ps in pls
+    for ps in pls
 
         if ps.chips >= bb
              break
@@ -340,30 +316,6 @@ end
     deleteat!(pls, i)
     push!(pls, ps)
 
-end
-
-function _rotateplayers!(::Type{T}, pls::Vector{PlayerState}) where T <: GameLength
-
-end
-
-function _rotateplayers!(::Type{HeadsUp}, pls::Vector{PlayerState})
-    _rotate!(pls)
-end
-
-function _revertplayersorder!(::Type{HeadsUp}, pls::Vector{PlayerState})
-    _revert!(pls)
-end
-
-function _revertplayersorder!(::Type{Normal}, pls::Vector{PlayerState})
-
-end
-
-@inline function _rotate!(pls::Vector{T}) where T <: Any
-        pushfirst!(pls, pop!(pls))
-end
-
-@inline function _revert!(pls::Vector{T}) where T <: Any
-    push!(pls, popfirst!(pls))
 end
 
 @inline function countbetplayers(pls::Vector{PlayerState})
@@ -820,6 +772,7 @@ function _activate(a::Check, g::Game, ps::PlayerState)
     if ps.bet >= g.last_bet
         return 1
     end
+
     return 0
 end
 
@@ -832,6 +785,7 @@ function _activate(a::Fold, g::Game, ps::PlayerState)
     if ps.bet > 0 && ps.chips == 0
         return 0
     end
+
     return 1
 end
 
@@ -842,6 +796,7 @@ function _activate(a::Call, g::Game, ps::PlayerState)
     elseif ps.bet == g.last_bet
         return 0
     end
+
     return 1
 end
 
