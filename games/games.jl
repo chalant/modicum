@@ -48,7 +48,7 @@ include("players.jl")
 abstract type GameLength end
 abstract type RunMode end
 abstract type Estimation end
-abstract type GameMode end
+abstract type GameMode  end
 
 struct Full <: GameLength
 end
@@ -68,9 +68,16 @@ struct Live <: RunMode
 end
 
 struct HeadsUp <: GameMode
+    num_players::UInt8
+
+    HeadsUp() = new(UInt8(2))
 end
 
 struct Normal <: GameMode
+    num_players::UInt8
+
+    Normal(num_players) = num_players == 2 ? HeadsUp() : new(num_players)
+
 end
 
 #invariant data (only created once)
@@ -84,11 +91,12 @@ mutable struct GameSetup
     sb::SmallBlind
     bb::BigBlind
 
-    num_private_cards::Int
-    num_public_cards::Int
-    num_players::Int
-    num_rounds::Int
+    num_private_cards::UInt8
+    num_public_cards::UInt8
+    num_rounds::UInt8
     chips::Float32
+    game_mode::GameMode
+    num_players::UInt8
 
     actions::ActionSet
 
@@ -139,7 +147,6 @@ mutable struct Game
     action::Type{T} where T <: Action # previous action
 
     tp::GameLength
-    gm::Type{T} where T <: GameMode
 
     player::PlayerState
     prev_player::PlayerState
@@ -188,12 +195,6 @@ function creategame(
     g.setup = stp
     g.tp = tp
 
-    if stp.num_players == 2
-        g.gm = HeadsUp
-    else
-        g.gm = Normal
-    end
-
     g.shared = data
 
     return g
@@ -205,7 +206,7 @@ function setup(
     bb::BigBlind,
     num_private_cards::Int,
     num_public_cards::Int,
-    num_players::Int,
+    gm::GameMode,
     num_rounds::Int,
     cards_per_round::Vector{UInt8},
     chips::Float32=1000) where T <: RunMode
@@ -215,10 +216,11 @@ function setup(
     stp.bb = bb
     stp.num_private_cards = num_private_cards
     stp.num_public_cards = num_public_cards
-    stp.num_players = num_players
     stp.num_rounds = num_rounds
     stp.chips = chips
     stp.cards_per_round = cards_per_round
+    stp.game_mode = gm
+    stp.num_players = gm.num_players
 
     return stp
 end

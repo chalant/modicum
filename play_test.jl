@@ -67,14 +67,14 @@ const SETUP = setup(
     Simulation,
     SmallBlind(1.0),
     BigBlind(2.0),
-    2, 5, 2, 4,
+    2, 5, HeadsUp(), 4,
     [UInt8(3), UInt8(1), UInt8(1)],
     Float32(1000))
 
 const SHARED = SharedData()
 
 
-const GAME_MODE = Simulation
+const RUN_MODE = Simulation
 
 const GAME = creategame(SHARED, SETUP, Full())
 
@@ -209,61 +209,21 @@ end
 function cont(g::Game, s::Terminated)
     if choice("New game ?") == true
         # shuffle and distribute cards
-        start!(GAME_MODE, g, s)
+        start!(RUN_MODE, g, s)
         return true
     end
     return false
-end
-
-function activateplayers!(g::Game, stp::GameSetup)
-    states = g.players_states
-    bb = bigblind(stp).amount
-
-    a = 0
-
-    #re-initialize players states
-    for st in states
-    #         p = st.position
-    #         #shift player position by one place to the right
-    #         if p == stp.num_players
-    #             st.position = 1
-    #         else
-    #             st.position += 1
-    #         end
-        #set player with enough chips to active
-        if st.chips < bb
-            st.active = false
-        else
-            st.active = true
-            a += 1
-        end
-        st.bet = 0
-        st.pot = 0
-    end
-
-        g.active_players = a
-
-    if a > 1
-        # if there only two players left, don't rotate, since it has already been done
-        # during chance
-
-        rotateplayers!(states, bb)
-    else
-        #game terminates if there is only one player left
-        st = g.terminated
-        g.state = st
-    end
 end
 
 function cont(g::Game, s::Ended)
     if choice("Continue ?") == true
         data = shared(g)
         stp = setup(g)
-        putbackcards!(GAME_MODE, g, stp, data)
+        putbackcards!(RUN_MODE, g, stp, data)
         shuffle!(data.deck)
         activateplayers!(g, stp)
-        distributecards!(GAME_MODE, g, stp, data)
-        start!(GAME_MODE, g, s)
+        distributecards!(RUN_MODE, g, stp, data)
+        start!(RUN_MODE, g, s)
         return true
     end
     return false
@@ -285,11 +245,11 @@ function play()
         #user player
         player = selectplayer(GAME)
 
-        initialize!(GAME_MODE, GAME, SHARED, SETUP)
+        initialize!(RUN_MODE, GAME, SHARED, SETUP)
 
-        distributecards!(GAME_MODE, GAME, SETUP, SHARED)
+        distributecards!(RUN_MODE, GAME, SETUP, SHARED)
 
-        start!(GAME_MODE, GAME)
+        start!(RUN_MODE, GAME)
 
         while true
             pl = GAME.player

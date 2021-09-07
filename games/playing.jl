@@ -5,6 +5,7 @@ export start!
 export sample
 export amount
 export initialize!
+export activateplayers!
 export putbackcards!
 export distributecards!
 export rotateplayers!
@@ -30,6 +31,36 @@ amount(a::Blind, g::Game, ps::PlayerState) = a.amount
 amount(a::Raise, g::Game, ps::PlayerState) = g.pot_size * a.amount + g.last_bet
 
 
+@inline function activateplayers!(g::Game, stp::GameSetup)
+    states = g.players_states
+    bb = bigblind(stp).amount
+
+    a = 0
+
+    #re-initialize players states
+    for st in states
+
+        if st.chips < bb
+            st.active = false
+        else
+            st.active = true
+            a += 1
+        end
+        st.bet = 0
+        st.pot = 0
+    end
+
+        g.active_players = a
+
+    if a > 1
+        rotateplayers!(states, bb)
+    else
+        #game terminates if there is only one player left
+        st = g.terminated
+        g.state = st
+    end
+end
+
 @inline function _setbetplayer!(g::Game, ps::PlayerState)
     try
         if totalbet(g.prev_player) < ps.total_bet
@@ -54,7 +85,7 @@ function bet!(a::AbstractBet, g::Game, ps::PlayerState)
         g.last_bet = amt
     end
 
-    _setbetplayer!(a, g, ps)
+    _setbetplayer!(g, ps)
 
     return amt
 
@@ -63,7 +94,6 @@ end
 _nextround!(g::Game, ps::PlayerState) = _nextround!(g, setup(g), ps)
 
 @inline function _nextround!(g::Game, stp::GameSetup, ps::PlayerState)
-    println("Next Round")
 
     g.round += 1
     if g.round < limit(g, stp)
@@ -673,6 +703,35 @@ function start!(
     return g.state
 end
 
+@inline function _headsupblinds!(g::Game, stp::GameSetup)
+    #first player posts the bigblind
+    g.bet_player = g.player
+    setaction!(g.player, BB_ID)
+    perform!(stp.bb, g, g.player)
+    setaction!(g.player, SB_ID)
+    perform!(stp.sb, g, g.player)
+
+    # go back to first player
+    g.player = nextplayer(g)
+end
+
+@inline function _postblinds!(::HeadsUp, g::Game, stp::GameSetup)
+    _headsupblinds!(g, stp)
+end
+
+@inline function _postblinds!(::Normal, g::Game, stp::GameSetup)
+    if num_players == 2
+        _headsupblinds!(g, stp)
+    else
+        println("Small Blind ", stp.sb.amount, " Player ", id(g.player))
+        setaction!(g.player, SB_ID)
+        perform!(stp.sb, g, g.player)
+        println("Big Blind ", stp.bb.amount, " Player ", id(g.player))
+        setaction!(g.player, BB_ID)
+        perform!(stp.bb, g, g.player)
+    end
+end
+
 function start!(
     ::Type{Simulation},
     g::Game,
@@ -699,26 +758,7 @@ function start!(
 #     st = nextplayer(g)
 #     g.player = st
 
-    if g.active_players == 2
-        #first player posts the bigblind
-        g.bet_player = g.player
-        setaction!(g.player, BB_ID)
-        perform!(stp.bb, g, g.player)
-        setaction!(g.player, SB_ID)
-        perform!(stp.sb, g, g.player)
-
-        # go back to first player
-        g.player = nextplayer(g)
-
-        g.gm = HeadsUp
-    else
-        println("Small Blind ", stp.sb.amount, " Player ", id(g.player))
-        setaction!(g.player, SB_ID)
-        perform!(stp.sb, g, g.player)
-        println("Big Blind ", stp.bb.amount, " Player ", id(g.player))
-        setaction!(g.player, BB_ID)
-        perform!(stp.bb, g, g.player)
-    end
+    _postblinds!(stp.game_mode, g, stp)
 
     return g.state
 end
