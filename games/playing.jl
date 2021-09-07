@@ -234,7 +234,7 @@ function _lastround!(g::Game, gs::Ended, stp::GameSetup)
         if ps.active == true && ps.rank == best_rk
 
             #player receives the amount proportional to the potential gains he might make
-            earnings = _computepotentialearning!(g.players_states, ps)
+            earnings = _computepotentialearning!(states, ps)
 
             if earnings >= g.pot_size
                 amt = (earnings ^ 2) / (g.pot_size * w)
@@ -266,14 +266,19 @@ function _lastround!(g::Game, gs::Ended, stp::GameSetup)
 
     bb = bigblind(setup(g)).amount
     n = length(states)
+    bp = countbetplayers(states)
 
     # give back unclaimed chips
+
+    df = bp - w
 
     for ps in states
         #redistribute unclaimed chips
 
         if ps.pot != 0
-            ps.chips += ((_computepotentialearning!(g.players_states, ps) - claimed_amt) ^ 2) / ((g.pot_size - claimed_amt) * (n - w))
+            if g.pot_size - claimed_amt > 0
+                ps.chips += ((_computepotentialearning!(states, ps) - claimed_amt) ^ 2) / ((g.pot_size - claimed_amt) * df)
+            end
             ps.pot = 0
         end
 
@@ -359,6 +364,18 @@ end
 
 @inline function _revert!(pls::Vector{T}) where T <: Any
     push!(pls, popfirst!(pls))
+end
+
+@inline function countbetplayers(pls::Vector{PlayerState})
+        i = 0
+
+        for ps in pls
+            if ps.pot != 0
+                i += 1
+            end
+        end
+
+        return i
 end
 
 function perform!(a::Chance, g::Game, ps::PlayerState)
