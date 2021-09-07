@@ -14,6 +14,9 @@ export player
 
 export state
 export position
+export totalbet
+export action
+export setaction!
 
 @reexport using .actions
 
@@ -27,14 +30,14 @@ struct Player <: ID
 end
 
 mutable struct PlayerState <: ID
-    chips::Float16
-    bet::Float16 # player current round bet
-    pot::Float16 # player potential gain in case of a win
+    chips::Float32
+    bet::Float32 # player current round bet
+    total_bet::Float32 # player game total bet
+    pot::Float32 # player potential gain in case of a win
     active::Bool
-    all_in::Bool
     rank::UInt16 # player card rank
     actions_mask::Vector{Bool}
-    position::UInt8
+    action::UInt8
 
     player:: Player
 
@@ -42,7 +45,7 @@ mutable struct PlayerState <: ID
 end
 
 function Base.position(ps::PlayerState)
-    return ps.position
+    return position(ps.player)
 end
 
 function Base.position(player::Player)
@@ -137,6 +140,18 @@ end
 
 function player(state::PlayerState)
     return state.player
+end
+
+@inline function totalbet(state::PlayerState)
+    return state.total_bet
+end
+
+@inline function action(state::PlayerState)
+    return state.action
+end
+
+@inline function setaction!(state::PlayerState, a::UInt8)
+        state.action = a
 end
 
 @inline function viewactions(pl::Player)

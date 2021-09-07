@@ -14,6 +14,9 @@ export Blind
 export AbstractBet
 export ActionSet
 
+export SB_ID
+export BB_ID
+
 export CALL
 export FOLD
 export CHECK
@@ -32,6 +35,8 @@ export AFTER_SB
 export ACTION_SET3
 
 export viewactions
+export amount
+export id
 
 const CALL_ID = UInt8(1)
 const FOLD_ID = UInt8(2)
@@ -122,6 +127,10 @@ const FOLD = Fold()
 const CHECK = Check()
 const CHANCE = Chance()
 const ALL = All()
+
+function id(a::T) where T <: Action
+    return a.id
+end
 
 function amount(action::AbstractBet)
     return action.amount

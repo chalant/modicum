@@ -4,19 +4,26 @@ export Game
 export GameState
 export SharedData
 export GameSetup
-export GameMode
-export GameType
+export RunMode
+export GameLength
 export Full
 export DepthLimited
 export Simulation
 export LiveSimulation
 export Live
 export Estimation
+export Normal
+export HeadsUp
 
 export Initializing
 export Started
 export Ended
 export Terminated
+
+export INIT
+export STARTED
+export ENDED
+export TERMINATED
 
 export game
 export creategame
@@ -38,31 +45,39 @@ include("players.jl")
 
 @reexport using .players
 
-abstract type GameType end
-abstract type GameMode end
+abstract type GameLength end
+abstract type RunMode end
 abstract type Estimation end
+abstract type GameMode end
 
-struct Full <: GameType
+struct Full <: GameLength
 end
 
-struct DepthLimited{T<:Estimation} <: GameType
+struct DepthLimited{T <: Estimation} <: GameLength
     limit::UInt8
     estimation::T # method for estimating utility (NN, MC Rollouts...)
 end
 
-struct Simulation <: GameMode
+struct Simulation <: RunMode
 end
 
-struct LiveSimulation <: GameMode
+struct LiveSimulation <: RunMode
 end
 
-struct Live <: GameMode
+struct Live <: RunMode
 end
+
+struct HeadsUp <: GameMode
+end
+
+struct Normal <: GameMode
+end
+
 #invariant data (only created once)
 
 # todo: small blind and big blinds can change throughout a game
 # move them to the game
-mutable struct GameSetup{T<:GameMode}
+mutable struct GameSetup
     players::Vector{Player} #mapping of players
     main_player::Player
 
@@ -79,7 +94,7 @@ mutable struct GameSetup{T<:GameMode}
 
     cards_per_round::Vector{UInt8}
 
-    GameSetup{T}() where {T<:GameMode} = new()
+    GameSetup() = new()
 end
 
 abstract type GameState end
@@ -97,7 +112,7 @@ struct Terminated <: GameState
 end
 
 #mutable shared data
-mutable struct SharedData{T<:GameType, U<:GameMode}
+mutable struct SharedData
     #updated once per round
     deck::Vector{UInt64}
     public_cards::Vector{UInt64}
@@ -107,24 +122,27 @@ mutable struct SharedData{T<:GameType, U<:GameMode}
 #     g::Game{T,U}# tracks root game
     updates::Vector{Bool}
 
-    SharedData{T, U}() where {T <: GameType, U <: GameMode} = new()
+    SharedData()= new()
 
 end
 
-mutable struct Game{T<:GameType, U<:GameMode}
+mutable struct Game
     state::GameState
     initializing::Initializing
     started::Started
     ended::Ended
     terminated::Terminated
 
-    setup::GameSetup{U} # game setup (invariant)
-    shared::SharedData{T,U} # data shared by all games
+    setup::GameSetup
+    shared::SharedData
 
-    action::Action # previous action
-    tp::T
+    action::Type{T} where T <: Action # previous action
+
+    tp::GameLength
+    gm::Type{T} where T <: GameMode
 
     player::PlayerState
+    prev_player::PlayerState
     players_states::Vector{PlayerState}
     bet_player::PlayerState
 
@@ -132,13 +150,13 @@ mutable struct Game{T<:GameType, U<:GameMode}
     round::UInt8
     position::UInt8 # tracks current turn
     pot_size::Float32 #
-    last_bet::Float32
-    num_actions::UInt8
-    all_in::UInt8 # cumulative all-ins (updated at the end of a round)
-    r_all_in::UInt8 # current round all ins
-    turn::Bool # flags if the small blind has played
+    last_bet::Float32 # tracks last bet
+    last_raise::Float32
+    total_bet::Float32
+    all_in::UInt8 # players that went all-in
+#     turn::Bool # flags if the small blind has played
 
-    Game{T,U}() where {T<:GameType, U<:GameMode} = new()
+    Game() = new()
 end
 
 const INIT = Initializing()
@@ -146,29 +164,35 @@ const STARTED = Started()
 const ENDED = Ended()
 const TERMINATED = Terminated()
 
-function limit(dl::DepthLimited{T}, stp::GameSetup{U}) where {T<:Estimation, U<:GameMode}
+function limit(dl::DepthLimited, stp::GameSetup)
     return dl.limit
 end
 
-function limit(dl::Full, stp::GameSetup{U}) where {U<:GameMode}
+function limit(dl::Full, stp::GameSetup)
     return stp.num_rounds
 end
 
-function limit(game::Game{T, U}, stp::GameSetup{U}) where {T<:GameType, U<:GameMode}
+function limit(game::Game, stp::GameSetup)
     return limit(game.tp, stp)
 end
 
 function creategame(
-    data::SharedData{T,U},
-    stp::GameSetup{U},
-    tp::T) where {T <: GameType, U <: GameMode}
+    data::SharedData,
+    stp::GameSetup,
+    tp::U) where U <: GameLength
 
-    g = Game{T,U}()
+    g = Game()
     g.state = INIT
     g.started = STARTED
     g.ended = ENDED
     g.setup = stp
     g.tp = tp
+
+    if stp.num_players == 2
+        g.gm = HeadsUp
+    else
+        g.gm = Normal
+    end
 
     g.shared = data
 
@@ -184,9 +208,9 @@ function setup(
     num_players::Int,
     num_rounds::Int,
     cards_per_round::Vector{UInt8},
-    chips::Float32=1000) where T<:GameMode
+    chips::Float32=1000) where T <: RunMode
 
-    stp = GameSetup{T}()
+    stp = GameSetup()
     stp.sb = sb
     stp.bb = bb
     stp.num_private_cards = num_private_cards
@@ -199,30 +223,30 @@ function setup(
     return stp
 end
 
-setup(game::Game) = game.setup
+@inline setup(game::Game) = game.setup
 
-shared(game::Game) = game.shared
+@inline shared(game::Game) = game.shared
 
-privatecards(player::Player, data::SharedData) = data.private_cards[player.id]
-privatecards(ps::PlayerState, data::SharedData) = data.private_cards[id(ps)]
+@inline privatecards(player::Player, data::SharedData) = data.private_cards[player.id]
+@inline privatecards(ps::PlayerState, data::SharedData) = data.private_cards[id(ps)]
 
-publiccards(game::Game) = shared(game).public_cards
+@inline publiccards(game::Game) = shared(game).public_cards
 
-playerstate(g::Game) = g.player
+@inline playerstate(g::Game) = g.player
 
-chips(g::Game) = playerstate(g).chips
+@inline chips(g::Game) = playerstate(g).chips
 
-bigblind(setup::GameSetup) = setup.bb
-bigblind(game::Game) = bigblind(game.setup)
+@inline bigblind(setup::GameSetup) = setup.bb
+@inline bigblind(game::Game) = bigblind(game.setup)
 
-smallblind(setup::GameSetup) = setup.sb
-smallblind(game::Game) = smallblind(game.setup)
+@inline smallblind(setup::GameSetup) = setup.sb
+@inline smallblind(game::Game) = smallblind(game.setup)
 
-function viewactions(game::Game{T,U}) where {T <: GameType, U <: GameMode}
+@inline function viewactions(game::Game)
     return setup(game).actions
 end
 
-function viewactions(stp::GameSetup{T}) where T <: GameMode
+@inline function viewactions(stp::GameSetup)
     return stp.actions
 end
 
@@ -241,8 +265,8 @@ function _copy!(dest::Game, src::Game, sh::SharedData, stp::GameSetup)
     dest.pot_size = src.pot_size
     dest.last_bet = src.last_bet
     dest.all_in = src.all_in
-    dest.r_all_in = src.r_all_in
-    dest.turn = src.turn
+#     dest.r_all_in = src.r_all_in
+#     dest.turn = src.turn
 
 end
 
@@ -250,8 +274,8 @@ Base.copy(g::Game) = copy(g, g.shared, g.setup)
 Base.copy(g::Game, sh::SharedData) = copy(g, g.shared, g.setup)
 
 
-function Base.copy(g::Game{T}, sh::SharedData{T,U}, stp::GameSetup{U}) where {T<:GameType, U<:GameMode}
-    dest = Game{T,U}()
+function Base.copy(g::Game, sh::SharedData, stp::GameSetup)
+    dest = Game()
     _copy!(c, game, sh, stp)
     dest.players_states = copy(game.players_states)
     return dest
@@ -262,7 +286,7 @@ function Base.copy!(dest::Game, src::Game, sh::SharedData, stp::GameSetup)
     copy!(dest.players_states, src.players_states)
 end
 
-function Base.copy!(dest::Game, src::Game, sh::SharedData) T<:GameType
+function Base.copy!(dest::Game, src::Game, sh::SharedData)
     _copy!(dest, src, sh, src.setup)
     copy!(dest.players_states, src.players_states)
 end

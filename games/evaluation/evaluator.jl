@@ -48,7 +48,7 @@ end
 
     l = length(private_cards) + length(board_cards)
     # @assert l < 8 "Can't evaluate more than 7 cards"
-    # @asset l
+    # @assert l
     conc = CONCAT[l]
     if l == 5
         #concatenate in place
@@ -57,6 +57,7 @@ end
             conc,
             flush_lookup,
             unsuited_lookup)
+
     elseif l > 5 && l < 8
         minimum = lookup.MAX_HIGH_CARD
         # j = 0
@@ -71,12 +72,13 @@ end
                 end
             end
         end
+
         reset!(COMBOS)
 
         # if j != 21
         #     return minimum
         # else
-        #     #if the best hand that does not include the private cards,
+        #     #if the best hand does not include the private cards,
         #     #the highest hand wins
         #     return highest_card_score(private_cards)
         # end

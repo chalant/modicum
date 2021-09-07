@@ -13,16 +13,17 @@ function createplayerstate(player::Player, chips::Float32)
     ps.bet = 0
     ps.active = true
     ps.player = player
+    ps.total_bet = 0
 
     return ps
 end
 
 function initialize(
-    game::Game{T,U},
-    shared::SharedData{T,U},
-    stp::GameSetup{U},
+    game::Game,
+    shared::SharedData,
+    stp::GameSetup,
     cards_deck::Vector{UInt64},
-    action_set::ActionSet) where {T <: GameType, U <: GameMode}
+    action_set::ActionSet)
 
     num_players = stp.num_players
     chips = stp.chips
@@ -43,6 +44,7 @@ function initialize(
     stp.players = players_list
     stp.actions = action_set
     game.players_states = states
+    game.total_bet = 0
 
     shared.private_cards = private_cards
     shared.deck = cards_deck
@@ -59,16 +61,20 @@ const ACTS = ActionSet([
     Raise(0.5), Raise(0.75), Raise(1.0),
     Bet(1.0), Bet(2.0), Bet(3.0)])
 
+sort!(ACTS)
 
 const SETUP = setup(
     Simulation,
     SmallBlind(1.0),
     BigBlind(2.0),
-    2, 5, 4, 4,
+    2, 5, 2, 4,
     [UInt8(3), UInt8(1), UInt8(1)],
     Float32(1000))
 
-const SHARED = SharedData{Full, Simulation}()
+const SHARED = SharedData()
+
+
+const GAME_MODE = Simulation
 
 const GAME = creategame(SHARED, SETUP, Full())
 
@@ -110,6 +116,7 @@ end
 function choice(message::AbstractString)
     println(message, " (y/n)")
     r = readline()
+
     if r == "y"
         return true
     elseif r == "n"
@@ -187,7 +194,7 @@ function choose_action(game::Game, actions::ActionSet)
             println("Invalid input ")
             return choose_action(game, actions)
         else
-            return actions[i]
+            return i
         end
     catch
         println("Invalid input")
@@ -202,7 +209,7 @@ end
 function cont(g::Game, s::Terminated)
     if choice("New game ?") == true
         # shuffle and distribute cards
-        start!(g, s)
+        start!(GAME_MODE, g, s)
         return true
     end
     return false
@@ -213,15 +220,16 @@ function activateplayers!(g::Game, stp::GameSetup)
     bb = bigblind(stp).amount
 
     a = 0
+
     #re-initialize players states
     for st in states
-        p = st.position
-        #shift player position by one place to the right
-        if p == stp.num_players
-            st.position = 1
-        else
-            st.position += 1
-        end
+    #         p = st.position
+    #         #shift player position by one place to the right
+    #         if p == stp.num_players
+    #             st.position = 1
+    #         else
+    #             st.position += 1
+    #         end
         #set player with enough chips to active
         if st.chips < bb
             st.active = false
@@ -233,27 +241,13 @@ function activateplayers!(g::Game, stp::GameSetup)
         st.pot = 0
     end
 
-    if a != 1
-        #set the number of active players
-
         g.active_players = a
-        pushfirst!(g.players_states, pop!(g.players_states))
 
-        # set relative positions
-        i = 1
-        for st in states
-           if st.active == true
-               st.position = i
-           end
-           i += 1
-        end
+    if a > 1
+        # if there only two players left, don't rotate, since it has already been done
+        # during chance
 
-        println(
-        "Small Blind ", id(g.players_states[1]),
-        " Big Blind ", id(g.players_states[2]))
-
-        println("Last Player ", id(last(g.players_states)))
-
+        rotateplayers!(states, bb)
     else
         #game terminates if there is only one player left
         st = g.terminated
@@ -265,11 +259,11 @@ function cont(g::Game, s::Ended)
     if choice("Continue ?") == true
         data = shared(g)
         stp = setup(g)
-        putbackcards!(g, stp, data)
+        putbackcards!(GAME_MODE, g, stp, data)
         shuffle!(data.deck)
         activateplayers!(g, stp)
-        distributecards!(g, stp, data)
-        start!(g, s)
+        distributecards!(GAME_MODE, g, stp, data)
+        start!(GAME_MODE, g, s)
         return true
     end
     return false
@@ -291,14 +285,15 @@ function play()
         #user player
         player = selectplayer(GAME)
 
-        initialize!(GAME, SHARED, SETUP)
+        initialize!(GAME_MODE, GAME, SHARED, SETUP)
 
-        distributecards!(GAME, SETUP, SHARED)
+        distributecards!(GAME_MODE, GAME, SETUP, SHARED)
 
-        start!(GAME)
+        start!(GAME_MODE, GAME)
 
         while true
             pl = GAME.player
+            actions = setup(GAME).actions
 
             if pl == player
                 #display available actions and wait for user input
@@ -309,12 +304,17 @@ function play()
                     " Private cards: ",
                     pretty_print_cards(privatecards(player, SHARED)),
                     " Pot: ", GAME.pot_size)
-                st = perform!(choose_action(GAME, setup(GAME).actions), GAME, pl)
+                idx = choose_action(GAME, setup(GAME).actions)
+                st = perform!(actions[idx], GAME, pl)
             else
-                act = sample(setup(GAME).actions, actionsmask(pl))
+                idx = sample(setup(GAME).actions, actionsmask(pl))
+                act = actions[idx]
                 println("Player", id(pl), ": ", message(act, GAME))
                 st = perform!(act, GAME, pl)
+                pl.action = idx
             end
+
+            pl.action = idx
 
             # if it is not the players turn, perform random moves until it is
             # the users turn, display available actions, then wait for input
