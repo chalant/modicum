@@ -1,21 +1,17 @@
 module actions
 
 export Action
-export SmallBlind
-export BigBlind
-export Fold
-export Call
-export Raise
-export Check
-export Chance
-export Bet
-export All
-export Blind
-export AbstractBet
 export ActionSet
 
 export SB_ID
 export BB_ID
+export CALL_ID
+export CHECK_ID
+export FOLD_ID
+export BET_ID
+export ALL_ID
+export RAISE_ID
+export CHANCE_ID
 
 export CALL
 export FOLD
@@ -37,6 +33,10 @@ export ACTION_SET3
 export viewactions
 export amount
 export id
+export bigblingamount
+export smallblindamount
+export raiseamount
+export betamount
 
 const CALL_ID = UInt8(1)
 const FOLD_ID = UInt8(2)
@@ -53,66 +53,20 @@ const ACTION_SET2 = Vector{UInt8}([FOLD_ID, CHECK_ID, BET_ID, ALL_ID])
 const ACTION_SET3 = Vector{UInt8}([CHECK_ID, RAISE_ID, ALL_ID])
 
 const AFTER_CALL = Vector{UInt8}([CALL_ID, FOLD_ID, CHECK_ID, RAISE_ID, ALL_ID])
+
 const AFTER_RAISE = ACTION_SET1
 const AFTER_CHECK = ACTION_SET2
 const AFTER_BET = ACTION_SET1
 const AFTER_FOLD = AFTER_CALL
 const AFTER_CHANCE = ACTION_SET2
 const AFTER_BB = ACTION_SET1
+
 const AFTER_ALL = Vector{UInt8}([CALL_ID, FOLD_ID, CHECK_ID, ALL_ID])
 const AFTER_SB = Vector{UInt8}([BB_ID])
 
-abstract type Action end
-abstract type AbstractBet <: Action end
-abstract type Blind <: AbstractBet end
-
-struct Call <: AbstractBet
+struct Action
     id::UInt8
-    Call() = new(CALL_ID)
-end
-
-struct Fold <: Action
-    id::UInt8
-    Fold() = new(FOLD_ID)
-end
-
-struct Check <: Action
-    id::UInt8
-    Check() = new(CHECK_ID)
-end
-
-struct Chance <: Action
-    id::UInt8
-    Chance() = new(CHANCE_ID)
-end
-
-struct Raise <: AbstractBet
-    id::UInt8
-    amount::Float16
-    Raise(x::AbstractFloat) = new(RAISE_ID, x)
-end
-
-struct Bet <: AbstractBet
-    id::UInt8
-    amount::Float16
-    Bet(x::AbstractFloat) = new(BET_ID, x)
-end
-
-struct All <: AbstractBet
-    id::UInt8
-    All() = new(ALL_ID)
-end
-
-struct SmallBlind <: Blind
-    id::UInt8
-    amount::Float16
-    SmallBlind(x::AbstractFloat) = new(SB_ID, x)
-end
-
-struct BigBlind <: Blind
-    id::UInt8
-    amount::Float16
-    BigBlind(x::AbstractFloat) = new(BB_ID, x)
+    amount::Float32
 end
 
 mutable struct ActionSet
@@ -120,19 +74,19 @@ mutable struct ActionSet
     sorted::Bool
 end
 
+const CALL = Action(CALL_ID, 0)
+const FOLD = Action(FOLD_ID, 0)
+const CHECK = Action(CHECK_ID, 0)
+const ALL = Action(ALL_ID, 0)
+const CHANCE = Action(CHANCE_ID, 0)
+
 ActionSet(acts::Vector{Action}) = ActionSet(acts::Vector{Action}, false)
 
-const CALL = Call()
-const FOLD = Fold()
-const CHECK = Check()
-const CHANCE = Chance()
-const ALL = All()
-
-function id(a::T) where T <: Action
+function id(a::Action)
     return a.id
 end
 
-function amount(action::AbstractBet)
+function amount(action::Action)
     return action.amount
 end
 
@@ -145,22 +99,14 @@ function Base.length(actions::ActionSet)
 end
 
 function Base.:(==)(p1::Action, p2::Action)
-    return p1.id == p2.id
-end
-
-function Base.:(==)(a1::AbstractBet, a2::AbstractBet)
-    return a1.id == a2.id && a1.amount == a2.amount
+    return p1.id == p2.id && p1.amount == p2.amount
 end
 
 function Base.isless(p1::Action, p2::Action)
-    return p1.id < p2.id
-end
-
-function Base.isless(a1::AbstractBet, a2::AbstractBet)
-    if a1.id == a2.id
-        return a1.amount < a2.amount
+    if p1.id == p2.id
+        return p1.amount <= p2.amount
     end
-    return a1.id < a2.id
+    return p1.id < p2.id
 end
 
 function Base.:(<)(p1::Action, p2::Action)

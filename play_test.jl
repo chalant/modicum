@@ -58,15 +58,15 @@ const DECK = get_deck()
 
 const ACTS = ActionSet([
     CALL, FOLD, ALL, CHECK,
-    Raise(0.5), Raise(0.75), Raise(1.0),
-    Bet(1.0), Bet(2.0), Bet(3.0)])
+    Action(RAISE_ID, 0.5), Action(RAISE_ID, 0.75), Action(RAISE_ID, 1.0),
+    Action(BET_ID, 1.0), Action(BET_ID, 2.0), Action(BET_ID, 3.0)])
 
 sort!(ACTS)
 
 const SETUP = setup(
     Simulation,
-    SmallBlind(1.0),
-    BigBlind(2.0),
+    Action(SB_ID, 1.0),
+    Action(BB_ID, 2.0),
     2, 5, HeadsUp(), 4,
     [UInt8(3), UInt8(1), UInt8(1)],
     Float32(1000))
@@ -81,28 +81,22 @@ const GAME = creategame(SHARED, SETUP, Full())
 #intialize game
 initialize(GAME, SHARED, SETUP, DECK, ACTS)
 
-function message(action::Check, game::Game)
-    return string("Check")
-end
+function message(action::Action, game::Game)
+    id = action.id
 
-function message(action::Raise, game::Game)
-    return string("Raise ", action.amount * game.pot_size + game.last_bet)
-end
-
-function message(action::All, game::Game)
-    return string("Play all ", chips(game))
-end
-
-function message(action::Fold, game::Game)
-    return string("Fold")
-end
-
-function message(action::Call, game::Game)
-    return string("Call ", amount(action, game, game.player))
-end
-
-function message(action::Bet, game::Game)
-    string("Bet ", action.amount * bigblind(game.setup).amount)
+    if id == CHECK_ID
+        return string("Check")
+    elseif id == RAISE_ID
+        return string("Raise ", action.amount * game.pot_size + game.last_bet)
+    elseif id == ALL_ID
+        return string("Play all ", chips(game))
+    elseif id == FOLD_ID
+        return string("Fold")
+    elseif id == CALL_ID
+        return string("Call ", callamount(game, game.player))
+    elseif id == BET_ID
+        return string("Bet ", action.amount * bigblind(game.setup).amount)
+    end
 end
 
 function Base.println(action::Action, game::Game)
@@ -110,11 +104,12 @@ function Base.println(action::Action, game::Game)
 end
 
 function Base.print(action::Action, game::Game)
-    print(message(action))
+    print(message(action, game))
 end
 
 function choice(message::AbstractString)
     println(message, " (y/n)")
+
     r = readline()
 
     if r == "y"
@@ -279,7 +274,7 @@ function play()
             # if it is not the players turn, perform random moves until it is
             # the users turn, display available actions, then wait for input
 
-            if cont(GAME, update!(GAME, st)) == false
+            if cont(GAME, GAME.state) == false
                 break
             end
         end

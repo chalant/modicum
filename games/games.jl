@@ -88,8 +88,8 @@ mutable struct GameSetup
     players::Vector{Player} #mapping of players
     main_player::Player
 
-    sb::SmallBlind
-    bb::BigBlind
+    sb::Action
+    bb::Action
 
     num_private_cards::UInt8
     num_public_cards::UInt8
@@ -202,8 +202,8 @@ end
 
 function setup(
     ::Type{T},
-    sb::SmallBlind,
-    bb::BigBlind,
+    sb::Action,
+    bb::Action,
     num_private_cards::Int,
     num_public_cards::Int,
     gm::GameMode,

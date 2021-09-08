@@ -10,6 +10,8 @@ export putbackcards!
 export distributecards!
 export rotateplayers!
 
+export callamount
+
 include("games.jl")
 include("evaluation/evaluator.jl")
 
@@ -20,16 +22,30 @@ using .evaluator
 
 @reexport using .games
 
-function amount(a::Call, g::Game, ps::PlayerState)
+@inline function callamount(g::Game, ps::PlayerState)
     b = g.last_bet - ps.bet
     return b >= 0 ? b : 0.0
 end
 
-amount(a::All, g::Game, ps::PlayerState) = ps.chips
-amount(a::Bet, g::Game, ps::PlayerState) = bigblind(g.setup).amount * a.amount + g.last_bet
-amount(a::Blind, g::Game, ps::PlayerState) = a.amount
-amount(a::Raise, g::Game, ps::PlayerState) = g.pot_size * a.amount + g.last_bet
+@inline function allinamount(g::Game, ps::PlayerState)
+        return ps.chips
+end
 
+@inline function betamount(mul::Float32, g::Game)
+    return bigblind(g.setup).amount * mul + g.last_bet
+end
+
+@inline function bigblindamount(g::Game, ps::PlayerState)
+        return bigblind(g.setup).amount
+end
+
+@inline function smallblindamount(g::Game, ps::PlayerState)
+        return smallblind(g.setup).amount
+end
+
+@inline function raiseamount(mul::Float32, g::Game)
+        return g.pot_size * mul + g.last_bet
+end
 
 @inline function activateplayers!(g::Game, stp::GameSetup)
     states = g.players_states
@@ -70,9 +86,7 @@ end
     end
 end
 
-function bet!(a::AbstractBet, g::Game, ps::PlayerState)
-
-    amt = amount(a, g, ps)
+function bet!(amt::Float32, g::Game, ps::PlayerState)
 
     ps.chips -= amt
     ps.bet = amt
@@ -97,7 +111,7 @@ _nextround!(g::Game, ps::PlayerState) = _nextround!(g, setup(g), ps)
 
     g.round += 1
     if g.round < limit(g, stp)
-        return perform!(CHANCE, g, ps)
+        return performchance!(CHANCE, g, ps)
     else
         st = g.ended
         g.state = st
@@ -105,7 +119,7 @@ _nextround!(g::Game, ps::PlayerState) = _nextround!(g, setup(g), ps)
     end
 end
 
-function update!(g::Game, action::Action, ps::PlayerState)
+@inline function update!(g::Game, action::Action, ps::PlayerState)
     ap = g.active_players
     all_in = g.all_in
 
@@ -124,8 +138,6 @@ function update!(g::Game, action::Action, ps::PlayerState)
         return _nextround!(g, ps)
     end
 end
-
-update!(g::Game, gs::GameState) = g.state
 
 @inline function _computepotentialearning!(pst::Vector{PlayerState} , ps::PlayerState)
     amt = ps.total_bet
@@ -315,7 +327,6 @@ function _lastround!(g::Game, gs::Ended, stp::GameSetup)
 
     return g.state
 
-
 end
 
 function update!(g::Game, gs::Ended) :: GameState
@@ -360,7 +371,78 @@ end
         return i
 end
 
-function perform!(a::Chance, g::Game, ps::PlayerState)
+@inline function performallin!(a::Action, g::Game, ps::PlayerState)
+    bet!(ps.chips, g, ps)
+
+    # add all-in players
+    # g.r_all_in += 1
+
+    g.all_in += 1
+
+    if g.active_players == g.all_in
+        # all players went all-in, move to the next round
+        return _nextround!(g, ps)
+    end
+
+    return update!(g, a, ps)
+end
+
+@inline function performraise!(a::Action, g::Game, ps::PlayerState)
+    bet!(raiseamount(a.amount, g), g, ps)
+    return update!(g, a, ps)
+end
+
+@inline function performcheck!(a::Action, g::Game, ps::PlayerState)
+    #if the player that checks is the one that bet, move to next round
+    if g.bet_player == ps
+        return _nextround!(g, ps)
+    elseif ps.action == BB_ID
+        #if players previous action was a bigblind
+        return _nextround!(g, ps)
+    end
+
+    return update!(g, a, ps)
+end
+
+@inline function performcall!(a::Action, g::Game, ps::PlayerState)
+    if g.active_players - g.all_in == 1
+        # if all the other players went all-in, move to next round
+        # g.r_all_in += 1
+        bet!(callamount(g, ps), g, ps)
+        return _nextround!(g, ps)
+
+    else
+        np = peekplayer(g)
+
+        if g.bet_player == np && np.action != BB_ID
+            bet!(callamount(g, ps), g, ps)
+            # if it is the next player that bet, move to the next round
+            return _nextround!(g, ps)
+        end
+    end
+
+    bet!(callamount(g, ps), g, ps)
+    return update!(g, a, ps)
+end
+
+@inline function performfold!(a::Action, g::Game, ps::PlayerState)
+    ps.active = false
+    g.active_players -= 1
+
+    # if only one player remains the game ends
+    if g.active_players == 1
+        st = g.ended
+        g.state = st
+        return st
+
+    elseif g.all_in == g.active_players
+        return _nextround!(g, setup(g), ps)
+    end
+
+    return update!(g, a, ps)
+end
+
+@inline function performchance!(a::Action, g::Game, ps::PlayerState)
     data = shared(g)
     round = g.round
     #update once per round
@@ -413,93 +495,33 @@ function perform!(a::Chance, g::Game, ps::PlayerState)
     return update!(g, a, ps)
 end
 
-perform!(a::Action, g::Game, ps::PlayerState) = update!(g, a, ps)
+@inline function perform!(a::Action, g::Game, ps::PlayerState)
+    id = a.id
 
-function perform!(a::AbstractBet, g::Game, ps::PlayerState)
-    bet!(a, g, ps)
-    return update!(g, a, ps)
-end
-
-function perform!(a::All, g::Game, ps::PlayerState)
-    bet!(a, g, ps)
-
-    # add all-in players
-    # g.r_all_in += 1
-
-    g.all_in += 1
-
-    if g.active_players == g.all_in
-        # all players went all-in, move to the next round
-        return _nextround!(g, ps)
+    if id == ALL_ID
+        return performallin!(a, g, ps)
+    elseif id == RAISE_ID
+        return performraise!(a, g, ps)
+    elseif id == BET_ID
+        bet!(betamount(a.amount, g), g, ps)
+        return update!(g, a, ps)
+    elseif id == CHECK_ID
+        return performcheck!(a, g, ps)
+    elseif id == CALL_ID
+        return performcall!(a, g, ps)
+    elseif id == FOLD_ID
+        return performfold!(a, g, ps)
+    elseif id == CHANCE_ID
+        return performchance!(a, g, ps)
+    elseif id == BB_ID
+        bet!(bigblind(g.setup).amount, g, ps)
+        return update!(g, a , ps)
+    elseif id == SB_ID
+        bet!(smallblind(g.setup).amount, g, ps)
+        return update!(g, a, ps)
     end
 
     return update!(g, a, ps)
-end
-
-function perform!(a::Check, g::Game, ps::PlayerState)
-
-#     if ps.position >= g.active_players - g.all_in
-#         # if the last player checks, move to next round
-#         return _nextround!(g, ps)
-    #if it is the player that has bet last that checks, we move to the next round
-
-    #if the player that checks is the one that bet, move to next round
-    if g.bet_player == ps
-        return _nextround!(g, ps)
-    elseif ps.action == BB_ID
-        #if players previous action was a bigblind
-        return _nextround!(g, ps)
-    end
-
-    return update!(g, a, ps)
-end
-
-function perform!(a::Fold, g::Game, ps::PlayerState)
-    ps.active = false
-    g.active_players -= 1
-
-#      # drop relative position by one
-#     for p in g.players_states
-#         if p.position > ps.position
-#             p.position -= 1
-#         end
-#     end
-
-    # if only one player remains the game ends
-    if g.active_players == 1
-        st = g.ended
-        g.state = st
-        return st
-
-    elseif g.all_in == g.active_players
-        return _nextround!(g, setup(g), ps)
-    end
-
-    return update!(g, a, ps)
-end
-
-function perform!(a::Call, g::Game, ps::PlayerState)
-#     d = g.active_players - g.all_in
-
-    if g.active_players - g.all_in == 1
-        # if all the other players went all-in, move to next round
-        # g.r_all_in += 1
-        bet!(a, g, ps)
-        return _nextround!(g, ps)
-
-    else
-        np = peekplayer(g)
-
-        if g.bet_player == np && np.action != BB_ID
-            bet!(a, g, ps)
-            # if it is the next player that bet, move to the next round
-            return _nextround!(g, ps)
-        end
-    end
-
-    bet!(a, g, ps)
-    return update!(g, a, ps)
-
 end
 
 function _nextplayer(g::Game, n::Int)
@@ -790,9 +812,7 @@ function sample(a::ActionSet, wv::Vector{Bool})
     return i
 end
 
-function _activate(act::AbstractBet, g::Game, ps::PlayerState)
-    amt = amount(act, g, ps)
-
+@inline function _activateabstractbet(amt::Float32, ps::PlayerState)
     if amt > ps.chips || amt == 0
         return 0
     end
@@ -800,7 +820,15 @@ function _activate(act::AbstractBet, g::Game, ps::PlayerState)
     return 1
 end
 
-function _activate(a::All, g::Game, ps::PlayerState)
+@inline function _activatesmallblind(g::Game, ps::PlayerState)
+    return _activateabstractbet(smallblindamount(g, ps), ps)
+end
+
+@inline function _activatebigblind(g::Game, ps::PlayerState)
+    return _activateabstractbet(bigblindamount(g, ps), ps)
+end
+
+@inline function _activateallin(g::Game, ps::PlayerState)
     if ps.chips != 0
         return 1
     end
@@ -808,7 +836,7 @@ function _activate(a::All, g::Game, ps::PlayerState)
     return 0
 end
 
-function _activate(a::Check, g::Game, ps::PlayerState)
+@inline function _activatecheck(g::Game, ps::PlayerState)
     if ps.bet >= g.last_bet
         return 1
     end
@@ -816,11 +844,11 @@ function _activate(a::Check, g::Game, ps::PlayerState)
     return 0
 end
 
-function _activate(action::Action, g::Game, ps::PlayerState)
+@inline function _activateaction(g::Game, ps::PlayerState)
     return 1
 end
 
-function _activate(a::Fold, g::Game, ps::PlayerState)
+@inline function _activatefold(g::Game, ps::PlayerState)
     #the player can't fold if he's all-in
     if ps.bet > 0 && ps.chips == 0
         return 0
@@ -829,7 +857,7 @@ function _activate(a::Fold, g::Game, ps::PlayerState)
     return 1
 end
 
-function _activate(a::Call, g::Game, ps::PlayerState)
+@inline function _activatecall(g::Game, ps::PlayerState)
     # in case it is equal, then it will be an all-in
     if ps.chips <= g.last_bet
         return 0
@@ -871,7 +899,7 @@ function _update!(
 
         #activate actions
         while id == a.id && ia < n
-            actions_mask[ia] = _activate(a, g, ps)
+            actions_mask[ia] = _activateaction!(a, g, ps)
 #             c += 1
             ia += 1
             a = acts[ia]
@@ -882,22 +910,74 @@ function _update!(
 
     #update last element
     a = acts[ia]
+
     if ids[l] == a.id
-        actions_mask[ia] = _activate(a, g, ps)
+        actions_mask[ia] = _activateaction!(a, g, ps)
 #         c += 1
     end
 
 #     return c
 end
 
-update!(action::Bet, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_BET, g, ps)
-update!(action::All, g::Game, ps::PlayerState)= _update!(viewactions(g.setup), AFTER_ALL, g, ps)
-update!(action::Call, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_CALL, g, ps)
-update!(action::Fold, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_FOLD, g, ps)
-update!(action::Raise, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_RAISE, g, ps)
-update!(action::Check, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_CHECK, g, ps)
-update!(action::Chance, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_CHANCE, g, ps)
-update!(action::BigBlind, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_BB, g, ps)
-update!(action::SmallBlind, g::Game, ps::PlayerState)=_update!(viewactions(g.setup), AFTER_SB, g, ps)
+@inline update!(action::Action, g::Game, ps::PlayerState) = _update!(viewactions(g.setup), AFTER_BET, g, ps)
+
+@inline function updateafterbet!(g::Game, ps::PlayerState)
+    _update!(viewactions(g.setup), AFTER_BET, g, ps)
+end
+
+@inline function updateafterallin!(g::Game, ps::PlayerState)
+    _update!(viewactions(g.setup), AFTER_ALL, g, ps)
+end
+
+@inline function updateaftercall!(g::Game, ps::PlayerState)
+    _update!(viewactions(g.setup), AFTER_CALL, g, ps)
+end
+
+@inline function updateafterfold!(g::Game, ps::PlayerState)
+        _update!(viewactions(g.setup), AFTER_FOLD, g, ps)
+end
+
+@inline function updateafterraise(g::Game, ps::PlayerState)
+        _update!(viewactions(g.setup), AFTER_RAISE, g, ps)
+end
+
+@inline function updateaftercheck(g::Game, ps::PlayerState)
+        _update!(viewactions(g.setup), AFTER_CHECK, g, ps)
+end
+
+@inline function updateafterchance(g::Game, ps::PlayerState)
+        _update!(viewactions(g.setup), AFTER_CHANCE, g, ps)
+end
+
+@inline function updateafterbigbling(g::Game, ps::PlayerState)
+        _update!(viewactions(g.setup), AFTER_BB, g, ps)
+end
+
+@inline function updateaftersmallbling(g::Game, ps::PlayerState)
+        _update!(viewactions(g.setup), AFTER_SB, g, ps)
+end
+
+@inline function _activateaction!(a::Action, g::Game, ps::PlayerState)
+    ai = a.id
+
+    if ai == CALL_ID
+        return _activatecall(g, ps)
+    elseif ai == FOLD_ID
+        return _activatefold(g, ps)
+    elseif ai == CHECK_ID
+        return _activatecheck(g, ps)
+    elseif ai == RAISE_ID
+        return _activateabstractbet(raiseamount(a.amount, g), ps)
+    elseif ai == BET_ID
+        return _activateabstractbet(betamount(a.amount, g), ps)
+    elseif ai == SB_ID
+        return _activateabstractbet(smallblindamount(g, ps), ps)
+    elseif ai == BB_ID
+        return _activateabstractbet(bigblindamount(g, ps), ps)
+    elseif ai == ALL_ID
+        return _activateallin(g, ps)
+    end
+
+end
 
 end
