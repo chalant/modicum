@@ -923,7 +923,21 @@ end
 #     return c
 end
 
-@inline update!(action::Action, g::Game, ps::PlayerState) = _update!(viewactions(g.setup), AFTER_BET, g, ps)
+@inline function update!(action::Action, g::Game, ps::PlayerState)
+    id = action.id
+
+    if id == BET_ID || id == RAISE_ID || id == BB_ID
+        _update!(viewactions(g.setup), ACTION_SET1, g, ps)
+    elseif id == CALL_ID || id == FOLD_ID
+        _update!(viewactions(g.setup), AFTER_CALL, g, ps)
+    elseif id == CHECK_ID || id == CHANCE_ID
+        _update!(viewactions(g.setup), ACTION_SET2, g, ps)
+    elseif id == ALL_ID
+        _update!(viewactions(g.setup), AFTER_ALL, g, ps)
+    elseif id == SB_ID
+        _update!(viewactions(g.setup), AFTER_SB, g, ps)
+    end
+end
 
 @inline function updateafterbet!(g::Game, ps::PlayerState)
     _update!(viewactions(g.setup), AFTER_BET, g, ps)
