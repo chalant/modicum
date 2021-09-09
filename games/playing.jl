@@ -982,18 +982,18 @@ end
         return _activatecall(g, ps)
     elseif ai == FOLD_ID
         return _activatefold(g, ps)
-    elseif ai == CHECK_ID
-        return _activatecheck(g, ps)
+    elseif ai == ALL_ID
+        return _activateallin(g, ps)
     elseif ai == RAISE_ID
         return _activateabstractbet(raiseamount(a.amount, g), ps)
-    elseif ai == BET_ID
-        return _activateabstractbet(betamount(a.amount, g), ps)
     elseif ai == SB_ID
         return _activateabstractbet(smallblindamount(g, ps), ps)
     elseif ai == BB_ID
         return _activateabstractbet(bigblindamount(g, ps), ps)
-    elseif ai == ALL_ID
-        return _activateallin(g, ps)
+    elseif ai == BET_ID
+        return _activateabstractbet(betamount(a.amount, g), ps)
+    elseif ai == CHECK_ID
+        return _activatecheck(g, ps)
     end
 
 end
