@@ -158,7 +158,7 @@ end
     return pot
 end
 
-function _nlastround!(g::Game, gs::Ended, stp::GameSetup)
+function _nlastround!(g::Game, stp::GameSetup)
     # game did not go to the last round => all except one player
     # have folded
     states = g.players_states
@@ -215,7 +215,7 @@ function _nlastround!(g::Game, gs::Ended, stp::GameSetup)
 
 end
 
-function _lastround!(g::Game, gs::Ended, stp::GameSetup)
+function _lastround!(g::Game, stp::GameSetup)
     #called when the game has reached the last round
     data = shared(g)
 
@@ -329,15 +329,17 @@ function _lastround!(g::Game, gs::Ended, stp::GameSetup)
 
 end
 
-function update!(g::Game, gs::Ended) :: GameState
+@inline function update!(g::Game) :: GameState
+
+    println("UPDATE!!!")
 
     stp = setup(g)
     if g.round >= stp.num_rounds
         # game has reached the last round
-        return _lastround!(g, gs, stp)
+        return _lastround!(g, stp)
     else
         # all players except one have folded
-        return _nlastround!(g, gs, stp)
+        return _nlastround!(g, stp)
     end
 end
 
