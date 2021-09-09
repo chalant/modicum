@@ -107,20 +107,6 @@ mutable struct GameSetup
     GameSetup() = new()
 end
 
-abstract type GameState end
-
-struct Initializing <: GameState
-end
-
-struct Started <: GameState
-end
-
-struct Ended <: GameState
-end
-
-struct Terminated <: GameState
-end
-
 const INIT_ID = UInt8(0)
 const STARTED_ID = UInt8(1)
 const ENDED_ID = UInt8(2)
@@ -192,15 +178,15 @@ end
 end
 
 
-function limit(dl::DepthLimited, stp::GameSetup)
+@inline function limit(dl::DepthLimited, stp::GameSetup)
     return dl.limit
 end
 
-function limit(dl::Full, stp::GameSetup)
+@inline function limit(dl::Full, stp::GameSetup)
     return stp.num_rounds
 end
 
-function limit(game::Game, stp::GameSetup)
+@inline function limit(game::Game, stp::GameSetup)
     return limit(game.tp, stp)
 end
 
@@ -273,9 +259,9 @@ end
     return stp.actions
 end
 
-_copy!(dest::Game, src::Game) = _copy!(dest, src, src.shared, src.setup)
+@inline _copy!(dest::Game, src::Game) = _copy!(dest, src, src.shared, src.setup)
 
-function _copy!(dest::Game, src::Game, sh::SharedData, stp::GameSetup)
+@inline function _copy!(dest::Game, src::Game, sh::SharedData, stp::GameSetup)
     #referencess
     dest.state = src.state
     dest.setup = stp
@@ -293,30 +279,29 @@ function _copy!(dest::Game, src::Game, sh::SharedData, stp::GameSetup)
 
 end
 
-Base.copy(g::Game) = copy(g, g.shared, g.setup)
-Base.copy(g::Game, sh::SharedData) = copy(g, g.shared, g.setup)
+@inline Base.copy(g::Game) = copy(g, g.shared, g.setup)
+@inline Base.copy(g::Game, sh::SharedData) = copy(g, g.shared, g.setup)
 
-
-function Base.copy(g::Game, sh::SharedData, stp::GameSetup)
+@inline function Base.copy(g::Game, sh::SharedData, stp::GameSetup)
     dest = Game()
     _copy!(c, game, sh, stp)
     dest.players_states = copy(game.players_states)
     return dest
 end
 
-function Base.copy!(dest::Game, src::Game, sh::SharedData, stp::GameSetup)
+@inline function Base.copy!(dest::Game, src::Game, sh::SharedData, stp::GameSetup)
     _copy!(dest, src, sh, stp)
     copy!(dest.players_states, src.players_states)
 end
 
-function Base.copy!(dest::Game, src::Game, sh::SharedData)
+@inline function Base.copy!(dest::Game, src::Game, sh::SharedData)
     _copy!(dest, src, sh, src.setup)
     copy!(dest.players_states, src.players_states)
 end
 
-Base.copy!(dest::Game, src::Game) = copy!(dest, src, src.shared, src.setup)
+@inline Base.copy!(dest::Game, src::Game) = copy!(dest, src, src.shared, src.setup)
 
-function Base.copy(shr::SharedData, pl::PlayerState)
+@inline function Base.copy(shr::SharedData, pl::PlayerState)
     return SharedData(
         setdiff(shr.deck, shr.public_cards, privatecards(pl, shr)),
         copy(shr.public_cards),
