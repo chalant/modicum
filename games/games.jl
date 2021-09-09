@@ -14,11 +14,12 @@ export Live
 export Estimation
 export Normal
 export HeadsUp
+export State
 
-export Initializing
-export Started
-export Ended
-export Terminated
+export INIT_ID
+export STARTED_ID
+export ENDED_ID
+export TERM_ID
 
 export INIT
 export STARTED
@@ -37,6 +38,7 @@ export viewactions
 export chips
 export limit
 export playerstate
+export stateid
 
 using Reexport
 using Random
@@ -119,6 +121,20 @@ end
 struct Terminated <: GameState
 end
 
+const INIT_ID = UInt8(0)
+const STARTED_ID = UInt8(1)
+const ENDED_ID = UInt8(2)
+const TERM_ID = UInt8(3)
+
+struct State
+    id::UInt8
+end
+
+const INIT = State(INIT_ID)
+const STARTED = State(STARTED_ID)
+const ENDED = State(ENDED_ID)
+const TERM = State(TERM_ID)
+
 #mutable shared data
 mutable struct SharedData
     #updated once per round
@@ -135,11 +151,12 @@ mutable struct SharedData
 end
 
 mutable struct Game
-    state::GameState
-    initializing::Initializing
-    started::Started
-    ended::Ended
-    terminated::Terminated
+    state::State
+
+    initializing::State
+    started::State
+    ended::State
+    terminated::State
 
     setup::GameSetup
     shared::SharedData
@@ -166,10 +183,14 @@ mutable struct Game
     Game() = new()
 end
 
-const INIT = Initializing()
-const STARTED = Started()
-const ENDED = Ended()
-const TERMINATED = Terminated()
+@inline function stateid(st::State)
+        return st.id
+end
+
+@inline function Base.:(==)(st1::State, st2::State)
+    return st1.id == st2.id
+end
+
 
 function limit(dl::DepthLimited, stp::GameSetup)
     return dl.limit

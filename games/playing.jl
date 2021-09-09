@@ -323,24 +323,28 @@ function _lastround!(g::Game, stp::GameSetup)
         g.state = g.terminated
     end
 
-    _revertplayersorder!(g.gm, g.players_states)
+#     _revertplayersorder!(g.gm, g.players_states)
 
     return g.state
 
 end
 
-@inline function update!(g::Game) :: GameState
-
-    println("UPDATE!!!")
-
+@inline function update!(g::Game)
     stp = setup(g)
-    if g.round >= stp.num_rounds
-        # game has reached the last round
-        return _lastround!(g, stp)
+
+    if stateid(g.state) == ENDED_ID
+        if g.round >= stp.num_rounds
+            # game has reached the last round
+            return _lastround!(g, stp)
+        else
+            # all players except one have folded
+            return _nlastround!(g, stp)
+        end
     else
-        # all players except one have folded
-        return _nlastround!(g, stp)
+        return g.state
     end
+
+
 end
 
 @inline function rotateplayers!(pls::Vector{PlayerState}, bb::AbstractFloat)
@@ -567,40 +571,38 @@ end
     return st
 end
 
+@inline function start!(::Type{T}, g::Game) where T <: RunMode
+    id = stateid(g.state)
 
-start!(::Type{T}, g::Game) where T <: RunMode = start!(T, g, g.state)
-start!(::Type{T}, g::Game, gs::Started) where T <: RunMode = start!(T, g, shared(g))
+    if id == TERM_ID
+        data = shared(g)
+        stp = setup(g)
+        states = g.players_states
 
-function start!(::Type{T}, g::Game, s::Terminated) where T <: RunMode
-    data = shared(g)
-    stp = setup(g)
-    states = g.players_states
+        #re-initialize players states
+        for st in states
+            st.chips = stp.chips # reset chips
+            st.active = true
+            st.bet = 0
+        end
+        #set the number of active players
+        g.active_players = stp.num_players
 
-    #re-initialize players states
-    for st in states
-        st.chips = stp.chips # reset chips
-        st.active = true
-        st.bet = 0
+        return _start!(T, g, shared(g))
+
+    elseif id == ENDED_ID
+        return _start!(T, g, shared(g))
+
+    elseif id == INIT_ID
+        error("Cannot start an un-initialized game!")
+    elseif id == STARTED_ID
+        return _start!(T, g, shared(g))
+    else
+        error("Undefined State")
     end
-    #set the number of active players
-    g.active_players = stp.num_players
-
-    start!(g, shared(g))
 end
 
-function start!(::Type{T}, g::Game, s::Ended) where T <: RunMode
-    start!(T, g, shared(g))
-end
-
-function start!(g::Game, s::Terminated)
-    error("Cannot start a terminated game")
-end
-
-function start!(g::Game, st::Initializing)
-    error("Cannot start an unnitialized game!")
-end
-
-function initialize!(
+@inline function initialize!(
     ::Type{Simulation},
     g::Game,
     data::SharedData,
@@ -704,7 +706,7 @@ function putbackcards!(
     empty!(data.public_cards)
 end
 
-function start!(
+@inline function _start!(
     ::Type{LiveSimulation},
     g::Game,
     data::SharedData)
@@ -756,7 +758,7 @@ end
     end
 end
 
-function start!(
+@inline function _start!(
     ::Type{Simulation},
     g::Game,
     data::SharedData)
@@ -787,7 +789,7 @@ function start!(
     return g.state
 end
 
-function sample(a::ActionSet, wv::Vector{Bool})
+@inline function sample(a::ActionSet, wv::Vector{Bool})
     n = length(wv)
     t = rand()
     i = 1
@@ -870,7 +872,7 @@ end
     return 1
 end
 
-function _update!(
+@inline function _update!(
     acts::ActionSet,
     ids::Vector{UInt8},
     g::Game,

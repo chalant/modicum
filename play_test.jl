@@ -6,7 +6,7 @@ using Random
 using .playing
 using .cards
 
-function createplayerstate(player::Player, chips::Float32)
+@inline function createplayerstate(player::Player, chips::Float32)
     ps = PlayerState()
 
     ps.chips = chips
@@ -18,7 +18,7 @@ function createplayerstate(player::Player, chips::Float32)
     return ps
 end
 
-function initialize(
+@inline function initialize(
     game::Game,
     shared::SharedData,
     stp::GameSetup,
@@ -72,16 +72,13 @@ const SETUP = setup(
     Float32(1000))
 
 const SHARED = SharedData()
-
-
 const RUN_MODE = Simulation
-
 const GAME = creategame(SHARED, SETUP, Full())
 
 #intialize game
 initialize(GAME, SHARED, SETUP, DECK, ACTS)
 
-function message(action::Action, game::Game)
+@inline function message(action::Action, game::Game)
     id = action.id
 
     if id == CHECK_ID
@@ -122,7 +119,7 @@ function choice(message::AbstractString)
     end
 end
 
-function selectplayer(choices::Vector{Int})
+@inline function selectplayer(choices::Vector{Int})
     println("Select any number ", choices)
 
     try
@@ -133,7 +130,7 @@ function selectplayer(choices::Vector{Int})
     end
 end
 
-function selectplayer(gm::Game)
+@inline function selectplayer(gm::Game)
     players_queue = setup(gm).players
 
     println("Player selection ")
@@ -158,7 +155,7 @@ function selectplayer(gm::Game)
     end
 end
 
-function availableactions!(game::Game, data::SharedData, stp::GameSetup, out::Array{Action})
+@inline function availableactions!(game::Game, data::SharedData, stp::GameSetup, out::Array{Action})
     actions_mask = data.actions_mask
     acts = stp.actions
 
@@ -171,7 +168,7 @@ function availableactions!(game::Game, data::SharedData, stp::GameSetup, out::Ar
     return arr
 end
 
-function choose_action(game::Game, actions::ActionSet)
+@inline function choose_action(game::Game, actions::ActionSet)
     # todo provide a function for displaying actions names
     println("Choose action ")
     ply = playerstate(game)
@@ -201,37 +198,40 @@ function random_action(game::Game)
     return sample(viewactions(game), game.actions_mask)
 end
 
-function cont(g::Game, s::Terminated)
-    if choice("New game ?") == true
-        # shuffle and distribute cards
-        start!(RUN_MODE, g, s)
-        return true
-    end
-    return false
-end
+# function cont(g::Game, s::Terminated)
+#     if choice("New game ?") == true
+#         # shuffle and distribute cards
+#         start!(RUN_MODE, g, s)
+#         return true
+#     end
+#     return false
+# end
 
-function cont(g::Game, s::Ended)
-    if choice("Continue ?") == true
-        data = shared(g)
-        stp = setup(g)
-        putbackcards!(RUN_MODE, g, stp, data)
-        shuffle!(data.deck)
-        activateplayers!(g, stp)
-        distributecards!(RUN_MODE, g, stp, data)
-        start!(RUN_MODE, g, s)
-        return true
-    end
-    return false
-end
-
-function cont(g::Game, s::Started)
+function cont(g::Game, st::State)
     # update!(g, state)
-    return true
-end
+    id = st.id
 
-function cont(g::Game, s::Terminated)
-    println("Game Over!")
-    return false
+    if id == STARTED_ID
+        return true
+    elseif id == ENDED_ID
+        if choice("Continue ?") == true
+            data = shared(g)
+            stp = setup(g)
+            putbackcards!(RUN_MODE, g, stp, data)
+            shuffle!(data.deck)
+            activateplayers!(g, stp)
+            distributecards!(RUN_MODE, g, stp, data)
+            start!(RUN_MODE, g)
+            return true
+        end
+        return false
+
+    elseif id == TERM_ID
+        println("Game Over!")
+        return false
+    else
+        return false
+    end
 end
 
 function play()
@@ -241,9 +241,7 @@ function play()
         player = selectplayer(GAME)
 
         initialize!(RUN_MODE, GAME, SHARED, SETUP)
-
         distributecards!(RUN_MODE, GAME, SETUP, SHARED)
-
         start!(RUN_MODE, GAME)
 
         while true
@@ -274,7 +272,7 @@ function play()
             # if it is not the players turn, perform random moves until it is
             # the users turn, display available actions, then wait for input
 
-            if cont(GAME, GAME.state) == false
+            if cont(GAME, update!(GAME)) == false
                 break
             end
         end

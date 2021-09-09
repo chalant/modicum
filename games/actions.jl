@@ -82,45 +82,45 @@ const CHANCE = Action(CHANCE_ID, 0)
 
 ActionSet(acts::Vector{Action}) = ActionSet(acts::Vector{Action}, false)
 
-function id(a::Action)
+@inline function id(a::Action)
     return a.id
 end
 
-function amount(action::Action)
+@inline function amount(action::Action)
     return action.amount
 end
 
-function Base.getindex(actions::ActionSet, index::Int)
+@inline function Base.getindex(actions::ActionSet, index::Int)
     return actions.actions[index]
 end
 
-function Base.length(actions::ActionSet)
+@inline function Base.length(actions::ActionSet)
     return length(actions.actions)
 end
 
-function Base.:(==)(p1::Action, p2::Action)
+@inline function Base.:(==)(p1::Action, p2::Action)
     return p1.id == p2.id && p1.amount == p2.amount
 end
 
-function Base.isless(p1::Action, p2::Action)
+@inline function Base.isless(p1::Action, p2::Action)
     if p1.id == p2.id
         return p1.amount <= p2.amount
     end
     return p1.id < p2.id
 end
 
-function Base.:(<)(p1::Action, p2::Action)
+@inline function Base.:(<)(p1::Action, p2::Action)
     return isless(p1, p2)
 end
 
-function Base.sort!(s::ActionSet)
+@inline function Base.sort!(s::ActionSet)
     if s.sorted != true
         sort!(s.actions)
         s.sorted = false
     end
 end
 
-function Base.push!(s::ActionSet, a::Action)
+@inline function Base.push!(s::ActionSet, a::Action)
     # add element by maintaining order.
     sort!(s)
     i = 1
@@ -133,15 +133,15 @@ function Base.push!(s::ActionSet, a::Action)
     end
 end
 
-function Base.iterate(a::ActionSet, i::Int)
+@inline function Base.iterate(a::ActionSet, i::Int)
     return iterate(a.actions, i)
 end
 
-function Base.iterate(a::ActionSet)
+@inline function Base.iterate(a::ActionSet)
     return iterate(a, 1)
 end
 
-function viewactions(a::ActionSet)
+@inline function viewactions(a::ActionSet)
     return a.actions
 end
 
