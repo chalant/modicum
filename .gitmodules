@@ -1,0 +1,3 @@
+[submodule "gmap-rpc"]
+	path = gmap-rpc
+	url = https://github.com/chalant/gmap-rpc.git

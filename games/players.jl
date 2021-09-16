@@ -44,45 +44,46 @@ mutable struct PlayerState <: ID
     PlayerState() = new()
 end
 
-function Base.position(ps::PlayerState)
+@inline function Base.position(ps::PlayerState)
     return position(ps.player)
 end
 
-function Base.position(player::Player)
+@inline function Base.position(player::Player)
     return player.position
 end
 
-function Base.:(==)(p1::Player, p2::Player)
+@inline function Base.:(==)(p1::Player, p2::Player)
     return p1.id == p2.id
 end
 
 Base.:(==)(a::ID, b::ID) = id(a) == id(b)
 
-function Base.:(==)(p1::PlayerState, p2::PlayerState)
+@inline function Base.:(==)(p1::PlayerState, p2::PlayerState)
     return id(p1) == id(p2)
 end
 
-function Base.:(==)(p1::PlayerState, p2::Player)
+@inline function Base.:(==)(p1::PlayerState, p2::Player)
     return id(p1) == p2.id
 end
 
-function Base.:(==)(p1::Player, p2::PlayerState)
+@inline function Base.:(==)(p1::Player, p2::PlayerState)
     return p1.id == id(p2)
 end
 
-function Base.isless(p1::PlayerState, p2::Player)
+@inline function Base.isless(p1::PlayerState, p2::Player)
     return p1.id < p2.id
 end
 
-function Base.isless(p1::Player, p2::PlayerState)
+@inline function Base.isless(p1::Player, p2::PlayerState)
     return p1.id < p2.id
 end
 
-function Base.isless(p1::PlayerState, p2::Int)
+@inline function Base.isless(p1::PlayerState, p2::Int)
     return p1.id < p2
 end
 
-function Base.copy!(p::PlayerState, s::PlayerState)
+@inline function Base.copy!(p::PlayerState, s::PlayerState)
+    p.player = s.player
     p.chips = s.chips
     p.bet = s.bet
     p.position = s.position
@@ -94,19 +95,19 @@ function Base.copy!(p::PlayerState, s::PlayerState)
     return p
 end
 
-function Base.copy(s::PlayerState)
+@inline function Base.copy(s::PlayerState)
     p = PlayerState()
     copy!(p, s)
     return p
 end
 
-function Base.copy!(p::Vector{PlayerState}, s::Vector{PlayerState})
+@inline function Base.copy!(p::Vector{PlayerState}, s::Vector{PlayerState})
     for i in length(p)
         copy!(p[i], s[i])
     end
 end
 
-function Base.copy(s::Vector{PlayerState})
+@inline function Base.copy(s::Vector{PlayerState})
     l = length(s)
     v = Vector{PlayerState}(undef, l)
 
@@ -126,15 +127,15 @@ end
     return id(pl.player)
 end
 
-function Base.sort!(s::Vector{Player})
+@inline function Base.sort!(s::Vector{Player})
     return sort!(s, by=id)
 end
 
-function Base.sort!(s::Vector{PlayerState})
+@inline function Base.sort!(s::Vector{PlayerState})
     return sort!(s, by=id)
 end
 
-function state(player::Player, states::Vector{PlayerState})
+@inline function state(player::Player, states::Vector{PlayerState})
     return states[searchsortedfirst(states, player)]
 end
 
