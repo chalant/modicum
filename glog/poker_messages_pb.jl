@@ -2,6 +2,12 @@
 using ProtoBuf
 import ProtoBuf.meta
 
+const Round = (;[
+    Symbol("FLOP") => Int32(0),
+    Symbol("TURN") => Int32(1),
+    Symbol("RIVER") => Int32(2),
+]...)
+
 const PlayerData_PlayerType = (;[
     Symbol("MAIN") => Int32(0),
     Symbol("OPPONENT") => Int32(1),
@@ -80,6 +86,45 @@ function meta(::Type{Empty})
     end
 end
 
+mutable struct BoardCardsRequest <: ProtoType
+    __protobuf_jl_internal_meta::ProtoMeta
+    __protobuf_jl_internal_values::Dict{Symbol,Any}
+    __protobuf_jl_internal_defaultset::Set{Symbol}
+
+    function BoardCardsRequest(; kwargs...)
+        obj = new(meta(BoardCardsRequest), Dict{Symbol,Any}(), Set{Symbol}())
+        values = obj.__protobuf_jl_internal_values
+        symdict = obj.__protobuf_jl_internal_meta.symdict
+        for nv in kwargs
+            fldname, fldval = nv
+            fldtype = symdict[fldname].jtyp
+            (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
+            if fldval !== nothing
+                values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            end
+        end
+        obj
+    end
+end # mutable struct BoardCardsRequest
+const __meta_BoardCardsRequest = Ref{ProtoMeta}()
+function meta(::Type{BoardCardsRequest})
+    ProtoBuf.metalock() do
+        if !isassigned(__meta_BoardCardsRequest)
+            __meta_BoardCardsRequest[] = target = ProtoMeta(BoardCardsRequest)
+            allflds = Pair{Symbol,Union{Type,String}}[:round => Int32]
+            meta(target, BoardCardsRequest, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
+        end
+        __meta_BoardCardsRequest[]
+    end
+end
+function Base.getproperty(obj::BoardCardsRequest, name::Symbol)
+    if name === :round
+        return (obj.__protobuf_jl_internal_values[name])::Int32
+    else
+        getfield(obj, name)
+    end
+end
+
 mutable struct PlayerStateData <: ProtoType
     __protobuf_jl_internal_meta::ProtoMeta
     __protobuf_jl_internal_values::Dict{Symbol,Any}
@@ -146,7 +191,7 @@ function meta(::Type{InitialData})
     ProtoBuf.metalock() do
         if !isassigned(__meta_InitialData)
             __meta_InitialData[] = target = ProtoMeta(InitialData)
-            allflds = Pair{Symbol,Union{Type,String}}[:players_state => Base.Vector{PlayerStateData}, :dealer => PlayerData, :small_blind => PlayerData, :big_blind => PlayerData, :sb_amount => Float32, :bb_amount => Float32, :server_url => AbstractString]
+            allflds = Pair{Symbol,Union{Type,String}}[:players_state => Base.Vector{PlayerStateData}, :dealer => PlayerData, :sb_amount => Float32, :bb_amount => Float32]
             meta(target, InitialData, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
         end
         __meta_InitialData[]
@@ -157,16 +202,10 @@ function Base.getproperty(obj::InitialData, name::Symbol)
         return (obj.__protobuf_jl_internal_values[name])::Base.Vector{PlayerStateData}
     elseif name === :dealer
         return (obj.__protobuf_jl_internal_values[name])::PlayerData
-    elseif name === :small_blind
-        return (obj.__protobuf_jl_internal_values[name])::PlayerData
-    elseif name === :big_blind
-        return (obj.__protobuf_jl_internal_values[name])::PlayerData
     elseif name === :sb_amount
         return (obj.__protobuf_jl_internal_values[name])::Float32
     elseif name === :bb_amount
         return (obj.__protobuf_jl_internal_values[name])::Float32
-    elseif name === :server_url
-        return (obj.__protobuf_jl_internal_values[name])::AbstractString
     else
         getfield(obj, name)
     end
@@ -304,13 +343,13 @@ function Base.getproperty(obj::ActionData, name::Symbol)
     end
 end
 
-mutable struct BlindsData <: ProtoType
+mutable struct Amount <: ProtoType
     __protobuf_jl_internal_meta::ProtoMeta
     __protobuf_jl_internal_values::Dict{Symbol,Any}
     __protobuf_jl_internal_defaultset::Set{Symbol}
 
-    function BlindsData(; kwargs...)
-        obj = new(meta(BlindsData), Dict{Symbol,Any}(), Set{Symbol}())
+    function Amount(; kwargs...)
+        obj = new(meta(Amount), Dict{Symbol,Any}(), Set{Symbol}())
         values = obj.__protobuf_jl_internal_values
         symdict = obj.__protobuf_jl_internal_meta.symdict
         for nv in kwargs
@@ -323,26 +362,24 @@ mutable struct BlindsData <: ProtoType
         end
         obj
     end
-end # mutable struct BlindsData
-const __meta_BlindsData = Ref{ProtoMeta}()
-function meta(::Type{BlindsData})
+end # mutable struct Amount
+const __meta_Amount = Ref{ProtoMeta}()
+function meta(::Type{Amount})
     ProtoBuf.metalock() do
-        if !isassigned(__meta_BlindsData)
-            __meta_BlindsData[] = target = ProtoMeta(BlindsData)
-            allflds = Pair{Symbol,Union{Type,String}}[:small_blind => Float32, :big_blind => Float32]
-            meta(target, BlindsData, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
+        if !isassigned(__meta_Amount)
+            __meta_Amount[] = target = ProtoMeta(Amount)
+            allflds = Pair{Symbol,Union{Type,String}}[:value => Float32]
+            meta(target, Amount, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
         end
-        __meta_BlindsData[]
+        __meta_Amount[]
     end
 end
-function Base.getproperty(obj::BlindsData, name::Symbol)
-    if name === :small_blind
-        return (obj.__protobuf_jl_internal_values[name])::Float32
-    elseif name === :big_blind
+function Base.getproperty(obj::Amount, name::Symbol)
+    if name === :value
         return (obj.__protobuf_jl_internal_values[name])::Float32
     else
         getfield(obj, name)
     end
 end
 
-export InitialData, PlayerData_PlayerType, PlayerData, Empty, PlayerStateData, CardsData, CardData, ActionData_ActionType, ActionData, BlindsData
+export Round, InitialData, PlayerData_PlayerType, PlayerData, Empty, BoardCardsRequest, PlayerStateData, CardsData, CardData, ActionData_ActionType, ActionData, Amount

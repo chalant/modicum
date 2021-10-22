@@ -1,5 +1,5 @@
 def build(builder):
-    cards = builder.new_scene("card")
+    cards = builder.scene()
 
     image = builder.label_type("Image")
     container = builder.label_type("Container")

@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package poker;
+
+option cc_generic_services = true;
+
+enum Round {
+  FLOP = 0;
+  TURN = 1;
+  RIVER = 2;
+}
+
+message InitialData {
+  repeated PlayerStateData players_state = 1;
+
+  PlayerData dealer = 2;
+
+  float sb_amount = 3;
+  float bb_amount = 4;
+}
+
+message PlayerData{
+  uint32 position = 1;
+  //main or opponent
+
+  enum PlayerType {
+    MAIN = 0;
+    OPPONENT = 1;
+  }
+
+  PlayerType type = 2;
+  bool is_active = 3;
+}
+
+message Empty {
+
+}
+
+message BoardCardsRequest {
+  Round round = 1;
+}
+
+message PlayerStateData {
+  float chips = 1;
+  PlayerData player = 2;
+}
+
+message CardsData {
+  repeated CardData cards = 1;
+}
+
+message CardData {
+  uint32 suit = 1;
+  uint32 rank = 2;
+}
+
+message ActionData{
+  uint32 action_id = 1;
+
+  enum ActionType {
+    BET = 0;
+    CALL = 1;
+    RAISE = 2;
+    FOLD = 3;
+    ALL_IN = 4;
+    CHECK = 5;
+  }
+
+  ActionType action_type = 2;
+  float amount = 3;
+}
+
+message Amount {
+  float value = 1;
+}

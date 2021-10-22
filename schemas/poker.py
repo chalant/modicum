@@ -8,7 +8,7 @@ def build(builder):
     button = builder.label_type("Button")
     container = builder.label_type("Container")
 
-    poker = builder.new_scene("poker")
+    poker = builder.scene()
 
     poker.add_label("Pot", number, capture=True)
 
@@ -49,19 +49,19 @@ def build(builder):
     poker_act_btn_lbl.add_instance("Raise")
     poker_act_btn_lbl.add_instance("Null")
 
-    poker_button = poker.add_label(
+    button = poker.add_label(
         "Button",
         image,
         capture=True,
         classifiable=True
     )
 
-    poker_button.add_instance("Dealer")
-    poker_button.add_instance("SmallBlind")
-    poker_button.add_instance("BigBlind")
-    poker_button.add_instance("Null")
+    button.add_instance("Dealer")
+    button.add_instance("SmallBlind")
+    button.add_instance("BigBlind")
+    button.add_instance("Null")
 
-    card = builder.get_label("card", "Card")
+    card = builder.import_scene("card").get_label("Container", "Card")
 
     position = builder.property_(pp.INTEGER, "Position")
 
@@ -69,18 +69,24 @@ def build(builder):
 
     builder.incremental_value_generator(position)
 
-    board_label = poker.add_label("Board", container)
+    flop_label = poker.add_label("Flop", container)
+    turn_label = poker.add_label("Turn", container)
+    river_label = poker.add_label("River", container)
 
-    board_label.add_component(card)
+    flop_label.add_component(card)
+    turn_label.add_component(card)
+    river_label.add_component(card)
 
     opponent = poker.add_label("Opponent", container)
+
+    opponent.add_component(poker.add_label("BetAmount", number))
 
     # components are used to track which component belongs to which element
 
     opponent.add_component(card)
     opponent.add_component(poker_action_label)
     opponent.add_component(state_label)
-    opponent.add_component(poker_button)
+    opponent.add_component(button)
 
     opponent.add_property(position)
 
@@ -88,7 +94,7 @@ def build(builder):
 
     player.add_component(card)
     player.add_component(poker_act_btn_lbl)
-    player.add_component(poker_button)
+    player.add_component(button)
     player.add_component(state_label)
 
     player.add_property(position)

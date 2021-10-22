@@ -39,6 +39,26 @@ end
 show(io::IO, client::PokerServiceBlockingClient) = print(io, "PokerServiceBlockingClient(", client.channel.baseurl, ")")
 show(io::IO, client::PokerServiceClient) = print(io, "PokerServiceClient(", client.channel.baseurl, ")")
 
+import .poker: GetPlayers
+"""
+    GetPlayers
+
+- input: poker.Empty
+- output: Channel{poker.PlayerData}
+"""
+GetPlayers(client::PokerServiceBlockingClient, inp::poker.Empty) = GetPlayers(client.stub, client.controller, inp)
+GetPlayers(client::PokerServiceClient, inp::poker.Empty, done::Function) = GetPlayers(client.stub, client.controller, inp, done)
+
+import .poker: GetDealer
+"""
+    GetDealer
+
+- input: Channel{poker.PlayerData}
+- output: poker.PlayerData
+"""
+GetDealer(client::PokerServiceBlockingClient, inp::Channel{poker.PlayerData}) = GetDealer(client.stub, client.controller, inp)
+GetDealer(client::PokerServiceClient, inp::Channel{poker.PlayerData}, done::Function) = GetDealer(client.stub, client.controller, inp, done)
+
 import .poker: GetPlayerAction
 """
     GetPlayerAction
@@ -63,21 +83,21 @@ import .poker: GetBoardCards
 """
     GetBoardCards
 
-- input: poker.Empty
+- input: poker.BoardCardsRequest
 - output: poker.CardsData
 """
-GetBoardCards(client::PokerServiceBlockingClient, inp::poker.Empty) = GetBoardCards(client.stub, client.controller, inp)
-GetBoardCards(client::PokerServiceClient, inp::poker.Empty, done::Function) = GetBoardCards(client.stub, client.controller, inp, done)
+GetBoardCards(client::PokerServiceBlockingClient, inp::poker.BoardCardsRequest) = GetBoardCards(client.stub, client.controller, inp)
+GetBoardCards(client::PokerServiceClient, inp::poker.BoardCardsRequest, done::Function) = GetBoardCards(client.stub, client.controller, inp, done)
 
 import .poker: GetBlinds
 """
     GetBlinds
 
-- input: poker.Empty
-- output: poker.BlindsData
+- input: poker.PlayerData
+- output: poker.Amount
 """
-GetBlinds(client::PokerServiceBlockingClient, inp::poker.Empty) = GetBlinds(client.stub, client.controller, inp)
-GetBlinds(client::PokerServiceClient, inp::poker.Empty, done::Function) = GetBlinds(client.stub, client.controller, inp, done)
+GetBlinds(client::PokerServiceBlockingClient, inp::poker.PlayerData) = GetBlinds(client.stub, client.controller, inp)
+GetBlinds(client::PokerServiceClient, inp::poker.PlayerData, done::Function) = GetBlinds(client.stub, client.controller, inp, done)
 
 # end service: poker.PokerService
 

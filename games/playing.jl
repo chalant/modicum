@@ -448,36 +448,35 @@ end
     return update!(g, a, ps)
 end
 
-@inline function performchance!(a::Action, g::Game, ps::PlayerState)
-    data = shared(g)
-    round = g.round
-    #update once per round
-#     updates = data.updates
-    states = g.players_states
-
-    ap = g.active_players
-
+@inline function setpublicard!s(g::Game{Simulation}, data::SharedData)
     for i in 1:setup(g).cards_per_round[round]
         append!(data.public_cards, pop!(data.deck))
         data.deck_cursor -= 1
     end
+end
+
+@inline function performchance!(a::Action, g::Game, ps::PlayerState)
+    data = shared(g)
+    round = g.round
+
+    #update once per round
+    #updates = data.updates
+
+    states = g.players_states
+
+    ap = g.active_players
+
+    setpubliccards!(g, data)
 
     for ps in states
-        #assign potential earnings to each player
-
-        # potential earnings is the amount the player bet at this
-        # round times the number of active players
+        # assign potential earnings to each active player
+        # potential earnings is the amount the player might win
 
         if ps.active == true
             _computepotentialearning!(states, ps)
         end
 
     end
-
-#     if round == 1
-#         println("ROTATE!!!")
-#         rotateplayers!(states, bigblind(setup(g)).amount)
-#     end
 
     for ps in states
         ps.bet = 0
@@ -717,12 +716,12 @@ end
 
     states = g.players_states
 
-    #reset tracker array
-    updates = data.updates
-
-    for i in 1:length(updates)
-        updates[i] = false
-    end
+#     #reset tracker array
+#     updates = data.updates
+#
+#     for i in 1:length(updates)
+#         updates[i] = false
+#     end
 
     # reset data from last root game
     copy!(g, game(dg), data, stp)
@@ -774,11 +773,11 @@ end
     g.all_in = 0
     g.player = g.players_states[1]
 
-    updates = data.updates
-
-    for i in 1:length(updates)
-        updates[i] = false
-    end
+#     updates = data.updates
+#
+#     for i in 1:length(updates)
+#         updates[i] = false
+#     end
 
     # skip the first player since it is the dealer
 #     st = nextplayer(g)

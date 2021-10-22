@@ -51,7 +51,6 @@ end
     shared.updates = Vector{Bool}([false for _ in 1:stp.num_rounds])
     shared.public_cards = Vector{UInt64}()
     shared.deck_cursor = length(cards_deck)
-
 end
 
 const DECK = get_deck()
@@ -260,6 +259,7 @@ function play()
                 idx = choose_action(GAME, setup(GAME).actions)
                 st = perform!(actions[idx], GAME, pl)
             else
+                # opponents turn
                 idx = sample(setup(GAME).actions, actionsmask(pl))
                 act = actions[idx]
                 println("Player", id(pl), ": ", message(act, GAME))

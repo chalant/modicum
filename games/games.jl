@@ -55,7 +55,7 @@ abstract type GameMode  end
 struct Full <: GameLength
 end
 
-struct DepthLimited{T <: Estimation} <: GameLength
+struct DepthLimited{T<:Estimation} <: GameLength
     limit::UInt8
     estimation::T # method for estimating utility (NN, MC Rollouts...)
 end
@@ -64,9 +64,6 @@ struct Simulation <: RunMode
 end
 
 struct LiveSimulation <: RunMode
-end
-
-struct Live <: RunMode
 end
 
 struct HeadsUp <: GameMode
@@ -86,7 +83,7 @@ end
 
 # todo: small blind and big blinds can change throughout a game
 # move them to the game
-mutable struct GameSetup
+mutable struct GameSetup{T<:GameMode}
     players::Vector{Player} #mapping of players
     main_player::Player
 
@@ -97,7 +94,7 @@ mutable struct GameSetup
     num_public_cards::UInt8
     num_rounds::UInt8
     chips::Float32
-    game_mode::GameMode
+    game_mode::T
     num_players::UInt8
 
     actions::ActionSet
@@ -136,7 +133,7 @@ mutable struct SharedData
 
 end
 
-mutable struct Game
+mutable struct Game{T<:RunMode, U<:GameLength}
     state::State
 
     initializing::State
@@ -147,9 +144,10 @@ mutable struct Game
     setup::GameSetup
     shared::SharedData
 
-    action::Type{T} where T <: Action # previous action
+    action::Action
 
-    tp::GameLength
+    run_mode::T
+    tp::U
 
     player::PlayerState
     prev_player::PlayerState
