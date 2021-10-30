@@ -15,7 +15,7 @@ struct Live <: RunMode
     client::PokerServiceClient
 end
 
-@inline function _postblinds!(::HeadsUp, g::Game{Live}, stp::GameSetup)
+@inline function postblinds!(g::Game{Live}, stp::GameSetup{HeadsUp})
         client = getclient!(g.run_mode)
 
         sb = g.players_states[1]
@@ -103,17 +103,19 @@ function start(
 
     client = PokerServiceClient(server_url)
 
-    live_game = Game{Live, Full}()
+    live_game = Game{Live}()
 
     live_game.run_mode = Live(client)
 
     shared_data = SharedData()
 
-    #todo: should we include small blind data variation in the algorithm, or leave it
-    #here ?
+    #todo: should we include small blind data variation in the simulation?
+    # it is either time based or round based? (maybe each 4 or 5 rounds?)
 
     #todo: action set should also be provided when we launch the game (note should
     # correspond to the one we trained with)
+
+    #setup the game.
 
     game_setup = creategamesetup!(num_players > 2)
 
@@ -127,7 +129,7 @@ function start(
     game_setup.num_rounds = 4
     game_setup.chips = chips
 
-    game_setup.cards_per_round = [UInt8(3), UInt8(1), UInt8(1)]
+    game_setup.cards_per_round = Vector{UInt8}([UInt8(3), UInt8(1), UInt8(1)])
 
     #todo: make a request to the server to know if we can start playing
     IsReady(client, Empty())
@@ -141,7 +143,7 @@ function start(
     active_players = 0
 
     for player in 1:GetPlayers(client)
-        append!(PlayersData, player) #todo: sort by position
+        append!(PlayersData, player)
 
         pos = player.position
 
@@ -171,6 +173,8 @@ function start(
         private_cards[p] = Vector{UInt64}()
     end
 
+    sort!(PlayersData, by = x -> x.position)
+
     #re-order players such that the dealer is last
     putlast!(states, UInt8(dealer.position))
 
@@ -179,27 +183,49 @@ function start(
 
     live_game.total_bet = 0
     live_game.active_players = active_players
-    live_game.tp = Full()
 
     shared_data.private_cards = private_cards
 
     #todo: need an action set (which should be the same as the blueprint model)
+    # otherwise the performance would probably not be the same.
+
+    # note: ideally, a blueprint strategy is trained against a certain game setup.
+    # and is bound to that.
+    # multiple games can share the same game setup
+
+    action_set = ActionSet([
+        CALL,
+        FOLD,
+        ALL,
+        CHECK,
+        Action(RAISE_ID, 0.5, 2),
+        Action(RAISE_ID, 0.75, 3),
+        Action(RAISE_ID, 1, 4),
+        Action(BET_ID, 0.5, 2),
+        Action(BET_ID, 0.75, 3),
+        Action(BET_ID, 1, 4)]
+    )
+
+    sort!(action_set)
+
     game_setup.actions = action_set
 
-    cards_data = GetPlayerCards(client, PlayerData(position=UInt32(main_player.position)))
+    cards_data = GetPlayerCards(
+        client,
+        PlayerData(position=UInt32(main_player.position)))
 
     #todo: convert cards to local data structure
     private_cards[main_player] = cards_data
 
     #post blinds
-    _headsupblinds!(g, game_setup)
-
-    current_player = live_game.player
+    postblinds!(g, game_setup)
 
     # game loop.
     # note: loop breaks when the main player is eliminated or wins
 
     while true
+        current_player = live_game.player
+
         if current_player == main_player
             #todo: choose an action from the action set them perform it
             perform!()
@@ -209,7 +235,10 @@ function start(
             opp_act = GetPlayerAction(client, PlayersData[cpl.position])
         end
 
-        game_state = update!(live_game)
+        #todo: in certain game modes, (sit and go) we can quit any time at the end of a game.
+        #todo: we need to implement a special initialization step fo
+
+        game_state = update!(live_game, game_setup)
 
         state_id = game_state.id
 

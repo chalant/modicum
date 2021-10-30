@@ -9,6 +9,7 @@ export activateplayers!
 export putbackcards!
 export distributecards!
 export rotateplayers!
+export betamount
 
 export callamount
 
@@ -31,8 +32,12 @@ end
         return ps.chips
 end
 
-@inline function betamount(mul::Float32, g::Game)
-    return bigblind(g.setup).amount * mul + g.last_bet
+@inline function betamount(act::Action, g::Game)
+    if game.round > 0
+        return g.pot_size * act.pot_multiplier + g.last_bet
+    else
+        return bigblind(g.setup).amount * act.blind_multiplier + g.last_bet
+    end
 end
 
 @inline function bigblindamount(g::Game, ps::PlayerState)
@@ -41,10 +46,6 @@ end
 
 @inline function smallblindamount(g::Game, ps::PlayerState)
         return smallblind(g.setup).amount
-end
-
-@inline function raiseamount(mul::Float32, g::Game)
-        return g.pot_size * mul + g.last_bet
 end
 
 @inline function activateplayers!(g::Game, stp::GameSetup)
@@ -158,7 +159,7 @@ end
     return pot
 end
 
-function _nlastround!(g::Game, stp::GameSetup)
+function _notlastround!(g::Game, stp::GameSetup)
     # game did not go to the last round => all except one player
     # have folded
     states = g.players_states
@@ -329,21 +330,18 @@ function _lastround!(g::Game, stp::GameSetup)
 
 end
 
-@inline function update!(g::Game)
-    stp = setup(g)
-
+@inline function update!(g::Game, stp::GameSetup)
     if stateid(g.state) == ENDED_ID
         if g.round >= stp.num_rounds
             # game has reached the last round
             return _lastround!(g, stp)
         else
             # all players except one have folded
-            return _nlastround!(g, stp)
+            return _notlastround!(g, stp)
         end
     else
         return g.state
     end
-
 
 end
 
@@ -394,7 +392,7 @@ end
 end
 
 @inline function performraise!(a::Action, g::Game, ps::PlayerState)
-    bet!(raiseamount(a.amount, g), g, ps)
+    bet!(betamount(a, g), g, ps)
     return update!(g, a, ps)
 end
 
@@ -505,10 +503,8 @@ end
 
     if id == ALL_ID
         return performallin!(a, g, ps)
-    elseif id == RAISE_ID
-        return performraise!(a, g, ps)
-    elseif id == BET_ID
-        bet!(betamount(a.amount, g), g, ps)
+    elseif id == BET_ID || RAISE_ID
+        bet!(betamount(a, g), g, ps)
         return update!(g, a, ps)
     elseif id == CHECK_ID
         return performcheck!(a, g, ps)
@@ -570,7 +566,7 @@ end
     return st
 end
 
-@inline function start!(::Type{T}, g::Game) where T <: RunMode
+@inline function start!(g::Game)
     id = stateid(g.state)
 
     if id == TERM_ID
@@ -587,15 +583,15 @@ end
         #set the number of active players
         g.active_players = stp.num_players
 
-        return _start!(T, g, shared(g))
+        return _start!(g, shared(g))
 
     elseif id == ENDED_ID
-        return _start!(T, g, shared(g))
+        return _start!(g, shared(g))
 
     elseif id == INIT_ID
         error("Cannot start an un-initialized game!")
     elseif id == STARTED_ID
-        return _start!(T, g, shared(g))
+        return _start!(g, shared(g))
     else
         error("Undefined State")
     end
@@ -670,8 +666,7 @@ function distributecards!(
 end
 
 function putbackcards!(
-    ::Type{LiveSimulation},
-    g::Game,
+    g::Game{LiveSimulation},
     stp::GameSetup,
     data::SharedData)
 
@@ -690,8 +685,7 @@ function putbackcards!(
 end
 
 function putbackcards!(
-    ::Type{Simulation},
-    g::Game,
+    g::Game{Simulation},
     stp::GameSetup,
     data::SharedData)
 
@@ -706,8 +700,7 @@ function putbackcards!(
 end
 
 @inline function _start!(
-    ::Type{LiveSimulation},
-    g::Game,
+    g::Game{LiveSimulation},
     data::SharedData)
 
     deck = data.deck
@@ -715,13 +708,6 @@ end
     stp = setup(g)
 
     states = g.players_states
-
-#     #reset tracker array
-#     updates = data.updates
-#
-#     for i in 1:length(updates)
-#         updates[i] = false
-#     end
 
     # reset data from last root game
     copy!(g, game(dg), data, stp)
@@ -740,11 +726,11 @@ end
     g.player = nextplayer(g)
 end
 
-@inline function _postblinds!(::HeadsUp, g::Game, stp::GameSetup)
+@inline function postblinds!(g::Game, stp::GameSetup{HeadsUp})
     _headsupblinds!(g, stp)
 end
 
-@inline function _postblinds!(::Normal, g::Game, stp::GameSetup)
+@inline function postblinds!(g::Game, stp::GameSetup{Normal})
     if num_players == 2
         _headsupblinds!(g, stp)
     else
@@ -758,8 +744,7 @@ end
 end
 
 @inline function _start!(
-    ::Type{Simulation},
-    g::Game,
+    g::Game{Simulation},
     data::SharedData)
 
     stp = setup(g)
@@ -783,7 +768,7 @@ end
 #     st = nextplayer(g)
 #     g.player = st
 
-    _postblinds!(stp.game_mode, g, stp)
+    postblinds!(g, stp)
 
     return g.state
 end
@@ -966,11 +951,11 @@ end
         _update!(viewactions(g.setup), AFTER_CHANCE, g, ps)
 end
 
-@inline function updateafterbigbling(g::Game, ps::PlayerState)
+@inline function updateafterbigblind(g::Game, ps::PlayerState)
         _update!(viewactions(g.setup), AFTER_BB, g, ps)
 end
 
-@inline function updateaftersmallbling(g::Game, ps::PlayerState)
+@inline function updateaftersmallblind(g::Game, ps::PlayerState)
         _update!(viewactions(g.setup), AFTER_SB, g, ps)
 end
 
@@ -983,14 +968,12 @@ end
         return _activatefold(g, ps)
     elseif ai == ALL_ID
         return _activateallin(g, ps)
-    elseif ai == RAISE_ID
-        return _activateabstractbet(raiseamount(a.amount, g), ps)
+    elseif ai == RAISE_ID || ai == BET_ID
+        return _activateabstractbet(betamount(a, g), ps)
     elseif ai == SB_ID
         return _activateabstractbet(smallblindamount(g, ps), ps)
     elseif ai == BB_ID
         return _activateabstractbet(bigblindamount(g, ps), ps)
-    elseif ai == BET_ID
-        return _activateabstractbet(betamount(a.amount, g), ps)
     elseif ai == CHECK_ID
         return _activatecheck(g, ps)
     end

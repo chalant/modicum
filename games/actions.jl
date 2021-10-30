@@ -70,7 +70,8 @@ const AFTER_SB = Vector{UInt8}([BB_ID])
 
 struct Action
     id::UInt8
-    amount::Float32
+    pot_multiplier::Float32
+    blind_multiplier::Float32
 end
 
 mutable struct ActionSet

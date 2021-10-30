@@ -83,7 +83,7 @@ initialize(GAME, SHARED, SETUP, DECK, ACTS)
     if id == CHECK_ID
         return string("Check")
     elseif id == RAISE_ID
-        return string("Raise ", action.amount * game.pot_size + game.last_bet)
+        return string("Raise ", betamount(a, g))
     elseif id == ALL_ID
         return string("Play all ", chips(game))
     elseif id == FOLD_ID
@@ -91,7 +91,7 @@ initialize(GAME, SHARED, SETUP, DECK, ACTS)
     elseif id == CALL_ID
         return string("Call ", callamount(game, game.player))
     elseif id == BET_ID
-        return string("Bet ", action.amount * bigblind(game.setup).amount)
+        return string("Bet ", betamount(a, g))
     end
 end
 
@@ -260,6 +260,7 @@ function play()
                 st = perform!(actions[idx], GAME, pl)
             else
                 # opponents turn
+
                 idx = sample(setup(GAME).actions, actionsmask(pl))
                 act = actions[idx]
                 println("Player", id(pl), ": ", message(act, GAME))

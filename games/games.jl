@@ -133,7 +133,7 @@ mutable struct SharedData
 
 end
 
-mutable struct Game{T<:RunMode, U<:GameLength}
+mutable struct Game{T<:RunMode}
     state::State
 
     initializing::State
@@ -147,7 +147,6 @@ mutable struct Game{T<:RunMode, U<:GameLength}
     action::Action
 
     run_mode::T
-    tp::U
 
     player::PlayerState
     prev_player::PlayerState
