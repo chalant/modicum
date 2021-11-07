@@ -224,7 +224,7 @@ function _lastround!(gs::GameState)
 
     best_rk = MAX_RANK + 1
 
-    states = g.players_states
+    states = gs.players_states
 
     #evaluate players hand ranks
     for ps in states
@@ -490,12 +490,11 @@ end
     ap = gs.active_players
     all_in = gs.all_in
 
-#     ap - all_in == 1 || g.r_all_in +
 
-    println("All In ", all_in)
+    # all went all-in or all except one went all-in
 
     if all_in == ap || (ap - all_in) == 1
-        # all went all-in or all except one went all-in
+        
         return nextround!(gs, ps)
     end
     #update available actions
@@ -760,8 +759,6 @@ end
     data::SharedData)
 
 #     distributecards!(g, stp, data)
-
-    println("Reset!!!")
 
     gs.state = gs.started
     gs.round = 0
