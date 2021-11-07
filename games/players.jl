@@ -31,7 +31,6 @@ mutable struct PlayerState <: ID
     pot::Float32 # player potential gain in case of a win
     active::Bool
     rank::UInt16 # player card rank
-    actions_mask::Vector{Bool}
     action::UInt8
 
     player:: Player
@@ -160,10 +159,6 @@ end
 
 @inline function viewactions(pl::Player)
     return pl.acts
-end
-
-@inline function actionsmask(ps::PlayerState)
-        return ps.actions_mask
 end
 
 end

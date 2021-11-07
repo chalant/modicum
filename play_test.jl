@@ -22,9 +22,9 @@ using actions
     return ps
 end
 
-function creategamestate(stp::Game{T, U}) where {T <: GameSetup, U <: GameMode}
+function creategamestate(stp::T) where T <: AbstractGame
 
-    g = GameState{typeof(stp)}()
+    g = GameState{T}()
     g.state = INIT
     g.started = STARTED
     g.ended = ENDED
@@ -60,9 +60,10 @@ end
 
         st.bet = 0
         st.pot = 0
-        st.actions_mask = trues(length(actions!(gs)))
 
     end
+
+    gs.actions_mask = trues(length(actions!(gs)))
 
     #shuffle players
     shuffle!(states)
@@ -218,32 +219,30 @@ end
     end
 end
 
-@inline function availableactions!(
-    gs::GameState,
-    data::SharedData,
-    stp::Game,
-    out::Array{String},
-    player::PlayerState)
+@inline function availableactions!(gs::GameState)
+    
+    actions_mask = actionsmask!(gs)
+    actions = actions!(gs)
 
-    actions_mask = actionsmask(player)
-    acts = stp.actions
+    out = Vector{String}()
 
-    for i in 1:length(acts)
-        a = actions_mask[i]
-        if a == 1
-            out[i] = message(acts[i], gs)
+    for i in 1:length(actions_mask)
+        if actions_mask[i] != 0
+            push!(
+                out,
+                message(actions[i], gs))
         end
     end
+
     return out
 end
 
 @inline function choose_action(gs::GameState, actions::ActionSet)
     # todo provide a function for displaying actions names
     println("Choose action ")
-    ply = playerstate(gs)
 
     #display available actions
-    for (i, (act, j)) in enumerate(zip(actions!(gs), ply.actions_mask))
+    for (i, (act, j)) in enumerate(zip(actions!(gs), gs.actions_mask))
         if j == 1
             println("Press ", i, " to ", message(act, gs))
         end
@@ -315,8 +314,6 @@ function play()
             pl = GAMESTATE.player
             actions = SETUP.actions
 
-            println(players.id(pl), " ", players.id(player))
-
             if pl == player
                 #display available actions and wait for user input
                 println("Your Turn")
@@ -326,12 +323,15 @@ function play()
                     " Private cards: ",
                     pretty_print_cards(privatecards(player, SHARED)),
                     " Pot: ", GAMESTATE.pot_size)
+
                 idx = choose_action(GAMESTATE, SETUP.actions)
                 st = perform!(actions[idx], GAMESTATE, pl)
             else
                 # opponents turn
 #                 println(availableactions!(GAME, SHARED, SETUP, arr, pl))
-                idx = sample(actions, actionsmask(pl))
+                
+                println(availableactions!(GAMESTATE))
+                idx = sample(actions, actionsmask!(GAMESTATE))
                 act = actions[idx]
                 println("Player", players.id(pl), ": ", message(act, GAMESTATE))
                 st = perform!(act, GAMESTATE, pl)

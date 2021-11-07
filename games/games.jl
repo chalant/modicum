@@ -1,5 +1,6 @@
 module games
 
+export AbstractGame
 export Game
 export GameState
 export SharedData
@@ -27,6 +28,7 @@ export TERMINATED
 
 export game!
 export gamestate!
+export actionsmask!
 export setup
 export shared
 export bigblind
@@ -158,6 +160,7 @@ mutable struct GameState{T<:AbstractGame}
     bet_player::PlayerState
 
     players_states::Vector{PlayerState}
+    actions_mask::Vector{Bool}
 
     active_players::UInt8 # players that have not folded
     round::UInt8
@@ -227,6 +230,8 @@ end
 @inline actions!(g::Game) = g.actions
 @inline actions!(gs::GameState) = actions!(game!(gs))
 
+@inline actionsmask!(gs::GameState) = gs.actions_mask
+
 @inline function _copy!(dest::GameState, src::GameState)
     #referencess
     dest.state = src.state
@@ -239,12 +244,11 @@ end
     dest.pot_size = src.pot_size
     dest.last_bet = src.last_bet
     dest.all_in = src.all_in
+    dest.actions_mask = copy(src.actions_mask)
 #     dest.r_all_in = src.r_all_in
 #     dest.turn = src.turn
 
 end
-
-@inline Base.copy(gs::GameState, sh::SharedData) = copy(g, g.shared, g.setup)
 
 @inline function Base.copy(src::GameState)
     dest = GameState()

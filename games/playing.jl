@@ -70,6 +70,7 @@ end
         gs.active_players = a
 
     if a > 1
+        println("Rotating Players")
         rotateplayers!(states, bb)
     else
         #game terminates if there is only one player left
@@ -85,9 +86,11 @@ end
 end
 
 function bet!(amt::Float32, gs::GameState, ps::PlayerState)
+    r = _bet!(amt, gs, ps)
+
     _setbetplayer!(gs, ps)
 
-    return _bet!(amt, gs, ps)
+    return r
 
 end
 
@@ -198,7 +201,7 @@ function _notlastround!(gs::GameState)
         end
     end
 
-    gs.all_in = n
+    gs.all_in = 0
 
     if n != 1
         gs.state = gs.ended
@@ -411,7 +414,7 @@ end
     if gs.active_players - gs.all_in == 1
         # if all the other players went all-in, move to next round
         # g.r_all_in += 1
-        bet!(callamount(gs, ps), gs, ps)
+        _bet!(callamount(gs, ps), gs, ps)
         return nextround!(gs, ps)
 
     else
@@ -488,6 +491,8 @@ end
     all_in = gs.all_in
 
 #     ap - all_in == 1 || g.r_all_in +
+
+    println("All In ", all_in)
 
     if all_in == ap || (ap - all_in) == 1
         # all went all-in or all except one went all-in
@@ -714,17 +719,16 @@ end
 
 
 
-    println("Big Blind ", players.id(gs.player))
+    # println("Big Blind ", players.id(gs.player))
 
     np = nextplayer!(gs)
 
     #first player to act is the dealer (second player)
 
     _bet!(smallblind(gs), gs, np)
-    println("Small Blind ", players.id(gs.player))
+    # println("Small Blind ", players.id(gs.player))
     setaction!(ps, BB_ID)
     _bet!(bigblind(gs), gs, ps)
-    println("Last Bet ", gs.last_bet, " Player Bet ", np.bet)
     gs.bet_player = ps
     gs.prev_player = ps
 
@@ -871,7 +875,7 @@ end
     gs::GameState,
     ps::PlayerState)
 
-    actions_mask = ps.actions_mask
+    actions_mask = gs.actions_mask
 
     iid = 1
     ia = 1

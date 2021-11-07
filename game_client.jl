@@ -1,10 +1,7 @@
 push!(LOAD_PATH, join([pwd(), "games"], "/"))
 push!(LOAD_PATH, join([pwd(), "glog"], "/"))
 
-include("data_conversion.jl")
-include("poker.jl")
-
-using Games
+using games
 using cards
 using playing
 
