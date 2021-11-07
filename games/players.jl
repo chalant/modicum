@@ -1,9 +1,5 @@
 module players
 
-using Reexport
-
-include("actions.jl")
-
 export Player
 export PlayerState
 export ID
@@ -18,7 +14,6 @@ export totalbet
 export action
 export setaction!
 
-@reexport using .actions
 
 abstract type ID end
 
@@ -82,16 +77,24 @@ end
     return p1.id < p2
 end
 
+@inline function position(ps::PlayerState)
+    return position(ps.player)
+end
+
+@inline function position(ps::Player)
+    return ps.position
+end
+
 @inline function Base.copy!(p::PlayerState, s::PlayerState)
     p.player = s.player
     p.chips = s.chips
     p.bet = s.bet
-    p.position = s.position
-    p.rposition = s.rposition
-    p.id = s.id
+    p.total_bet = s.total_bet
+    p.pot = s.pot
     p.active = s.active
     p.rank = s.rank
     p.actions_mask = copy(s.actions_mask)
+    p.action = s.action
     return p
 end
 
@@ -152,7 +155,7 @@ end
 end
 
 @inline function setaction!(state::PlayerState, a::UInt8)
-        state.action = a
+    state.action = a
 end
 
 @inline function viewactions(pl::Player)

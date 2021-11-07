@@ -76,16 +76,22 @@ end
 
 mutable struct ActionSet
     actions::Vector{Action}
-    sorted::Bool
+
+    ActionSet(actions) = new(sort!(actions))
+
 end
 
-const CALL = Action(CALL_ID, 0)
-const FOLD = Action(FOLD_ID, 0)
-const CHECK = Action(CHECK_ID, 0)
-const ALL = Action(ALL_ID, 0)
-const CHANCE = Action(CHANCE_ID, 0)
+function createactionset(action_set::Vector{Action})
+    return sort!(action_set)
+end
 
-ActionSet(acts::Vector{Action}) = ActionSet(acts::Vector{Action}, false)
+const CALL = Action(CALL_ID, 0, 0)
+const FOLD = Action(FOLD_ID, 0, 0)
+const CHECK = Action(CHECK_ID, 0, 0)
+const ALL = Action(ALL_ID, 0, 0)
+const CHANCE = Action(CHANCE_ID, 0, 0)
+
+# ActionSet(acts::Vector{Action}) = ActionSet(acts::Vector{Action}, false)
 
 @inline function id(a::Action)
     return a.id
@@ -104,12 +110,12 @@ end
 end
 
 @inline function Base.:(==)(p1::Action, p2::Action)
-    return p1.id == p2.id && p1.amount == p2.amount
+    return p1.id == p2.id && p1.pot_multiplier == p2.pot_multiplier && p1.blind_multiplier == p2.blind_multiplier
 end
 
 @inline function Base.isless(p1::Action, p2::Action)
     if p1.id == p2.id
-        return p1.amount <= p2.amount
+        return p1.pot_multiplier <= p2.pot_multiplier && p1.blind_multiplier <= p2.blind_multiplier
     end
     return p1.id < p2.id
 end

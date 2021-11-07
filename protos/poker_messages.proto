@@ -50,13 +50,11 @@ message CardsData {
 }
 
 message CardData {
-  uint32 suit = 1;
-  uint32 rank = 2;
+  string rank = 1;
+  string suit = 2;
 }
 
 message ActionData{
-  uint32 action_id = 1;
-
   enum ActionType {
     BET = 0;
     CALL = 1;
@@ -66,7 +64,8 @@ message ActionData{
     CHECK = 5;
   }
 
-  ActionType action_type = 2;
+  ActionType action_type = 1;
+  float multiplier = 2;
   float amount = 3;
 }
 

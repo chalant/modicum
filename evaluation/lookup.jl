@@ -18,6 +18,7 @@ Examples:
 * Royal flush (best hand possible)          => 1
 * 7-5-4-3-2 unsuited (worst hand possible)  => 7462
 """
+
 module lookup
 
 export create_lookup_table
@@ -26,12 +27,9 @@ export LookupTables
 
 export MAX_RANK
 
-include("../cards.jl")
+using cards
 
 using IterTools
-using Reexport
-
-@reexport using .cards
 
 const MAX_STRAIGHT_FLUSH = UInt64(10)
 const MAX_FOUR_OF_A_KIND = UInt64(166)

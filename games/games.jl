@@ -4,13 +4,12 @@ export Game
 export GameState
 export SharedData
 export GameSetup
-export RunMode
+export GameMode
 export GameLength
 export Full
 export DepthLimited
 export Simulation
 export LiveSimulation
-export Live
 export Estimation
 export Normal
 export HeadsUp
@@ -26,26 +25,28 @@ export STARTED
 export ENDED
 export TERMINATED
 
-export game
-export creategame
+export game!
+export gamestate!
 export setup
 export shared
 export bigblind
 export smallblind
 export update!
 export privatecards
-export viewactions
+export actions!
 export chips
 export limit
 export playerstate
 export stateid
+export numplayers!
+export numrounds!
+export playersstates!
 
-using Reexport
 using Random
+using Parameters
 
-include("players.jl")
-
-@reexport using .players
+using players
+using actions
 
 abstract type GameLength end
 abstract type RunMode end
@@ -60,11 +61,9 @@ struct DepthLimited{T<:Estimation} <: GameLength
     estimation::T # method for estimating utility (NN, MC Rollouts...)
 end
 
-struct Simulation <: RunMode
-end
 
-struct LiveSimulation <: RunMode
-end
+
+abstract type GameSetup end
 
 struct HeadsUp <: GameMode
     num_players::UInt8
@@ -79,29 +78,10 @@ struct Normal <: GameMode
 
 end
 
-#invariant data (only created once)
+struct Simulation <: GameSetup
+end
 
-# todo: small blind and big blinds can change throughout a game
-# move them to the game
-mutable struct GameSetup{T<:GameMode}
-    players::Vector{Player} #mapping of players
-    main_player::Player
-
-    sb::Action
-    bb::Action
-
-    num_private_cards::UInt8
-    num_public_cards::UInt8
-    num_rounds::UInt8
-    chips::Float32
-    game_mode::T
-    num_players::UInt8
-
-    actions::ActionSet
-
-    cards_per_round::Vector{UInt8}
-
-    GameSetup() = new()
+struct LiveSimulation <: GameSetup
 end
 
 const INIT_ID = UInt8(0)
@@ -120,6 +100,10 @@ const TERM = State(TERM_ID)
 
 #mutable shared data
 mutable struct SharedData
+
+    sb::Float32
+    bb::Float32
+
     #updated once per round
     deck::Vector{UInt64}
     public_cards::Vector{UInt64}
@@ -133,7 +117,33 @@ mutable struct SharedData
 
 end
 
-mutable struct Game{T<:RunMode}
+abstract type AbstractGame end
+
+# todo: small blind and big blinds can change throughout a game
+# move them to the game
+mutable struct Game{T<:GameSetup, U<:GameMode} <: AbstractGame
+    players::Vector{Player} #mapping of players
+    main_player::Player
+
+    game_setup::T
+    game_mode::U
+    shared_state::SharedData
+
+    num_rounds::UInt8
+    num_private_cards::UInt8
+    num_public_cards::UInt8
+    chips::Float32
+
+    actions::ActionSet
+
+    cards_per_round::Vector{UInt8}
+
+    Game{T, U}() where {T<:GameSetup, U <: GameMode} = new()
+end
+
+#tracks game state.
+
+mutable struct GameState{T<:AbstractGame}
     state::State
 
     initializing::State
@@ -141,29 +151,28 @@ mutable struct Game{T<:RunMode}
     ended::State
     terminated::State
 
-    setup::GameSetup
-    shared::SharedData
-
     action::Action
-
-    run_mode::T
 
     player::PlayerState
     prev_player::PlayerState
-    players_states::Vector{PlayerState}
     bet_player::PlayerState
+
+    players_states::Vector{PlayerState}
 
     active_players::UInt8 # players that have not folded
     round::UInt8
     position::UInt8 # tracks current turn
+    all_in::UInt8 # players that went all-in
+#     turn::Bool # flags if the small blind has played
+
     pot_size::Float32 #
     last_bet::Float32 # tracks last bet
     last_raise::Float32
     total_bet::Float32
-    all_in::UInt8 # players that went all-in
-#     turn::Bool # flags if the small blind has played
 
-    Game() = new()
+    game::T
+
+    GameState{T}() where T <: AbstractGame = new()
 end
 
 @inline function stateid(st::State)
@@ -174,95 +183,54 @@ end
     return st1.id == st2.id
 end
 
-
-@inline function limit(dl::DepthLimited, stp::GameSetup)
-    return dl.limit
+@inline function limit(g::Game)
+    return g.num_rounds
 end
 
-@inline function limit(dl::Full, stp::GameSetup)
-    return stp.num_rounds
-end
+@inline game!(gs::GameState) = gs.game
 
-@inline function limit(game::Game, stp::GameSetup)
-    return limit(game.tp, stp)
-end
+@inline setup(game::Game) = game.game_setup
+@inline setup(gs::GameState) = setup(gs.game)
 
-function creategame(
-    data::SharedData,
-    stp::GameSetup,
-    tp::U) where U <: GameLength
-
-    g = Game()
-    g.state = INIT
-    g.started = STARTED
-    g.ended = ENDED
-    g.setup = stp
-    g.tp = tp
-
-    g.shared = data
-
-    return g
-end
-
-function setup(
-    ::Type{T},
-    sb::Action,
-    bb::Action,
-    num_private_cards::Int,
-    num_public_cards::Int,
-    gm::GameMode,
-    num_rounds::Int,
-    cards_per_round::Vector{UInt8},
-    chips::Float32=1000) where T <: RunMode
-
-    stp = GameSetup()
-    stp.sb = sb
-    stp.bb = bb
-    stp.num_private_cards = num_private_cards
-    stp.num_public_cards = num_public_cards
-    stp.num_rounds = num_rounds
-    stp.chips = chips
-    stp.cards_per_round = cards_per_round
-    stp.game_mode = gm
-    stp.num_players = gm.num_players
-
-    return stp
-end
-
-@inline setup(game::Game) = game.setup
-
-@inline shared(game::Game) = game.shared
+@inline shared(game::Game) = game.shared_state
+@inline shared(gs::GameState) = shared(gs.game)
 
 @inline privatecards(player::Player, data::SharedData) = data.private_cards[player.id]
-@inline privatecards(ps::PlayerState, data::SharedData) = data.private_cards[id(ps)]
+@inline privatecards(ps::PlayerState, data::SharedData) = data.private_cards[players.id(ps)]
 
+@inline publiccards(sh::SharedData) = sh.public_cards
 @inline publiccards(game::Game) = shared(game).public_cards
+@inline publiccards(gs::GameState) = shared(gs.game)
 
-@inline playerstate(g::Game) = g.player
+@inline playersstates!(gs::GameState) = gs.players_states
 
-@inline chips(g::Game) = playerstate(g).chips
+@inline playerstate(gs::GameState) = gs.player
+@inline chips(gs::GameState) = playerstate(gs).chips
 
-@inline bigblind(setup::GameSetup) = setup.bb
-@inline bigblind(game::Game) = bigblind(game.setup)
+@inline bigblind(sh::SharedData) = sh.bb
+@inline bigblind(g::Game) = bigblind(shared(g))
+@inline bigblind(gs::GameState) = bigblind(gs.game)
 
-@inline smallblind(setup::GameSetup) = setup.sb
-@inline smallblind(game::Game) = smallblind(game.setup)
+@inline smallblind(sh::SharedData) = sh.sb
+@inline smallblind(g::Game) = smallblind(shared(g))
+@inline smallblind(gs::GameState) = smallblind(shared(gs))
 
-@inline function viewactions(game::Game)
-    return setup(game).actions
-end
+@inline numrounds!(g::Game) = g.num_rounds
+@inline numrounds!(gs::GameState) = numrounds!(gs.game)
 
-@inline function viewactions(stp::GameSetup)
-    return stp.actions
-end
+@inline gamemode!(g::Game) = g.game_mode
 
-@inline _copy!(dest::Game, src::Game) = _copy!(dest, src, src.shared, src.setup)
+@inline numplayers!(gm::T) where T <: GameMode = gm.num_players
+@inline numplayers!(g::Game) = numplayers!(gamemode!(g))
+@inline numplayers!(gs::GameState) = numplayers!(gs.game)
 
-@inline function _copy!(dest::Game, src::Game, sh::SharedData, stp::GameSetup)
+@inline actions!(g::Game) = g.actions
+@inline actions!(gs::GameState) = actions!(game!(gs))
+
+@inline function _copy!(dest::GameState, src::GameState)
     #referencess
     dest.state = src.state
-    dest.setup = stp
-    dest.shared = sh
+    dest.game = game!(src)
 
     #values
     dest.active_players = src.active_players
@@ -276,27 +244,19 @@ end
 
 end
 
-@inline Base.copy(g::Game) = copy(g, g.shared, g.setup)
-@inline Base.copy(g::Game, sh::SharedData) = copy(g, g.shared, g.setup)
+@inline Base.copy(gs::GameState, sh::SharedData) = copy(g, g.shared, g.setup)
 
-@inline function Base.copy(g::Game, sh::SharedData, stp::GameSetup)
-    dest = Game()
-    _copy!(c, game, sh, stp)
-    dest.players_states = copy(game.players_states)
+@inline function Base.copy(src::GameState)
+    dest = GameState()
+    _copy!(dest, src)
+    dest.players_states = copy(src.players_states)
     return dest
 end
 
-@inline function Base.copy!(dest::Game, src::Game, sh::SharedData, stp::GameSetup)
-    _copy!(dest, src, sh, stp)
+@inline function Base.copy!(dest::GameState, src::GameState)
+    _copy!(dest, src)
     copy!(dest.players_states, src.players_states)
 end
-
-@inline function Base.copy!(dest::Game, src::Game, sh::SharedData)
-    _copy!(dest, src, sh, src.setup)
-    copy!(dest.players_states, src.players_states)
-end
-
-@inline Base.copy!(dest::Game, src::Game) = copy!(dest, src, src.shared, src.setup)
 
 @inline function Base.copy(shr::SharedData, pl::PlayerState)
     return SharedData(

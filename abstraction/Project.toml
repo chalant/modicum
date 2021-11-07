@@ -1,6 +1,5 @@
 [deps]
 Blosc = "a74b3585-a348-5f62-a45c-50e91977d574"
-Classes = "1a9c1350-211b-5766-99cd-4544d885a0d1"
 Clp = "e2554f3b-3117-50c0-817c-e040a3ddf72d"
 Clustering = "aaaa29a8-35af-508c-8bc3-b662a17a0fe5"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"

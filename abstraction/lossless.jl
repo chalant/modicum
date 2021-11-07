@@ -1,6 +1,5 @@
-include("games/evaluation/evaluator.jl")
-include("games/evaluation/lookup.jl")
-include("games/cards.jl")
+push!(LOAD_PATH, join([pwd(), "evaluation"], "/"))
+push!(LOAD_PATH, join([pwd(), "cards"], "/"))
 
 using IterTools
 using ProgressMeter
@@ -8,10 +7,9 @@ using Mmap
 using JSON
 using Serialization
 
-using .evaluator
-using .lookup
-using .cards
-using .hands_filter
+using evaluator
+using cards
+using hands_filter
 
 function concatenate(
     arr::Vector{UInt64},

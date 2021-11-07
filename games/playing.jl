@@ -4,53 +4,53 @@ export perform!
 export start!
 export sample
 export amount
-export initialize!
 export activateplayers!
 export putbackcards!
 export distributecards!
 export rotateplayers!
 export betamount
+export update!
 
 export callamount
 
-include("games.jl")
-include("evaluation/evaluator.jl")
-
-using Reexport
 using Random
 
-using .evaluator
+using games
 
-@reexport using .games
+using cards
+using evaluator
 
-@inline function callamount(g::Game, ps::PlayerState)
-    b = g.last_bet - ps.bet
+using players
+using actions
+
+@inline function callamount(gs::GameState, ps::PlayerState)
+    b = gs.last_bet - ps.bet
     return b >= 0 ? b : 0.0
 end
 
-@inline function allinamount(g::Game, ps::PlayerState)
+@inline function allinamount(ps::PlayerState)
         return ps.chips
 end
 
-@inline function betamount(act::Action, g::Game)
-    if game.round > 0
-        return g.pot_size * act.pot_multiplier + g.last_bet
+@inline function betamount(act::Action, gs::GameState)
+    if gs.round > 0
+        return gs.pot_size * act.pot_multiplier + gs.last_bet
     else
-        return bigblind(g.setup).amount * act.blind_multiplier + g.last_bet
+        return bigblind(gs) * act.blind_multiplier + gs.last_bet
     end
 end
 
-@inline function bigblindamount(g::Game, ps::PlayerState)
-        return bigblind(g.setup).amount
+@inline function bigblindamount(gs::GameState, ps::PlayerState)
+        return bigblind(gs)
 end
 
-@inline function smallblindamount(g::Game, ps::PlayerState)
-        return smallblind(g.setup).amount
+@inline function smallblindamount(gs::GameState, ps::PlayerState)
+        return smallblind(gs)
 end
 
-@inline function activateplayers!(g::Game, stp::GameSetup)
-    states = g.players_states
-    bb = bigblind(stp).amount
+@inline function activateplayers!(gs::GameState)
+    states = gs.players_states
+    bb = bigblind(gs)
 
     a = 0
 
@@ -67,76 +67,75 @@ end
         st.pot = 0
     end
 
-        g.active_players = a
+        gs.active_players = a
 
     if a > 1
         rotateplayers!(states, bb)
     else
         #game terminates if there is only one player left
-        st = g.terminated
-        g.state = st
+        st = gs.terminated
+        gs.state = st
     end
 end
 
-@inline function _setbetplayer!(g::Game, ps::PlayerState)
-    try
-        if totalbet(g.prev_player) < ps.total_bet
-            g.bet_player = ps
-        end
-    catch e
+@inline function _setbetplayer!(gs::GameState, ps::PlayerState)
+    if totalbet(gs.prev_player) < ps.total_bet
+        gs.bet_player = ps
     end
 end
 
-function bet!(amt::Float32, g::Game, ps::PlayerState)
+function bet!(amt::Float32, gs::GameState, ps::PlayerState)
+    _setbetplayer!(gs, ps)
 
+    return _bet!(amt, gs, ps)
+
+end
+
+@inline function _bet!(amt::Float32, gs::GameState, ps::PlayerState)
     ps.chips -= amt
     ps.bet = amt
 
     ps.total_bet += amt
-    g.pot_size += amt
-    g.total_bet += amt
+    gs.pot_size += amt
+    gs.total_bet += amt
 
-    if g.last_bet <= amt
-        g.last_bet = amt
+    if gs.last_bet <= amt
+        gs.last_bet = amt
     end
-
-    _setbetplayer!(g, ps)
 
     return amt
 
 end
 
-_nextround!(g::Game, ps::PlayerState) = _nextround!(g, setup(g), ps)
+@inline function nextround!(gs::GameState, ps::PlayerState)
 
-@inline function _nextround!(g::Game, stp::GameSetup, ps::PlayerState)
-
-    g.round += 1
-    if g.round < limit(g, stp)
-        return performchance!(CHANCE, g, ps)
+    gs.round += 1
+    if gs.round < numrounds!(gs)
+        return performchance!(CHANCE, gs, ps)
     else
-        st = g.ended
-        g.state = st
+        st = gs.ended
+        gs.state = st
         return st
     end
 end
 
-@inline function update!(g::Game, action::Action, ps::PlayerState)
-    ap = g.active_players
-    all_in = g.all_in
+@inline function update!(gs::GameState, action::Action, ps::PlayerState)
+    ap = gs.active_players
+    all_in = gs.all_in
 
     #avoid infinit loop when all players went all-in
-    if g.active_players != g.all_in
-        g.prev_player = ps
-        ps = nextplayer(g)
-        #update actions for next player
-        update!(action, g, ps)
-        g.player = ps
-        st = g.started
-        g.state = st
+    if gs.active_players != gs.all_in
+        gs.prev_player = ps
+
+        np = nextplayer!(gs)
+        update!(action, gs, np)
+
+        st = gs.started
+        gs.state = st
 
         return st
     else
-        return _nextround!(g, ps)
+        return nextround!(gs, np)
     end
 end
 
@@ -159,10 +158,10 @@ end
     return pot
 end
 
-function _notlastround!(g::Game, stp::GameSetup)
+function _notlastround!(gs::GameState)
     # game did not go to the last round => all except one player
     # have folded
-    states = g.players_states
+    states = gs.players_states
     #give all the chips to the only active player
     for ps in states
         if ps.active == true
@@ -171,7 +170,7 @@ function _notlastround!(g::Game, stp::GameSetup)
             ps.chips += amt
 
             println(
-            "Winner! ", id(ps),
+            "Winner! ", players.id(ps),
             " Amount ", amt,
             " Total Chips ", ps.chips)
 
@@ -184,10 +183,10 @@ function _notlastround!(g::Game, stp::GameSetup)
 
     end
 
-    g.pot_size = 0
+    gs.pot_size = 0
 
-    bb = bigblind(stp).amount
-    n = stp.num_players
+    bb = bigblind(gs)
+    n = numplayers!(gs)
 
     # count remaining players
     for ps in states
@@ -199,26 +198,26 @@ function _notlastround!(g::Game, stp::GameSetup)
         end
     end
 
-    g.all_in = n
+    gs.all_in = n
 
     if n != 1
-        g.state = g.ended
+        gs.state = gs.ended
     else
         #game terminates when only one player remains
-        g.state = g.terminated
+        gs.state = gs.terminated
     end
 
-    if g.round >= 2
-        _revertplayersorder!(g.gm, states)
-    end
+#     if g.round >= 2
+#         _revertplayersorder!(g.run_mode, states)
+#     end
 
-    return g.state
+    return gs.state
 
 end
 
-function _lastround!(g::Game, stp::GameSetup)
+function _lastround!(gs::GameState)
     #called when the game has reached the last round
-    data = shared(g)
+    data = shared(gs)
 
     best_rk = MAX_RANK + 1
 
@@ -227,7 +226,7 @@ function _lastround!(g::Game, stp::GameSetup)
     #evaluate players hand ranks
     for ps in states
         if ps.active == true
-            rank = evaluate(data.private_cards[id(ps)], data.public_cards)
+            rank = evaluate(data.private_cards[players.id(ps)], data.public_cards)
             ps.rank = rank
             if rank < best_rk
                 best_rk = rank
@@ -271,10 +270,10 @@ function _lastround!(g::Game, stp::GameSetup)
             ps.total_bet = 0
 
             println(
-            "Winner: ", id(ps),
+            "Winner: ", players.id(ps),
             " Amount: ", amt,
             " Total Chips: ", ps.chips,
-            " Cards: ", pretty_print_cards(data.private_cards[id(ps)]),
+            " Cards: ", pretty_print_cards(data.private_cards[players.id(ps)]),
             " ", pretty_print_cards(data.public_cards))
 
         end
@@ -283,7 +282,7 @@ function _lastround!(g::Game, stp::GameSetup)
 
     end
 
-    bb = bigblind(setup(g)).amount
+    bb = bigblind(stp)
     n = length(states)
     bp = countbetplayers(states)
 
@@ -330,17 +329,17 @@ function _lastround!(g::Game, stp::GameSetup)
 
 end
 
-@inline function update!(g::Game, stp::GameSetup)
-    if stateid(g.state) == ENDED_ID
-        if g.round >= stp.num_rounds
+@inline function update!(gs::GameState, g::Game)
+    if stateid(gs.state) == ENDED_ID
+        if gs.round >= numrounds!(g)
             # game has reached the last round
-            return _lastround!(g, stp)
+            return _lastround!(gs)
         else
             # all players except one have folded
-            return _notlastround!(g, stp)
+            return _notlastround!(gs)
         end
     else
-        return g.state
+        return gs.state
     end
 
 end
@@ -375,96 +374,96 @@ end
         return i
 end
 
-@inline function performallin!(a::Action, g::Game, ps::PlayerState)
-    bet!(ps.chips, g, ps)
+@inline function performallin!(a::Action, gs::GameState, ps::PlayerState)
+    bet!(ps.chips, gs, ps)
 
     # add all-in players
     # g.r_all_in += 1
 
-    g.all_in += 1
+    gs.all_in += 1
 
-    if g.active_players == g.all_in
+    if gs.active_players == gs.all_in
         # all players went all-in, move to the next round
-        return _nextround!(g, ps)
+        return nextround!(gs, ps)
     end
 
-    return update!(g, a, ps)
+    return update!(gs, a, ps)
 end
 
-@inline function performraise!(a::Action, g::Game, ps::PlayerState)
-    bet!(betamount(a, g), g, ps)
-    return update!(g, a, ps)
+@inline function performraise!(a::Action, gs::GameState, ps::PlayerState)
+    bet!(betamount(a, gs), gs, ps)
+    return update!(gs, a, ps)
 end
 
-@inline function performcheck!(a::Action, g::Game, ps::PlayerState)
+@inline function performcheck!(a::Action, gs::GameState, ps::PlayerState)
     #if the player that checks is the one that bet, move to next round
-    if g.bet_player == ps
-        return _nextround!(g, ps)
+    if gs.bet_player == ps
+        return nextround!(gs, ps)
     elseif ps.action == BB_ID
         #if players previous action was a bigblind
-        return _nextround!(g, ps)
+        return nextround!(gs, ps)
     end
 
-    return update!(g, a, ps)
+    return update!(gs, a, ps)
 end
 
-@inline function performcall!(a::Action, g::Game, ps::PlayerState)
-    if g.active_players - g.all_in == 1
+@inline function performcall!(a::Action, gs::GameState, ps::PlayerState)
+    if gs.active_players - gs.all_in == 1
         # if all the other players went all-in, move to next round
         # g.r_all_in += 1
-        bet!(callamount(g, ps), g, ps)
-        return _nextround!(g, ps)
+        bet!(callamount(gs, ps), gs, ps)
+        return nextround!(gs, ps)
 
     else
-        np = peekplayer(g)
+        np = peekplayer(gs)
 
-        if g.bet_player == np && np.action != BB_ID
-            bet!(callamount(g, ps), g, ps)
+        if gs.bet_player == np && np.action != BB_ID
+            bet!(callamount(gs, ps), gs, ps)
             # if it is the next player that bet, move to the next round
-            return _nextround!(g, ps)
+            return nextround!(gs, ps)
         end
     end
 
-    bet!(callamount(g, ps), g, ps)
-    return update!(g, a, ps)
+    bet!(callamount(gs, ps), gs, ps)
+    return update!(gs, a, ps)
 end
 
-@inline function performfold!(a::Action, g::Game, ps::PlayerState)
+@inline function performfold!(a::Action, gs::GameState, ps::PlayerState)
     ps.active = false
-    g.active_players -= 1
+    gs.active_players -= 1
 
     # if only one player remains the game ends
-    if g.active_players == 1
-        st = g.ended
-        g.state = st
+    if gs.active_players == 1
+        st = gs.ended
+        gs.state = st
         return st
 
-    elseif g.all_in == g.active_players
-        return _nextround!(g, setup(g), ps)
+    elseif gs.all_in == gs.active_players
+        return nextround!(gs, ps)
     end
 
-    return update!(g, a, ps)
+    return update!(gs, a, ps)
 end
 
-@inline function setpublicard!s(g::Game{Simulation}, data::SharedData)
-    for i in 1:setup(g).cards_per_round[round]
+@inline function setpubliccards!(gs::GameState, data::SharedData)
+    for i in 1:game!(gs).cards_per_round[gs.round]
         append!(data.public_cards, pop!(data.deck))
         data.deck_cursor -= 1
     end
 end
 
-@inline function performchance!(a::Action, g::Game, ps::PlayerState)
-    data = shared(g)
-    round = g.round
+@inline function performchance!(a::Action, gs::GameState, ps::PlayerState)
+    data = shared(gs)
+    round = gs.round
 
     #update once per round
     #updates = data.updates
 
-    states = g.players_states
+    states = gs.players_states
 
-    ap = g.active_players
+    ap = gs.active_players
 
-    setpubliccards!(g, data)
+    setpubliccards!(gs, data)
 
     for ps in states
         # assign potential earnings to each active player
@@ -482,75 +481,70 @@ end
     end
 
     #reset last bet
-    g.last_bet = 0
-    g.total_bet = 0
+    gs.last_bet = 0
+    gs.total_bet = 0
 
-    ap = g.active_players
-    all_in = g.all_in
+    ap = gs.active_players
+    all_in = gs.all_in
 
 #     ap - all_in == 1 || g.r_all_in +
 
     if all_in == ap || (ap - all_in) == 1
         # all went all-in or all except one went all-in
-        return _nextround!(g, ps)
+        return nextround!(gs, ps)
     end
     #update available actions
-    return update!(g, a, ps)
+    return update!(gs, a, ps)
 end
 
-@inline function perform!(a::Action, g::Game, ps::PlayerState)
+@inline function perform!(a::Action, gs::GameState, ps::PlayerState)
     id = a.id
 
     if id == ALL_ID
-        return performallin!(a, g, ps)
-    elseif id == BET_ID || RAISE_ID
-        bet!(betamount(a, g), g, ps)
-        return update!(g, a, ps)
+        return performallin!(a, gs, ps)
+    elseif id == BET_ID || id == RAISE_ID
+        bet!(betamount(a, gs), gs, ps)
+        return update!(gs, a, ps)
     elseif id == CHECK_ID
-        return performcheck!(a, g, ps)
+        return performcheck!(a, gs, ps)
     elseif id == CALL_ID
-        return performcall!(a, g, ps)
+        return performcall!(a, gs, ps)
     elseif id == FOLD_ID
-        return performfold!(a, g, ps)
+        return performfold!(a, gs, ps)
     elseif id == CHANCE_ID
-        return performchance!(a, g, ps)
-    elseif id == BB_ID
-        bet!(bigblind(g.setup).amount, g, ps)
-        return update!(g, a , ps)
-    elseif id == SB_ID
-        bet!(smallblind(g.setup).amount, g, ps)
-        return update!(g, a, ps)
+        return performchance!(a, gs, ps)
     end
 
-    return update!(g, a, ps)
+    return update!(gs, a, ps)
 end
 
-function _nextplayer(g::Game, n::Int)
-    g.position == n ? g.position = 1 : g.position += 1
+function _nextplayer(state::GameState, n::Int)
+
+    state.position == n ? state.position = 1 : state.position += 1
     # get the state with the corresponding position
     # players are arranged by position
-    return g.players_states[g.position]
+    return state.players_states[state.position]
 end
 
-function nextplayer(g::Game)
-    stp = setup(g)
-    n = length(g.players_states)
-    st = _nextplayer(g, n)
+function nextplayer!(gs::GameState)
+    n = length(gs.players_states)
+    st = _nextplayer(gs, n)
 
     while !st.active || st.chips == 0
-        st = _nextplayer(g, n)
+        st = _nextplayer(gs, n)
     end
+
+    gs.player = st
 
     return st
 end
 
-@inline function peekplayer(g::Game)
-    stp = setup(g)
-    n = length(g.players_states)
+@inline function peekplayer(gs::GameState)
+    n = length(gs.players_states)
 
-    position = g.position
+    position = gs.position
 
-    players_states = g.players_states
+    players_states = gs.players_states
 
     position == n ? position = 1 : position += 1
 
@@ -566,13 +560,13 @@ end
     return st
 end
 
-@inline function start!(g::Game)
-    id = stateid(g.state)
+@inline function start!(gs::GameState)
+    id = stateid(gs.state)
 
     if id == TERM_ID
-        data = shared(g)
-        stp = setup(g)
-        states = g.players_states
+        data = shared(gs)
+        stp = game!(gs)
+        states = gs.players_states
 
         #re-initialize players states
         for st in states
@@ -581,65 +575,33 @@ end
             st.bet = 0
         end
         #set the number of active players
-        g.active_players = stp.num_players
+        gs.active_players = numplayers!(gs)
 
-        return _start!(g, shared(g))
+        return _start!(gs, data)
 
     elseif id == ENDED_ID
-        return _start!(g, shared(g))
+        return _start!(gs, shared(gs))
 
     elseif id == INIT_ID
         error("Cannot start an un-initialized game!")
     elseif id == STARTED_ID
-        return _start!(g, shared(g))
+        return _start!(gs, shared(gs))
     else
         error("Undefined State")
     end
 end
 
-@inline function initialize!(
-    ::Type{Simulation},
-    g::Game,
-    data::SharedData,
-    stp::GameSetup)
-
-    #initialization function for simulations
-    stp = setup(g)
-
-    #initialize players states
-    i = 1
-    for st in g.players_states
-        st.bet = 0
-        st.pot = 0
-        st.actions_mask = trues(length(stp.actions))
-        i += 1
-    end
-
-#     function position(ps::PlayerState)
-#         return position(ps.player)
-#     end
-#
-#     #order states by position
-#     sort!(states, by=position)
-    g.active_players = stp.num_players
-    #create actions_mask array
-    g.state = STARTED
-
-    return STARTED
-end
-
 function distributecards!(
-    ::Type{LiveSimulation},
-    g::Game,
-    stp::GameSetup,
+    gs::GameState,
+    g::Game{LiveSimulation},
     data::SharedData)
 
     deck = data.deck
 
     #distribute private cards
     main = stp.main_player
-    for i in 1:stp.num_private_cards
-        for state in g.players_states
+    for i in 1:g.num_private_cards
+        for state in gs.players_states
             #only distribute to opponents and active players
             if main != state && state.active == true
                 privatecards(state, data)[i] = pop!(deck)
@@ -649,15 +611,14 @@ function distributecards!(
 end
 
 function distributecards!(
-    ::Type{Simulation},
+    gs::GameState,
     g::Game,
-    stp::GameSetup,
     data::SharedData)
 
     deck = data.deck
     #distribute private cards
-    for i in 1:stp.num_private_cards
-        for state in g.players_states
+    for i in 1:g.num_private_cards
+        for state in gs.players_states
             if state.active == true
                 push!(privatecards(state, data), pop!(deck))
             end
@@ -666,30 +627,34 @@ function distributecards!(
 end
 
 function putbackcards!(
+    gs::GameState,
     g::Game{LiveSimulation},
-    stp::GameSetup,
     data::SharedData)
 
-    main = stp.main_player
-    for state in g.players_states
+    stp = game!(gs)
+
+    main = g.main_player
+
+    for state in gs.players_states
         #only distribute to opponents and active players
         if main != state && state.active == true
             append!(deck, privatecards(state, data))
         end
     end
+
     #remove public cards up until the relative root game round
-    n = stp.card_per_round[g.round] - stp.cards_per_round[data.round]
+    n = g.card_per_round[gs.round] - g.cards_per_round[data.round]
     for i in 1:n
         push!(data.deck, pop!(data.public_cards))
     end
 end
 
 function putbackcards!(
-    g::Game{Simulation},
-    stp::GameSetup,
+    gs::GameState,
+    g::Game,
     data::SharedData)
 
-    for state in g.players_states
+    for state in gs.players_states
         pvt_cards = privatecards(state, data)
         append!(data.deck, pvt_cards)
         empty!(pvt_cards)
@@ -700,63 +665,107 @@ function putbackcards!(
 end
 
 @inline function _start!(
+    gs::GameState,
     g::Game{LiveSimulation},
     data::SharedData)
 
     deck = data.deck
     n = length(deck)
-    stp = setup(g)
 
     states = g.players_states
 
     # reset data from last root game
-    copy!(g, game(dg), data, stp)
+    copy!(g, game!(dg), data, g)
     return g.state
 end
 
-@inline function _headsupblinds!(g::Game, stp::GameSetup)
-    #first player posts the bigblind
-    g.bet_player = g.player
-    setaction!(g.player, BB_ID)
-    perform!(stp.bb, g, g.player)
-    setaction!(g.player, SB_ID)
-    perform!(stp.sb, g, g.player)
+@inline function performsmallblind!(gs::GameState)
+    ps = gs.player
 
-    # go back to first player
-    g.player = nextplayer(g)
+    _bet!(smallblind(gs), gs, ps)
+#     _update!(viewactions(stp), AFTER_SB, g, ps)
+    setaction!(gs.player, SB_ID)
+
+    gs.prev_player = ps
+    nextplayer!(gs)
 end
 
-@inline function postblinds!(g::Game, stp::GameSetup{HeadsUp})
-    _headsupblinds!(g, stp)
+@inline function performbigblind!(gs::GameState)
+    ps = g.player
+
+    _bet!(bigblind(gs), gs, ps)
+    _update!(actions!(gs), AFTER_BB, gs, ps)
+    setaction!(ps, BB_ID)
+
+    gs.bet_player = ps
+    gs.prev_player = ps
+    nextplayer!(gs)
+
 end
 
-@inline function postblinds!(g::Game, stp::GameSetup{Normal})
-    if num_players == 2
-        _headsupblinds!(g, stp)
+@inline function postblinds!(gs::GameState, g::Game)
+    _postblinds!(gs, g)
+end
+
+@inline function _headsupblinds!(gs::GameState)
+
+    #first player posts bigblind
+    ps = gs.player
+
+
+
+    println("Big Blind ", players.id(gs.player))
+
+    np = nextplayer!(gs)
+
+    #first player to act is the dealer (second player)
+
+    _bet!(smallblind(gs), gs, np)
+    println("Small Blind ", players.id(gs.player))
+    setaction!(ps, BB_ID)
+    _bet!(bigblind(gs), gs, ps)
+    println("Last Bet ", gs.last_bet, " Player Bet ", np.bet)
+    gs.bet_player = ps
+    gs.prev_player = ps
+
+    _update!(actions!(gs), AFTER_BB, gs, np)
+
+#     _update!(viewactions(stp), AFTER_SB, g, ps)
+
+#     # go back to first player
+#     g.player = nextplayer(g)
+end
+
+@inline function _postblinds!(gs::GameState, g::Game{T, Normal}) where T <: GameSetup
+    if numplayers!(g) > 2
+        println("SmallBlind ", players.id(gs.player))
+        performsmallblind!(gs)
+        println("Big Blind ", players.id(gs.player))
+        performbigblind!(gs)
     else
-        println("Small Blind ", stp.sb.amount, " Player ", id(g.player))
-        setaction!(g.player, SB_ID)
-        perform!(stp.sb, g, g.player)
-        println("Big Blind ", stp.bb.amount, " Player ", id(g.player))
-        setaction!(g.player, BB_ID)
-        perform!(stp.bb, g, g.player)
+        _headsupblinds!(gs)
     end
 end
 
+@inline function _postblinds!(gs::GameState, g::Game{T, HeadsUp}) where T <: GameSetup
+    _headsupblinds!(gs)
+end
+
 @inline function _start!(
-    g::Game{Simulation},
+    gs::GameState,
     data::SharedData)
 
-    stp = setup(g)
 #     distributecards!(g, stp, data)
 
-    g.state = g.started
-    g.round = 0
-    g.last_bet = 0
-    g.pot_size = 0
-    g.position = 1
-    g.all_in = 0
-    g.player = g.players_states[1]
+    println("Reset!!!")
+
+    gs.state = gs.started
+    gs.round = 0
+    gs.last_bet = 0
+    gs.pot_size = 0
+    gs.position = 1
+    gs.all_in = 0
+    gs.player = gs.players_states[1]
 
 #     updates = data.updates
 #
@@ -768,9 +777,9 @@ end
 #     st = nextplayer(g)
 #     g.player = st
 
-    postblinds!(g, stp)
+    postblinds!(gs, game!(gs))
 
-    return g.state
+    return gs.state
 end
 
 @inline function sample(a::ActionSet, wv::Vector{Bool})
@@ -808,15 +817,15 @@ end
     return 1
 end
 
-@inline function _activatesmallblind(g::Game, ps::PlayerState)
-    return _activateabstractbet(smallblindamount(g, ps), ps)
+@inline function _activatesmallblind(gs::GameState, ps::PlayerState)
+    return _activateabstractbet(smallblindamount(gs, ps), ps)
 end
 
-@inline function _activatebigblind(g::Game, ps::PlayerState)
-    return _activateabstractbet(bigblindamount(g, ps), ps)
+@inline function _activatebigblind(gs::GameState, ps::PlayerState)
+    return _activateabstractbet(bigblindamount(gs, ps), ps)
 end
 
-@inline function _activateallin(g::Game, ps::PlayerState)
+@inline function _activateallin(gs::GameState, ps::PlayerState)
     if ps.chips != 0
         return 1
     end
@@ -824,19 +833,19 @@ end
     return 0
 end
 
-@inline function _activatecheck(g::Game, ps::PlayerState)
-    if ps.bet >= g.last_bet
+@inline function _activatecheck(gs::GameState, ps::PlayerState)
+    if ps.bet >= gs.last_bet
         return 1
     end
 
     return 0
 end
 
-@inline function _activateaction(g::Game, ps::PlayerState)
+@inline function _activateaction(gs::GameState, ps::PlayerState)
     return 1
 end
 
-@inline function _activatefold(g::Game, ps::PlayerState)
+@inline function _activatefold(gs::GameState, ps::PlayerState)
     #the player can't fold if he's all-in
     if ps.bet > 0 && ps.chips == 0
         return 0
@@ -845,11 +854,11 @@ end
     return 1
 end
 
-@inline function _activatecall(g::Game, ps::PlayerState)
+@inline function _activatecall(gs::GameState, ps::PlayerState)
     # in case it is equal, then it will be an all-in
-    if ps.chips <= g.last_bet
+    if ps.chips <= gs.last_bet
         return 0
-    elseif ps.bet == g.last_bet
+    elseif ps.bet == gs.last_bet
         return 0
     end
 
@@ -859,7 +868,7 @@ end
 @inline function _update!(
     acts::ActionSet,
     ids::Vector{UInt8},
-    g::Game,
+    gs::GameState,
     ps::PlayerState)
 
     actions_mask = ps.actions_mask
@@ -887,7 +896,7 @@ end
 
         #activate actions
         while id == a.id && ia < n
-            actions_mask[ia] = _activateaction!(a, g, ps)
+            actions_mask[ia] = _activateaction!(a, gs, ps)
 #             c += 1
             ia += 1
             a = acts[ia]
@@ -900,82 +909,82 @@ end
     a = acts[ia]
 
     if ids[l] == a.id
-        actions_mask[ia] = _activateaction!(a, g, ps)
+        actions_mask[ia] = _activateaction!(a, gs, ps)
 #         c += 1
     end
 
 #     return c
 end
 
-@inline function update!(action::Action, g::Game, ps::PlayerState)
+@inline function update!(action::Action, gs::GameState, ps::PlayerState)
     id = action.id
 
     if id == BET_ID || id == RAISE_ID || id == BB_ID
-        _update!(viewactions(g.setup), ACTION_SET1, g, ps)
+        _update!(actions!(gs), ACTION_SET1, gs, ps)
     elseif id == CALL_ID || id == FOLD_ID
-        _update!(viewactions(g.setup), AFTER_CALL, g, ps)
+        _update!(actions!(gs), AFTER_CALL, gs, ps)
     elseif id == CHECK_ID || id == CHANCE_ID
-        _update!(viewactions(g.setup), ACTION_SET2, g, ps)
+        _update!(actions!(gs), ACTION_SET2, gs, ps)
     elseif id == ALL_ID
-        _update!(viewactions(g.setup), AFTER_ALL, g, ps)
+        _update!(actions!(gs), AFTER_ALL, gs, ps)
     elseif id == SB_ID
-        _update!(viewactions(g.setup), AFTER_SB, g, ps)
+        _update!(actions!(gs), AFTER_SB, gs, ps)
     end
 end
 
-@inline function updateafterbet!(g::Game, ps::PlayerState)
-    _update!(viewactions(g.setup), AFTER_BET, g, ps)
+@inline function updateafterbet!(gs::GameState, ps::PlayerState)
+    _update!(actions!(gs), AFTER_BET, gs, ps)
 end
 
-@inline function updateafterallin!(g::Game, ps::PlayerState)
-    _update!(viewactions(g.setup), AFTER_ALL, g, ps)
+@inline function updateafterallin!(gs::GameState, ps::PlayerState)
+    _update!(actions!(gs), AFTER_ALL, g, ps)
 end
 
-@inline function updateaftercall!(g::Game, ps::PlayerState)
-    _update!(viewactions(g.setup), AFTER_CALL, g, ps)
+@inline function updateaftercall!(gs::GameState, ps::PlayerState)
+    _update!(actions!(gs), AFTER_CALL, g, ps)
 end
 
-@inline function updateafterfold!(g::Game, ps::PlayerState)
-        _update!(viewactions(g.setup), AFTER_FOLD, g, ps)
+@inline function updateafterfold!(gs::GameState, ps::PlayerState)
+        _update!(actions!(gs), AFTER_FOLD, g, ps)
 end
 
-@inline function updateafterraise(g::Game, ps::PlayerState)
-        _update!(viewactions(g.setup), AFTER_RAISE, g, ps)
+@inline function updateafterraise(gs::GameState, ps::PlayerState)
+        _update!(actions!(gs), AFTER_RAISE, g, ps)
 end
 
-@inline function updateaftercheck(g::Game, ps::PlayerState)
-        _update!(viewactions(g.setup), AFTER_CHECK, g, ps)
+@inline function updateaftercheck(gs::GameState, ps::PlayerState)
+        _update!(actions!(gs), AFTER_CHECK, g, ps)
 end
 
-@inline function updateafterchance(g::Game, ps::PlayerState)
-        _update!(viewactions(g.setup), AFTER_CHANCE, g, ps)
+@inline function updateafterchance(gs::GameState, ps::PlayerState)
+        _update!(actions!(gs), AFTER_CHANCE, g, ps)
 end
 
-@inline function updateafterbigblind(g::Game, ps::PlayerState)
-        _update!(viewactions(g.setup), AFTER_BB, g, ps)
+@inline function updateafterbigblind(gs::GameState, ps::PlayerState)
+        _update!(actions!(gs), AFTER_BB, g, ps)
 end
 
-@inline function updateaftersmallblind(g::Game, ps::PlayerState)
-        _update!(viewactions(g.setup), AFTER_SB, g, ps)
+@inline function updateaftersmallblind(gs::GameState, ps::PlayerState)
+        _update!(actions!(gs), AFTER_SB, g, ps)
 end
 
-@inline function _activateaction!(a::Action, g::Game, ps::PlayerState)
+@inline function _activateaction!(a::Action, gs::GameState, ps::PlayerState)
     ai = a.id
 
     if ai == CALL_ID
-        return _activatecall(g, ps)
+        return _activatecall(gs, ps)
     elseif ai == FOLD_ID
-        return _activatefold(g, ps)
+        return _activatefold(gs, ps)
     elseif ai == ALL_ID
-        return _activateallin(g, ps)
+        return _activateallin(gs, ps)
     elseif ai == RAISE_ID || ai == BET_ID
-        return _activateabstractbet(betamount(a, g), ps)
+        return _activateabstractbet(betamount(a, gs), ps)
     elseif ai == SB_ID
-        return _activateabstractbet(smallblindamount(g, ps), ps)
+        return _activateabstractbet(smallblindamount(gs, ps), ps)
     elseif ai == BB_ID
-        return _activateabstractbet(bigblindamount(g, ps), ps)
+        return _activateabstractbet(bigblindamount(gs, ps), ps)
     elseif ai == CHECK_ID
-        return _activatecheck(g, ps)
+        return _activatecheck(gs, ps)
     end
 
 end

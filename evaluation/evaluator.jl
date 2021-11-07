@@ -3,11 +3,13 @@ module evaluator
 export evaluate
 
 include("lookup.jl")
-include("../../utils/concat.jl")
-include("../../utils/combinations.jl")
+include("concat.jl")
+include("combinations.jl")
 
 # using IterTools
 using Reexport
+
+using cards
 
 @reexport using .lookup
 using .combinations

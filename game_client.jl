@@ -1,38 +1,43 @@
-include("glog/poker.jl")
+push!(LOAD_PATH, join([pwd(), "games"], "/"))
+push!(LOAD_PATH, join([pwd(), "glog"], "/"))
 
-include("games/playing.jl")
-include("games/cards.jl")
-include("games/games.jl")
+include("data_conversion.jl")
+include("poker.jl")
 
-using .cards
-using .playing
+using Games
+using cards
+using playing
+
 using .poker
-using .games
+using .data_conversion
 
 const PlayersData = Vector{PlayerData}()
 
-struct Live <: RunMode
+struct LiveGame{T<:GameMode} <: GameSetup
     client::PokerServiceClient
+    mode::T
 end
 
-@inline function postblinds!(g::Game{Live}, stp::GameSetup{HeadsUp})
-        client = getclient!(g.run_mode)
+@inline function postblinds!(gs::GameState, g::Game{LiveGame, U}) where U <: GameMode
+    client = getclient!(setup(gs))
 
-        sb = g.players_states[1]
-        bb = g.players_states[2]
+    data = shared(gs)
 
-        stp.sb = GetBlinds(client, PlayersData[sb.position])
-        stp.bb = GetBlinds(client, PlayersData[bb.position])
+    sb = g.players_states[1]
+    bb = g.players_states[2]
 
-        _headsupblinds!(g, stp)
+    data.sb = GetBlinds(client, PlayersData[sb.position])
+    data.bb = GetBlinds(client, PlayersData[bb.position])
+
+    _postblinds!(gs)
 end
 
 @inline function getclient!(run_mode::Live)
     return run_mode.client
 end
 
-@inline function setpubliccards!(g::Game{Live}, data::SharedData)
-        client = getclient!(g.run_mode)
+@inline function setpubliccards!(g::Game{LiveGame}, data::SharedData)
+        client = getclient!(g.game_setup)
         round = g.round
 
         if round == 1
@@ -98,12 +103,12 @@ function start(
     server_url::String,
     chips::UInt32,
     num_players::UInt8,
-    small_blind::UInt32,
-    big_blind::UInt32)
+    small_blind::Float32,
+    big_blind::Float32)
 
     client = PokerServiceClient(server_url)
 
-    live_game = Game{Live}()
+    live_game = Game{LiveGame}()
 
     live_game.run_mode = Live(client)
 
@@ -143,7 +148,7 @@ function start(
     active_players = 0
 
     for player in 1:GetPlayers(client)
-        append!(PlayersData, player)
+        push!(PlayersData, player)
 
         pos = player.position
 
@@ -151,7 +156,7 @@ function start(
         st = PlayerState()
 
         if pos == 0
-            main_player = ply
+            main_player = st
         end
 
         st.chips = chips
@@ -210,12 +215,12 @@ function start(
 
     game_setup.actions = action_set
 
-    cards_data = GetPlayerCards(
-        client,
-        PlayerData(position=UInt32(main_player.position)))
+    main_player_position = position(main_player)
 
-    #todo: convert cards to local data structure
-    private_cards[main_player] = cards_data
+    private_cards[main_player_position] = fromcardsdata(
+        GetPlayerCards(
+            client,
+            PlayerData(position=UInt32(main_player_position))))
 
     #post blinds
     postblinds!(g, game_setup)
@@ -228,8 +233,15 @@ function start(
 
         if current_player == main_player
             #todo: choose an action from the action set them perform it
-            perform!()
-            #todo: need a function for performing action on the server
+            act = action_set[sample(action_set, actionsmask(main_player))]
+
+            perform!(
+                act,
+                live_game,
+                main_player
+            )
+
+            PerformAction(client, toactiondata(act, live_game))
         else
             #wait for opponent to perform action
             opp_act = GetPlayerAction(client, PlayersData[cpl.position])
