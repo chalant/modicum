@@ -132,7 +132,7 @@ function compute_equities(
             diff1 = setdiff(cards, chance)
             n = 1
             for private in subsets(diff1, 2)
-                for board in subsets(setdiff(diff1, private), num_board))
+                for board in subsets(setdiff(diff1, private), num_board)
                     #  rank = Int16(evaluate(
                     #     hand,
                     #     concatenate(cat_arr, private, board, chance),
@@ -149,7 +149,7 @@ function compute_equities(
         end
     else
         for private in subsets(cards, 2)
-            for board in subsets(setdiff(diff1, private), num_board))
+            for board in subsets(setdiff(diff1, private), num_board)
                 #  rank = Int16(evaluate(
                 #     hand,
                 #     concatenate(cat_arr, private, board, chance),
@@ -238,7 +238,8 @@ function initialize(
     end
 
     println("Computing ", round_name, " equities...")
-    @showprogress for (c, board) in enumerate(subsets(cards, num_board)))
+    
+    @showprogress for (c, board) in enumerate(subsets(cards, num_board))
         i = 1
         for private in subsets(setdiff(cards, private), 2)
             rank = Int16(evaluate(concatenate(cat_arr, private, board), lookup_tables))
@@ -330,7 +331,7 @@ function compress_round(
     rdc = hd - 2
 
     println("Computing ", round_name, " equities...")
-    @showprogress for (c, board) in enumerate(subsets(cards, num_board)))
+    @showprogress for (c, board) in enumerate(subsets(cards, num_board))
         i = 1
         diff1 = setdiff(cards, private)
         for private in subsets(diff1, 2)

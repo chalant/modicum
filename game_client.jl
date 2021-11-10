@@ -10,12 +10,11 @@ using .data_conversion
 
 const PlayersData = Vector{PlayerData}()
 
-struct LiveGame{T<:GameMode} <: GameSetup
+struct LiveGame <: GameSetup
     client::PokerServiceClient
-    mode::T
 end
 
-@inline function postblinds!(gs::GameState, g::Game{LiveGame, U}) where U <: GameMode
+@inline function playing.postblinds!(gs::GameState, g::Game{LiveGame, U}) where U <: GameMode
     client = getclient!(setup(gs))
 
     data = shared(gs)
@@ -23,19 +22,24 @@ end
     sb = g.players_states[1]
     bb = g.players_states[2]
 
+    #update blinds
+
     data.sb = GetBlinds(client, PlayersData[sb.position])
     data.bb = GetBlinds(client, PlayersData[bb.position])
 
     _postblinds!(gs)
 end
 
-@inline function getclient!(run_mode::Live)
-    return run_mode.client
+@inline function getclient!(gs::LiveGame)
+    return gs.client
 end
 
-@inline function setpubliccards!(g::Game{LiveGame}, data::SharedData)
-        client = getclient!(g.game_setup)
-        round = g.round
+@inline function playing.setpubliccards!(gs::GameState, g::Game{LiveGame, U}) where U <: GameMode
+        client = getclient!(game!(gs))
+
+        data = shared(gs)
+        
+        round = gs.round
 
         if round == 1
             round_request = Round.FLOP
@@ -74,40 +78,13 @@ end
 
 end
 
-function creategamesetup!(v::Val{false})
-    game_setup = GameSetup{HeadsUp}()
-    game_mode = HeadsUp()
-
-    game_setup.game_mode = game_mode
-    game_setup.num_players = game_mode.num_players
-
-    return game_setup
-
-end
-
-function creategamesetup!(v::Val{true})
-    game_setup = GameSetup{Normal}()
-    game_mode = Normal()
-
-    game_setup.game_mode = game_mode
-    game_setup.num_players = game_mode.num_players
-
-    return game_setup
-
-end
-
-function start(
-    server_url::String,
-    chips::UInt32,
-    num_players::UInt8,
-    small_blind::Float32,
-    big_blind::Float32)
-
+function start(gm::T, small_blind::Float32, big_blind::Float32, chips::UInt32) where T <: GameMode
+    
     client = PokerServiceClient(server_url)
 
-    live_game = Game{LiveGame}()
+    game_setup = Game{LiveGame, T}()
 
-    live_game.run_mode = Live(client)
+    lgs = GameState{Game{LiveGame, T}}()
 
     shared_data = SharedData()
 
@@ -119,12 +96,14 @@ function start(
 
     #setup the game.
 
-    game_setup = creategamesetup!(num_players > 2)
+    game_setup.game_mode = gm
+    game_setup.shared_state = shared_data
+
 
     #small blind and big blind are provided in the parameters
 
-    game_setup.sb = small_blind
-    game_setup.bb = big_blind
+    shared_data.sb = small_blind
+    shared_data.bb = big_blind
 
     game_setup.num_private_cards = 2
     game_setup.num_public_cards = 5
@@ -181,10 +160,10 @@ function start(
     putlast!(states, UInt8(dealer.position))
 
     game_setup.players = players_vec
-    game_setup.players_states = players_states
+    lgs.players_states = players_states
 
-    live_game.total_bet = 0
-    live_game.active_players = active_players
+    lgs.total_bet = 0
+    lgs.active_players = active_players
 
     shared_data.private_cards = private_cards
 
@@ -220,7 +199,7 @@ function start(
             PlayerData(position=UInt32(main_player_position))))
 
     #post blinds
-    postblinds!(g, game_setup)
+    postblinds!(lgs, game_setup)
 
     # game loop.
     # note: loop breaks when the main player is eliminated or wins
@@ -247,14 +226,24 @@ function start(
         #todo: in certain game modes, (sit and go) we can quit any time at the end of a game.
         #todo: we need to implement a special initialization step fo
 
-        game_state = update!(live_game, game_setup)
+        state = update!(lgs, game_setup)
 
-        state_id = game_state.id
+        state_id = state.id
 
         if state_id == TERM_ID
             break
         end
 
     end
+
+end
+
+function startheadsup(
+    server_url::String,
+    chips::UInt32,
+    small_blind::Float32,
+    big_blind::Float32)
+
+    start(HeadsUp(), small_blind, big_blind, chips)
 
 end

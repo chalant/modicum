@@ -10,6 +10,7 @@ export distributecards!
 export rotateplayers!
 export betamount
 export update!
+export _postblinds!
 
 export callamount
 
@@ -448,17 +449,16 @@ end
     return update!(gs, a, ps)
 end
 
-@inline function setpubliccards!(gs::GameState, data::SharedData)
-    for i in 1:game!(gs).cards_per_round[gs.round]
-        append!(data.public_cards, pop!(data.deck))
+@inline function setpubliccards!(gs::GameState, g::Game{T, U}) where {T <: GameSetup, U <: GameMode}
+    data = shared(g)
+
+    for i in 1:g.cards_per_round[gs.round]
+        push!(data.public_cards, pop!(data.deck))
         data.deck_cursor -= 1
     end
 end
 
 @inline function performchance!(a::Action, gs::GameState, ps::PlayerState)
-    data = shared(gs)
-    round = gs.round
-
     #update once per round
     #updates = data.updates
 
@@ -466,7 +466,7 @@ end
 
     ap = gs.active_players
 
-    setpubliccards!(gs, data)
+    setpubliccards!(gs, game!(gs))
 
     for ps in states
         # assign potential earnings to each active player
@@ -522,7 +522,7 @@ end
     return update!(gs, a, ps)
 end
 
-function _nextplayer(state::GameState, n::Int)
+@inline function _nextplayer(state::GameState, n::Int)
 
     state.position == n ? state.position = 1 : state.position += 1
     # get the state with the corresponding position
@@ -530,7 +530,7 @@ function _nextplayer(state::GameState, n::Int)
     return state.players_states[state.position]
 end
 
-function nextplayer!(gs::GameState)
+@inline function nextplayer!(gs::GameState)
     n = length(gs.players_states)
     st = _nextplayer(gs, n)
 
@@ -632,8 +632,8 @@ end
 
 function putbackcards!(
     gs::GameState,
-    g::Game{LiveSimulation},
-    data::SharedData)
+    g::Game{LiveSimulation, T},
+    data::SharedData) where T <: GameMode
 
     stp = game!(gs)
 
