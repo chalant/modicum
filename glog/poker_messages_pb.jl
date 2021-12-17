@@ -38,7 +38,7 @@ function meta(::Type{PlayerData})
     ProtoBuf.metalock() do
         if !isassigned(__meta_PlayerData)
             __meta_PlayerData[] = target = ProtoMeta(PlayerData)
-            allflds = Pair{Symbol,Union{Type,String}}[:position => UInt32, :_type => Int32]
+            allflds = Pair{Symbol,Union{Type,String}}[:position => UInt32, :_type => Int32, :is_active => Bool]
             meta(target, PlayerData, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
         end
         __meta_PlayerData[]
@@ -49,6 +49,8 @@ function Base.getproperty(obj::PlayerData, name::Symbol)
         return (obj.__protobuf_jl_internal_values[name])::UInt32
     elseif name === :_type
         return (obj.__protobuf_jl_internal_values[name])::Int32
+    elseif name === :is_active
+        return (obj.__protobuf_jl_internal_values[name])::Bool
     else
         getfield(obj, name)
     end
@@ -236,17 +238,17 @@ function meta(::Type{CardData})
     ProtoBuf.metalock() do
         if !isassigned(__meta_CardData)
             __meta_CardData[] = target = ProtoMeta(CardData)
-            allflds = Pair{Symbol,Union{Type,String}}[:suit => UInt32, :rank => UInt32]
+            allflds = Pair{Symbol,Union{Type,String}}[:rank => AbstractString, :suit => AbstractString]
             meta(target, CardData, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
         end
         __meta_CardData[]
     end
 end
 function Base.getproperty(obj::CardData, name::Symbol)
-    if name === :suit
-        return (obj.__protobuf_jl_internal_values[name])::UInt32
-    elseif name === :rank
-        return (obj.__protobuf_jl_internal_values[name])::UInt32
+    if name === :rank
+        return (obj.__protobuf_jl_internal_values[name])::AbstractString
+    elseif name === :suit
+        return (obj.__protobuf_jl_internal_values[name])::AbstractString
     else
         getfield(obj, name)
     end
@@ -325,17 +327,17 @@ function meta(::Type{ActionData})
     ProtoBuf.metalock() do
         if !isassigned(__meta_ActionData)
             __meta_ActionData[] = target = ProtoMeta(ActionData)
-            allflds = Pair{Symbol,Union{Type,String}}[:action_id => UInt32, :action_type => Int32, :amount => Float32]
+            allflds = Pair{Symbol,Union{Type,String}}[:action_type => Int32, :multiplier => Float32, :amount => Float32]
             meta(target, ActionData, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
         end
         __meta_ActionData[]
     end
 end
 function Base.getproperty(obj::ActionData, name::Symbol)
-    if name === :action_id
-        return (obj.__protobuf_jl_internal_values[name])::UInt32
-    elseif name === :action_type
+    if name === :action_type
         return (obj.__protobuf_jl_internal_values[name])::Int32
+    elseif name === :multiplier
+        return (obj.__protobuf_jl_internal_values[name])::Float32
     elseif name === :amount
         return (obj.__protobuf_jl_internal_values[name])::Float32
     else

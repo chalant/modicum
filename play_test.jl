@@ -299,7 +299,6 @@ function cont(g::GameState, st::State)
 end
 
 function play()
-    arr = Vector{String}(undef, length(ACTS))
 
     if choice("Start game ?") == true
         shuffle!(DECK)
@@ -327,10 +326,8 @@ function play()
                 idx = choose_action(GAMESTATE, SETUP.actions)
                 st = perform!(actions[idx], GAMESTATE, pl)
             else
-                # opponents turn
-#                 println(availableactions!(GAME, SHARED, SETUP, arr, pl))
+                # println(availableactions!(GAMESTATE))
                 
-                println(availableactions!(GAMESTATE))
                 idx = sample(actions, actionsmask!(GAMESTATE))
                 act = actions[idx]
                 println("Player", players.id(pl), ": ", message(act, GAMESTATE))

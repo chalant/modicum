@@ -39,6 +39,16 @@ end
 show(io::IO, client::PokerServiceBlockingClient) = print(io, "PokerServiceBlockingClient(", client.channel.baseurl, ")")
 show(io::IO, client::PokerServiceClient) = print(io, "PokerServiceClient(", client.channel.baseurl, ")")
 
+import .poker: IsReady
+"""
+    IsReady
+
+- input: poker.Empty
+- output: poker.Empty
+"""
+IsReady(client::PokerServiceBlockingClient, inp::poker.Empty) = IsReady(client.stub, client.controller, inp)
+IsReady(client::PokerServiceClient, inp::poker.Empty, done::Function) = IsReady(client.stub, client.controller, inp, done)
+
 import .poker: GetPlayers
 """
     GetPlayers
@@ -98,6 +108,16 @@ import .poker: GetBlinds
 """
 GetBlinds(client::PokerServiceBlockingClient, inp::poker.PlayerData) = GetBlinds(client.stub, client.controller, inp)
 GetBlinds(client::PokerServiceClient, inp::poker.PlayerData, done::Function) = GetBlinds(client.stub, client.controller, inp, done)
+
+import .poker: PerformAction
+"""
+    PerformAction
+
+- input: poker.ActionData
+- output: poker.Empty
+"""
+PerformAction(client::PokerServiceBlockingClient, inp::poker.ActionData) = PerformAction(client.stub, client.controller, inp)
+PerformAction(client::PokerServiceClient, inp::poker.ActionData, done::Function) = PerformAction(client.stub, client.controller, inp, done)
 
 # end service: poker.PokerService
 

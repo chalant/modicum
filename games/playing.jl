@@ -33,9 +33,9 @@ end
         return ps.chips
 end
 
-@inline function betamount(act::Action, gs::GameState)
+@inline function betamount(act::Action, gs::GameState, ps::PlayerState)
     if gs.round > 0
-        return gs.pot_size * act.pot_multiplier + gs.last_bet
+        return gs.pot_size * act.pot_multiplier + gs.last_bet + callamount(gs, ps)
     else
         return bigblind(gs) * act.blind_multiplier + gs.last_bet
     end
@@ -395,7 +395,7 @@ end
 end
 
 @inline function performraise!(a::Action, gs::GameState, ps::PlayerState)
-    bet!(betamount(a, gs), gs, ps)
+    bet!(betamount(a, gs, ps), gs, ps)
     return update!(gs, a, ps)
 end
 
@@ -507,7 +507,7 @@ end
     if id == ALL_ID
         return performallin!(a, gs, ps)
     elseif id == BET_ID || id == RAISE_ID
-        bet!(betamount(a, gs), gs, ps)
+        bet!(betamount(a, gs, ps), gs, ps)
         return update!(gs, a, ps)
     elseif id == CHECK_ID
         return performcheck!(a, gs, ps)
@@ -874,7 +874,6 @@ end
 
     actions_mask = gs.actions_mask
 
-    iid = 1
     ia = 1
     l = length(ids)
     n = length(actions_mask)
@@ -884,8 +883,9 @@ end
     for i in 1:n
         actions_mask[i] = 0
     end
-
-    while iid < l + 1
+    
+    for iid in 1:l
+    # while iid < l + 1
         id = ids[iid]
         a = acts[ia]
 
@@ -903,7 +903,7 @@ end
             a = acts[ia]
         end
 
-        iid += 1
+        # iid += 1
     end
 
     #update last element
@@ -979,7 +979,7 @@ end
     elseif ai == ALL_ID
         return _activateallin(gs, ps)
     elseif ai == RAISE_ID || ai == BET_ID
-        return _activateabstractbet(betamount(a, gs), ps)
+        return _activateabstractbet(betamount(a, gs, ps), ps)
     elseif ai == SB_ID
         return _activateabstractbet(smallblindamount(gs, ps), ps)
     elseif ai == BB_ID

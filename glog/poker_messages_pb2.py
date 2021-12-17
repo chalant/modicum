@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'\200\001\001',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x14poker_messages.proto\x12\x05poker\"\x85\x01\n\x0bInitialData\x12-\n\rplayers_state\x18\x01 \x03(\x0b\x32\x16.poker.PlayerStateData\x12!\n\x06\x64\x65\x61ler\x18\x02 \x01(\x0b\x32\x11.poker.PlayerData\x12\x11\n\tsb_amount\x18\x03 \x01(\x02\x12\x11\n\tbb_amount\x18\x04 \x01(\x02\"p\n\nPlayerData\x12\x10\n\x08position\x18\x01 \x01(\r\x12*\n\x04type\x18\x02 \x01(\x0e\x32\x1c.poker.PlayerData.PlayerType\"$\n\nPlayerType\x12\x08\n\x04MAIN\x10\x00\x12\x0c\n\x08OPPONENT\x10\x01\"\x07\n\x05\x45mpty\"0\n\x11\x42oardCardsRequest\x12\x1b\n\x05round\x18\x01 \x01(\x0e\x32\x0c.poker.Round\"C\n\x0fPlayerStateData\x12\r\n\x05\x63hips\x18\x01 \x01(\x02\x12!\n\x06player\x18\x02 \x01(\x0b\x32\x11.poker.PlayerData\"+\n\tCardsData\x12\x1e\n\x05\x63\x61rds\x18\x01 \x03(\x0b\x32\x0f.poker.CardData\"&\n\x08\x43\x61rdData\x12\x0c\n\x04suit\x18\x01 \x01(\r\x12\x0c\n\x04rank\x18\x02 \x01(\r\"\xaf\x01\n\nActionData\x12\x11\n\taction_id\x18\x01 \x01(\r\x12\x31\n\x0b\x61\x63tion_type\x18\x02 \x01(\x0e\x32\x1c.poker.ActionData.ActionType\x12\x0e\n\x06\x61mount\x18\x03 \x01(\x02\"K\n\nActionType\x12\x07\n\x03\x42\x45T\x10\x00\x12\x08\n\x04\x43\x41LL\x10\x01\x12\t\n\x05RAISE\x10\x02\x12\x08\n\x04\x46OLD\x10\x03\x12\n\n\x06\x41LL_IN\x10\x04\x12\t\n\x05\x43HECK\x10\x05\"\x17\n\x06\x41mount\x12\r\n\x05value\x18\x01 \x01(\x02*&\n\x05Round\x12\x08\n\x04\x46LOP\x10\x00\x12\x08\n\x04TURN\x10\x01\x12\t\n\x05RIVER\x10\x02\x42\x03\x80\x01\x01\x62\x06proto3'
+  serialized_pb=b'\n\x14poker_messages.proto\x12\x05poker\"\x85\x01\n\x0bInitialData\x12-\n\rplayers_state\x18\x01 \x03(\x0b\x32\x16.poker.PlayerStateData\x12!\n\x06\x64\x65\x61ler\x18\x02 \x01(\x0b\x32\x11.poker.PlayerData\x12\x11\n\tsb_amount\x18\x03 \x01(\x02\x12\x11\n\tbb_amount\x18\x04 \x01(\x02\"\x83\x01\n\nPlayerData\x12\x10\n\x08position\x18\x01 \x01(\r\x12*\n\x04type\x18\x02 \x01(\x0e\x32\x1c.poker.PlayerData.PlayerType\x12\x11\n\tis_active\x18\x03 \x01(\x08\"$\n\nPlayerType\x12\x08\n\x04MAIN\x10\x00\x12\x0c\n\x08OPPONENT\x10\x01\"\x07\n\x05\x45mpty\"0\n\x11\x42oardCardsRequest\x12\x1b\n\x05round\x18\x01 \x01(\x0e\x32\x0c.poker.Round\"C\n\x0fPlayerStateData\x12\r\n\x05\x63hips\x18\x01 \x01(\x02\x12!\n\x06player\x18\x02 \x01(\x0b\x32\x11.poker.PlayerData\"+\n\tCardsData\x12\x1e\n\x05\x63\x61rds\x18\x01 \x03(\x0b\x32\x0f.poker.CardData\"&\n\x08\x43\x61rdData\x12\x0c\n\x04rank\x18\x01 \x01(\t\x12\x0c\n\x04suit\x18\x02 \x01(\t\"\xb0\x01\n\nActionData\x12\x31\n\x0b\x61\x63tion_type\x18\x01 \x01(\x0e\x32\x1c.poker.ActionData.ActionType\x12\x12\n\nmultiplier\x18\x02 \x01(\x02\x12\x0e\n\x06\x61mount\x18\x03 \x01(\x02\"K\n\nActionType\x12\x07\n\x03\x42\x45T\x10\x00\x12\x08\n\x04\x43\x41LL\x10\x01\x12\t\n\x05RAISE\x10\x02\x12\x08\n\x04\x46OLD\x10\x03\x12\n\n\x06\x41LL_IN\x10\x04\x12\t\n\x05\x43HECK\x10\x05\"\x17\n\x06\x41mount\x12\r\n\x05value\x18\x01 \x01(\x02*&\n\x05Round\x12\x08\n\x04\x46LOP\x10\x00\x12\x08\n\x04TURN\x10\x01\x12\t\n\x05RIVER\x10\x02\x42\x03\x80\x01\x01\x62\x06proto3'
 )
 
 _ROUND = _descriptor.EnumDescriptor(
@@ -48,8 +48,8 @@ _ROUND = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=697,
-  serialized_end=735,
+  serialized_start=718,
+  serialized_end=756,
 )
 _sym_db.RegisterEnumDescriptor(_ROUND)
 
@@ -79,8 +79,8 @@ _PLAYERDATA_PLAYERTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=243,
-  serialized_end=279,
+  serialized_start=263,
+  serialized_end=299,
 )
 _sym_db.RegisterEnumDescriptor(_PLAYERDATA_PLAYERTYPE)
 
@@ -124,8 +124,8 @@ _ACTIONDATA_ACTIONTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=595,
-  serialized_end=670,
+  serialized_start=616,
+  serialized_end=691,
 )
 _sym_db.RegisterEnumDescriptor(_ACTIONDATA_ACTIONTYPE)
 
@@ -205,6 +205,13 @@ _PLAYERDATA = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='is_active', full_name='poker.PlayerData.is_active', index=2,
+      number=3, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -218,8 +225,8 @@ _PLAYERDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=167,
-  serialized_end=279,
+  serialized_start=168,
+  serialized_end=299,
 )
 
 
@@ -243,8 +250,8 @@ _EMPTY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=281,
-  serialized_end=288,
+  serialized_start=301,
+  serialized_end=308,
 )
 
 
@@ -275,8 +282,8 @@ _BOARDCARDSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=290,
-  serialized_end=338,
+  serialized_start=310,
+  serialized_end=358,
 )
 
 
@@ -314,8 +321,8 @@ _PLAYERSTATEDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=340,
-  serialized_end=407,
+  serialized_start=360,
+  serialized_end=427,
 )
 
 
@@ -346,8 +353,8 @@ _CARDSDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=409,
-  serialized_end=452,
+  serialized_start=429,
+  serialized_end=472,
 )
 
 
@@ -360,16 +367,16 @@ _CARDDATA = _descriptor.Descriptor(
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='suit', full_name='poker.CardData.suit', index=0,
-      number=1, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
+      name='rank', full_name='poker.CardData.rank', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='rank', full_name='poker.CardData.rank', index=1,
-      number=2, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
+      name='suit', full_name='poker.CardData.suit', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
@@ -385,8 +392,8 @@ _CARDDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=454,
-  serialized_end=492,
+  serialized_start=474,
+  serialized_end=512,
 )
 
 
@@ -399,16 +406,16 @@ _ACTIONDATA = _descriptor.Descriptor(
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='action_id', full_name='poker.ActionData.action_id', index=0,
-      number=1, type=13, cpp_type=3, label=1,
+      name='action_type', full_name='poker.ActionData.action_type', index=0,
+      number=1, type=14, cpp_type=8, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='action_type', full_name='poker.ActionData.action_type', index=1,
-      number=2, type=14, cpp_type=8, label=1,
-      has_default_value=False, default_value=0,
+      name='multiplier', full_name='poker.ActionData.multiplier', index=1,
+      number=2, type=2, cpp_type=6, label=1,
+      has_default_value=False, default_value=float(0),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
@@ -432,8 +439,8 @@ _ACTIONDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=495,
-  serialized_end=670,
+  serialized_start=515,
+  serialized_end=691,
 )
 
 
@@ -464,8 +471,8 @@ _AMOUNT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=672,
-  serialized_end=695,
+  serialized_start=693,
+  serialized_end=716,
 )
 
 _INITIALDATA.fields_by_name['players_state'].message_type = _PLAYERSTATEDATA

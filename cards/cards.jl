@@ -8,14 +8,11 @@ export PRIMES,
     pretty_print_cards
 
 const PRIMES = Vector{UInt64}([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41])
-const str_ranks = Vector{String}(["2","3","4","5","6","7","8","9","T","J","Q","K","A"])
+const STRRANKS = Vector{String}(["2","3","4","5","6","7","8","9","T","J","Q","K","A"])
+const SUITS = Vector{String}(["s", "h", "d", "c"])
 
-const char_rank_to_int_rank =
-    Dict{String,UInt64}(zip(str_ranks, [i for i in 0:12]))
-
-const suits = Vector{String}(["s", "h", "d", "c"])
-
-const char_suit_to_int_suit = Dict{String,UInt64}(zip(suits, [1, 2, 4, 8]))
+const RCHARTOINT = Dict{String, UInt64}(zip(STRRANKS, [i for i in 0:12]))
+const SCHARTOINT = Dict{String, UInt64}(zip(SUITS, [1, 2, 4, 8]))
 
 @inline function prime_product_from_rankbits(rankbits::UInt64)
     product::UInt64 = 1
@@ -41,8 +38,8 @@ end
 end
 
 @inline function new_card(rank::String, suit::String)
-    rank_int = char_rank_to_int_rank[rank]
-    suit_int = char_suit_to_int_suit[suit]
+    rank_int = RCHARTOINT[rank]
+    suit_int = SCHARTOINT[suit]
 
     rank_prime = PRIMES[rank_int + 1]
 
@@ -67,7 +64,7 @@ function pretty_print_cards(cards::Vector{UInt64})
         suit_int = get_suit_int(card)
         rank_int = get_rank_int(card)
 
-        return string(str_ranks[rank_int + 1], pretty_suits[suit_int])
+        return string(STRRANKS[rank_int + 1], pretty_suits[suit_int])
     end
 
     function get_suit_int(card::UInt64)

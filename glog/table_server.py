@@ -1,5 +1,9 @@
-import poker_server_pb2_grpc as srv
-import poker_messages_pb2 as msg
+import threading
+
+from glog import poker_server_pb2_grpc as srv
+from glog import poker_messages_pb2 as msg
+
+from gscrap.image_capture import capture
 
 from gscrap.labeling import labeling, labeler
 
@@ -7,8 +11,6 @@ from gscrap.data.labels import labels
 from gscrap.data.filters import filters
 from gscrap.data.rectangles import rectangles
 from gscrap.data.properties import properties
-
-from gscrap.samples import source as sc
 
 _BET_ACTIONS = {'Bet', 'Call', 'Raise', 'All-In'}
 
@@ -57,21 +59,25 @@ class Opponent(object):
 
 
 class PokerTableServer(srv.PokerServiceServicer):
-    def __init__(self, scene, window, settings):
+    def __init__(self, scene, settings, filter_pipelines):
         """
 
         Parameters
         ----------
         scene: gscrap.projects.scenes.scenes._Scene
+        settings:
+        filter_pipelines: gscrap.data.filters.filter_pipelines.FilterPipelines
         """
+
+        num_players = settings['num_players']
+
         self._scene = scene
 
-        self._opponents = opponents = [None] * (settings.num_players - 1)
+        self._players = players = [None] * num_players
 
-        self._players = players = [None] * settings.num_players
+        self._filter_pipelines = filter_pipelines
 
-        self._filter_pipelines = {}
-        self._window = window
+        self._is_ready = threading.Event()
 
         card_label = labels.Label("Container", "Card")
 
@@ -82,13 +88,13 @@ class PokerTableServer(srv.PokerServiceServicer):
         player_label = labels.Label("Container", "Player")
         opponent_label = labels.Label("Container", "Opponent")
 
-        action_label = labels.Label("Image", "Action")
+        action_label = labels.Label("Text", "Action")
         bet_amount_label = labels.Label("Number", "BetAmount")
 
         with scene.connect() as connection:
-            dealer_label = labels.Label("Image", "Dealer")
-            rank_label = labels.get_label(connection, "Image", "Rank", scene)
-            suit_label = labels.get_label(connection, "Image", "Suit", scene)
+            dealer_label = labels.Label("Image", "Button")
+            rank_label = labels.get_label(connection, "Image", "Rank", scene.name)
+            suit_label = labels.get_label(connection, "Image", "Suit", scene.name)
             player_state_label = labels.Label("Image", "PlayerState")
 
             dealer_rct = rectangles.get_rectangle_with_label(connection, scene, dealer_label)
@@ -105,67 +111,69 @@ class PokerTableServer(srv.PokerServiceServicer):
                 connection,
                 scene,
                 dealer_label,
-                (dealer_rct.width, dealer_rct.height)
+                dealer_rct
             )
 
             self._rank_labeler = self._create_labeler(
                 connection,
                 scene,
                 rank_label,
-                (rank_rct.width, rank_rct.height))
+                rank_rct)
 
             self._suit_labeler = self._create_labeler(
                 connection,
                 scene,
                 suit_label,
-                (suit_rct.width, suit_rct.height))
+                suit_rct)
 
             self._action_labeler = self._create_labeler(
                 connection,
                 scene,
                 action_label,
-                (action_rct.width, action_rct.height)
+                action_rct
             )
 
             self._amount_labeler = self._create_labeler(
                 connection,
                 scene,
                 bet_amount_label,
-                (bet_amount_rct.width, bet_amount_rct.height)
+                bet_amount_rct
             )
 
             player_ist = next(self._get_rectangle_instances(connection, scene, player_label))
 
             position_property = properties.Property(properties.INTEGER, "Position")
 
-            position = rectangles.get_property_value_of_rectangle_instance(
+            position = int(rectangles.get_property_value_of_rectangle_instance(
                 connection,
                 player_ist,
                 position_property
-            ).value
+            ).value)
 
             card_rct = rectangles.get_rectangle_with_label(connection, scene, card_label)
 
             self._player = player = Player(
                 list(self._get_cards_zone(connection, player_ist, card_rct, rank_rct, suit_rct)),
-                self._get_amount_zone(connection, player_ist, bet_amount_rct),
+                self._get_capture_zone(connection, player_ist, bet_amount_rct),
+                self._get_capture_zone(connection, player_ist, dealer_rct),
                 position
             )
 
             players[position] = player
 
             for opponent_ist in self._get_rectangle_instances(connection, scene, opponent_label):
-                position = rectangles.get_property_value_of_rectangle_instance(
+                position = int(rectangles.get_property_value_of_rectangle_instance(
                     connection,
                     opponent_ist,
                     position_property
-                ).value
+                ).value)
 
-                opponents[position] = Opponent(
+                players[position] = Opponent(
                     list(self._get_cards_zone(connection, opponent_ist, card_rct, rank_rct, suit_rct)),
-                    self._get_action_zone(connection, opponent_ist, action_rct),
-                    self._get_amount_zone(connection, opponent_ist, bet_amount_rct),
-                    self._get_state_zone(connection, opponent_ist, player_state_rct),
+                    self._get_capture_zone(connection, opponent_ist, action_rct),
+                    self._get_capture_zone(connection, opponent_ist, bet_amount_rct),
+                    self._get_capture_zone(connection, opponent_ist, player_state_rct),
+                    self._get_capture_zone(connection, opponent_ist, dealer_rct),
                     position
                 )
 
@@ -179,6 +187,25 @@ class PokerTableServer(srv.PokerServiceServicer):
                 list(self._get_cards_zone(connection, flop_ist, card_rct, rank_rct, suit_rct)),
                 list(self._get_cards_zone(connection, turn_ist, card_rct, rank_rct, suit_rct)),
                 list(self._get_cards_zone(connection, river_ist, card_rct, rank_rct, suit_rct)))
+
+    def _get_capture_zone(self, connection, target_instance, target_rectangle):
+        bbox = next(
+            rectangles.get_components_that_are_instances_of_rectangle(
+                connection,
+                target_instance,
+                target_rectangle)).bbox
+
+        return CaptureZone(bbox)
+
+
+    def _get_dealer_zone(self, connection, target_instance, dealer_rectangle):
+        dealer_bbox = next(
+            rectangles.get_components_that_are_instances_of_rectangle(
+                connection,
+                target_instance,
+                dealer_rectangle)).bbox
+
+        return CaptureZone(dealer_bbox)
 
     def _get_rectangle_instances(self, connection, scene, label):
         return rectangles.get_rectangle_with_label(
@@ -252,70 +279,42 @@ class PokerTableServer(srv.PokerServiceServicer):
     def _get_dimensions(self, bbox):
         return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-    def _create_labeler(self, connection, scene, label, dimensions):
-        model = labeler.Labeler()
-
-        filter_pipelines = self._filter_pipelines
-
-        filter_group = filters.get_filter_group(
-            connection,
-            label.label_name,
-            label.label_type,
-            scene.name)
-
-        group_id = filter_group['group_id'] + filter_group['parameter_id']
-
-        if group_id not in filter_pipelines:
-            # this will be displayed on the filters canvas.
-            filter_pipeline = list(self._load_filters(
-                connection,
-                filter_group['group_id'],
-                filter_group['parameter_id']
-            ))
-        else:
-            filter_pipeline = filter_pipelines[group_id]
-
-        meta = labeling.load_labeling_model_metadata(
+    def _create_labeler(self, connection, scene, label, rectangle):
+        filter_pipeline = self._filter_pipelines.get_filter_pipeline(
             connection,
             label,
-            scene.name)
+            scene)
 
-        sample_source = sc.SampleSource(
-            scene.name,
-            label.label_type,
-            label.label_name,
-            dimensions,
-            filter_pipeline
-        )
-
-        labeling_model = labeling.get_labeling_model(
-            meta['model_type'],
-            label.label_type).load(
+        return labeler.create_labeler(
             connection,
-            meta['model_name'])
+            scene,
+            label,
+            rectangle,
+            filter_pipeline)
 
-        labeling_model.set_samples_source(sample_source)
-
-        sc.load_samples(sample_source, connection, scene)
-
-        model.set_model(labeling_model)
-        model.set_filter_pipeline(filter_pipeline)
-
-        return model
-
-    def _detect_cards(self, cards):
-        window = self._window
+    def _detect_cards(self, window, cards):
         results = []
 
         rank_labeler = self._rank_labeler
         suit_labeler = self._suit_labeler
 
         for card in cards:
-            rank_image = window.capture(card.rank_bbox)
-            suit_image = window.capture(card.suit_bbox)
 
-            rank_label = labeler.label(rank_labeler, rank_image)
-            suit_label = labeler.label(suit_labeler, suit_image)
+            while True:
+                rank_label = labeler.label(
+                    rank_labeler,
+                    window.capture(card.rank_bbox))
+
+                if rank_label:
+                    break
+
+            while True:
+                suit_label = labeler.label(
+                    suit_labeler,
+                    window.capture(card.suit_bbox))
+
+                if suit_label:
+                    break
 
             results.append(msg.CardData(
                 suit=suit_label,
@@ -330,71 +329,125 @@ class PokerTableServer(srv.PokerServiceServicer):
             action_labeler,
             window.capture(action.bbox))
 
-        while res == 'N/A':
-            labeler.label(
+        while not res:
+            res = labeler.label(
                 action_labeler,
                 window.capture(action.bbox))
 
         return res
 
 
-    def _detect_opponent_action(self, opponent):
-        window = self._window
-
+    def _detect_opponent_action(self, window, opponent):
         action = self._detect_action(window, opponent.action)
 
         if action in _BET_ACTIONS:
             amount = self._detect_bet_amount(window, opponent.bet_amount)
+            while not amount:
+                amount = self._detect_bet_amount(window, opponent.bet_amount)
         else:
             amount = 0.0
 
         return msg.ActionData(
-            action=action,
+            action_type=self._get_action_type(action),
+            multiplier=1.0,
             amount=amount)
 
     def _detect_bet_amount(self, window, amount):
-        return float(labeler.label(
-            self._amount_labeler,
-            window.capture(amount.bbox)))
+        amount_labeler = self._amount_labeler
+
+        res = labeler.label(
+            amount_labeler,
+            window.capture(amount.bbox))
+
+        if res:
+            return float(res)
+        else:
+            return
+
+    def _get_action_type(self, action):
+        if action == 'Call':
+            return msg.ActionData.CALL
+        elif action == 'Bet':
+            return msg.ActionData.BET
+        elif action == 'All-In':
+            return msg.ActionData.ALL_IN
+        elif action == 'Fold':
+            return msg.ActionData.FOLD
+        elif action == 'Raise':
+            return msg.ActionData.RAISE
+        elif action == 'Check':
+            return msg.ActionData.CHECK
 
     def _detect_dealer(self, window, dealer):
         return labeler.label(
             self._dealer_labeler,
             window.capture(dealer.bbox))
 
-    def GetBlinds(self, request, context):
-        player = request.player_data
-        #get the bet amount of the player in position
+    def set_to_ready(self):
+        self._is_ready.set()
 
-        return msg.Amount(value=self._detect_bet_amount(
-            self._window,
-            self._players[player.position].bet_amount))
+    def set_window(self, window):
+        self._window = window
+
+    def IsReady(self, request, context):
+        self._is_ready.wait()
+        # self._is_ready.clear()
+
+        return msg.Empty()
+
+    def GetBlinds(self, request, context):
+        with capture.capture_context(self._window) as cm:
+            player = request.player_data
+            #get the bet amount of the player in position
+
+            while True:
+                bet_amount = self._detect_bet_amount(cm, self._players[player.position].bet_amount)
+
+                if bet_amount:
+                    return msg.Amount(
+                        value=bet_amount)
 
 
     def GetBoardCards(self, request, context):
-        board = self._board
+        with capture.capture_context(self._window) as cm:
+            board = self._board
 
-        if request.round == msg.FLOP:
-            return self._detect_cards(board.flop_cards)
-        elif request.round == msg.TURN:
-            return self._detect_cards(board.turn_cards)
-        elif request.round == msg.RIVER:
-            return self._detect_cards(board.river_cards)
+            if request.round == msg.FLOP:
+                return self._detect_cards(cm, board.flop_cards)
+            elif request.round == msg.TURN:
+                return self._detect_cards(cm, board.turn_cards)
+            elif request.round == msg.RIVER:
+                return self._detect_cards(cm, board.river_cards)
 
     def GetPlayerAction(self, request, context):
-        return self._detect_opponent_action(self._opponents[request.position])
+        print("Yo!")
+        with capture.capture_context(self._window) as cm:
+            return self._detect_opponent_action(
+                cm,
+                self._players[request.position])
 
     def GetPlayerCards(self, request, context):
-        return self._detect_cards(self._player.cards)
+        print("Yo!")
+        with capture.capture_context(self._window) as ch:
+            return self._detect_cards(ch, self._player.cards)
 
     def GetDealer(self, request_iterator, context):
-        window = self._window
-
         players = list(request_iterator)
 
         #loop multiple times between players until a dealer is found.
 
-        while True:
-            for player in players:
-                if self._detect_dealer(window, player.dealer) == 'Dealer':
-                    return player
+        with capture.capture_context(self._window) as cm:
+            while True:
+                for player in players:
+                    if self._detect_dealer(cm, player.dealer) == 'Dealer':
+                        return player
+
+    def PerformAction(self, request, context):
+        #todo: should maybe return a status so that we know if the action was executed
+
+        print(
+            "Action ", request.action_type,
+            "Multiplier ", request.multiplier,
+            "Amount ", request.amount)
+
+        return msg.Empty()

@@ -6,21 +6,23 @@ from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from google.protobuf import reflection as _reflection
 from google.protobuf import symbol_database as _symbol_database
+from google.protobuf import service as _service
+from google.protobuf import service_reflection
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
 
 
-import poker_messages_pb2 as poker__messages__pb2
+from glog import poker_messages_pb2 as poker__messages__pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='poker_server.proto',
   package='poker',
   syntax='proto3',
-  serialized_options=b'\200\001\001',
+  serialized_options=b'\200\001\001\220\001\001',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x12poker_server.proto\x12\x05poker\x1a\x14poker_messages.proto2\x9f\x02\n\x0cPokerService\x12\x33\n\tGetDealer\x12\x11.poker.PlayerData\x1a\x11.poker.PlayerData(\x01\x12\x37\n\x0fGetPlayerAction\x12\x11.poker.PlayerData\x1a\x11.poker.ActionData\x12\x35\n\x0eGetPlayerCards\x12\x11.poker.PlayerData\x1a\x10.poker.CardsData\x12;\n\rGetBoardCards\x12\x18.poker.BoardCardsRequest\x1a\x10.poker.CardsData\x12-\n\tGetBlinds\x12\x11.poker.PlayerData\x1a\r.poker.AmountB\x03\x80\x01\x01\x62\x06proto3'
+  serialized_pb=b'\n\x12poker_server.proto\x12\x05poker\x1a\x14poker_messages.proto2\xa9\x03\n\x0cPokerService\x12%\n\x07IsReady\x12\x0c.poker.Empty\x1a\x0c.poker.Empty\x12/\n\nGetPlayers\x12\x0c.poker.Empty\x1a\x11.poker.PlayerData0\x01\x12\x33\n\tGetDealer\x12\x11.poker.PlayerData\x1a\x11.poker.PlayerData(\x01\x12\x37\n\x0fGetPlayerAction\x12\x11.poker.PlayerData\x1a\x11.poker.ActionData\x12\x35\n\x0eGetPlayerCards\x12\x11.poker.PlayerData\x1a\x10.poker.CardsData\x12;\n\rGetBoardCards\x12\x18.poker.BoardCardsRequest\x1a\x10.poker.CardsData\x12-\n\tGetBlinds\x12\x11.poker.PlayerData\x1a\r.poker.Amount\x12\x30\n\rPerformAction\x12\x11.poker.ActionData\x1a\x0c.poker.EmptyB\x06\x80\x01\x01\x90\x01\x01\x62\x06proto3'
   ,
   dependencies=[poker__messages__pb2.DESCRIPTOR,])
 
@@ -39,12 +41,32 @@ _POKERSERVICE = _descriptor.ServiceDescriptor(
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
   serialized_start=52,
-  serialized_end=339,
+  serialized_end=477,
   methods=[
+  _descriptor.MethodDescriptor(
+    name='IsReady',
+    full_name='poker.PokerService.IsReady',
+    index=0,
+    containing_service=None,
+    input_type=poker__messages__pb2._EMPTY,
+    output_type=poker__messages__pb2._EMPTY,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+  _descriptor.MethodDescriptor(
+    name='GetPlayers',
+    full_name='poker.PokerService.GetPlayers',
+    index=1,
+    containing_service=None,
+    input_type=poker__messages__pb2._EMPTY,
+    output_type=poker__messages__pb2._PLAYERDATA,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
   _descriptor.MethodDescriptor(
     name='GetDealer',
     full_name='poker.PokerService.GetDealer',
-    index=0,
+    index=2,
     containing_service=None,
     input_type=poker__messages__pb2._PLAYERDATA,
     output_type=poker__messages__pb2._PLAYERDATA,
@@ -54,7 +76,7 @@ _POKERSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='GetPlayerAction',
     full_name='poker.PokerService.GetPlayerAction',
-    index=1,
+    index=3,
     containing_service=None,
     input_type=poker__messages__pb2._PLAYERDATA,
     output_type=poker__messages__pb2._ACTIONDATA,
@@ -64,7 +86,7 @@ _POKERSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='GetPlayerCards',
     full_name='poker.PokerService.GetPlayerCards',
-    index=2,
+    index=4,
     containing_service=None,
     input_type=poker__messages__pb2._PLAYERDATA,
     output_type=poker__messages__pb2._CARDSDATA,
@@ -74,7 +96,7 @@ _POKERSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='GetBoardCards',
     full_name='poker.PokerService.GetBoardCards',
-    index=3,
+    index=5,
     containing_service=None,
     input_type=poker__messages__pb2._BOARDCARDSREQUEST,
     output_type=poker__messages__pb2._CARDSDATA,
@@ -84,10 +106,20 @@ _POKERSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='GetBlinds',
     full_name='poker.PokerService.GetBlinds',
-    index=4,
+    index=6,
     containing_service=None,
     input_type=poker__messages__pb2._PLAYERDATA,
     output_type=poker__messages__pb2._AMOUNT,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+  _descriptor.MethodDescriptor(
+    name='PerformAction',
+    full_name='poker.PokerService.PerformAction',
+    index=7,
+    containing_service=None,
+    input_type=poker__messages__pb2._ACTIONDATA,
+    output_type=poker__messages__pb2._EMPTY,
     serialized_options=None,
     create_key=_descriptor._internal_create_key,
   ),
@@ -95,5 +127,16 @@ _POKERSERVICE = _descriptor.ServiceDescriptor(
 _sym_db.RegisterServiceDescriptor(_POKERSERVICE)
 
 DESCRIPTOR.services_by_name['PokerService'] = _POKERSERVICE
+
+PokerService = service_reflection.GeneratedServiceType('PokerService', (_service.Service,), dict(
+  DESCRIPTOR = _POKERSERVICE,
+  __module__ = 'poker_server_pb2'
+  ))
+
+PokerService_Stub = service_reflection.GeneratedServiceStubType('PokerService_Stub', (PokerService,), dict(
+  DESCRIPTOR = _POKERSERVICE,
+  __module__ = 'poker_server_pb2'
+  ))
+
 
 # @@protoc_insertion_point(module_scope)

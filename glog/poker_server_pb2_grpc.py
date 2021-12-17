@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-import poker_messages_pb2 as poker__messages__pb2
+from glog import poker_messages_pb2 as poker__messages__pb2
 
 
 class PokerServiceStub(object):
@@ -14,6 +14,16 @@ class PokerServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.IsReady = channel.unary_unary(
+                '/poker.PokerService/IsReady',
+                request_serializer=poker__messages__pb2.Empty.SerializeToString,
+                response_deserializer=poker__messages__pb2.Empty.FromString,
+                )
+        self.GetPlayers = channel.unary_stream(
+                '/poker.PokerService/GetPlayers',
+                request_serializer=poker__messages__pb2.Empty.SerializeToString,
+                response_deserializer=poker__messages__pb2.PlayerData.FromString,
+                )
         self.GetDealer = channel.stream_unary(
                 '/poker.PokerService/GetDealer',
                 request_serializer=poker__messages__pb2.PlayerData.SerializeToString,
@@ -39,10 +49,27 @@ class PokerServiceStub(object):
                 request_serializer=poker__messages__pb2.PlayerData.SerializeToString,
                 response_deserializer=poker__messages__pb2.Amount.FromString,
                 )
+        self.PerformAction = channel.unary_unary(
+                '/poker.PokerService/PerformAction',
+                request_serializer=poker__messages__pb2.ActionData.SerializeToString,
+                response_deserializer=poker__messages__pb2.Empty.FromString,
+                )
 
 
 class PokerServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
+
+    def IsReady(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetPlayers(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def GetDealer(self, request_iterator, context):
         """Missing associated documentation comment in .proto file."""
@@ -74,9 +101,25 @@ class PokerServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def PerformAction(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_PokerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'IsReady': grpc.unary_unary_rpc_method_handler(
+                    servicer.IsReady,
+                    request_deserializer=poker__messages__pb2.Empty.FromString,
+                    response_serializer=poker__messages__pb2.Empty.SerializeToString,
+            ),
+            'GetPlayers': grpc.unary_stream_rpc_method_handler(
+                    servicer.GetPlayers,
+                    request_deserializer=poker__messages__pb2.Empty.FromString,
+                    response_serializer=poker__messages__pb2.PlayerData.SerializeToString,
+            ),
             'GetDealer': grpc.stream_unary_rpc_method_handler(
                     servicer.GetDealer,
                     request_deserializer=poker__messages__pb2.PlayerData.FromString,
@@ -102,6 +145,11 @@ def add_PokerServiceServicer_to_server(servicer, server):
                     request_deserializer=poker__messages__pb2.PlayerData.FromString,
                     response_serializer=poker__messages__pb2.Amount.SerializeToString,
             ),
+            'PerformAction': grpc.unary_unary_rpc_method_handler(
+                    servicer.PerformAction,
+                    request_deserializer=poker__messages__pb2.ActionData.FromString,
+                    response_serializer=poker__messages__pb2.Empty.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'poker.PokerService', rpc_method_handlers)
@@ -111,6 +159,40 @@ def add_PokerServiceServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class PokerService(object):
     """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def IsReady(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/poker.PokerService/IsReady',
+            poker__messages__pb2.Empty.SerializeToString,
+            poker__messages__pb2.Empty.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def GetPlayers(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/poker.PokerService/GetPlayers',
+            poker__messages__pb2.Empty.SerializeToString,
+            poker__messages__pb2.PlayerData.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
     def GetDealer(request_iterator,
@@ -194,5 +276,22 @@ class PokerService(object):
         return grpc.experimental.unary_unary(request, target, '/poker.PokerService/GetBlinds',
             poker__messages__pb2.PlayerData.SerializeToString,
             poker__messages__pb2.Amount.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def PerformAction(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/poker.PokerService/PerformAction',
+            poker__messages__pb2.ActionData.SerializeToString,
+            poker__messages__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

@@ -201,6 +201,10 @@ function start(gm::T, small_blind::Float32, big_blind::Float32, chips::UInt32) w
     #post blinds
     postblinds!(lgs, game_setup)
 
+
+    previous_action_id::UInt32 = 6
+    previous_action_amount::UInt32 = 0
+
     # game loop.
     # note: loop breaks when the main player is eliminated or wins
 
@@ -208,7 +212,7 @@ function start(gm::T, small_blind::Float32, big_blind::Float32, chips::UInt32) w
         current_player = live_game.player
 
         if current_player == main_player
-            #todo: choose an action from the action set them perform it
+            #todo: choose an action from the action set then perform it
             act = action_set[sample(action_set, actionsmask(main_player))]
 
             perform!(
@@ -219,8 +223,31 @@ function start(gm::T, small_blind::Float32, big_blind::Float32, chips::UInt32) w
 
             PerformAction(client, toactiondata(act, live_game))
         else
-            #wait for opponent to perform action
-            opp_act = GetPlayerAction(client, PlayersData[cpl.position])
+            # we need to check if the action has changed
+
+            while true
+                #wait for opponent to perform action
+                opp_act = GetPlayerAction(client, PlayersData[cpl.position])
+                
+                if previous_action_id != opp_act.action_type
+                    previous_action_id  = opp_act.action_type
+                    previous_action_amount = opp_act.amount
+                    break
+                
+                elseif previous_action_id == opp_act.action_type
+                    if opp_act.amount != previous_action_amount
+                        previous_action_id  = opp_act.action_type
+                        previous_action_amount = opp_act.amount
+                        break
+                    end
+                end
+            end
+            
+            #TODO: we need to convert the action message to the internal game action.
+            perform!(
+
+            )
+
         end
 
         #todo: in certain game modes, (sit and go) we can quit any time at the end of a game.

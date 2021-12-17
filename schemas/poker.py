@@ -21,8 +21,8 @@ def build(builder):
 
     state_label.add_instance("Active")
     state_label.add_instance("Inactive")
-    state_label.add_instance("Seated")
-    state_label.add_instance("Unseated")
+    # state_label.add_instance("Seated")
+    # state_label.add_instance("Unseated")
     state_label.add_instance("Null")
 
     # label where instances are (bet, call, fold, ...)
@@ -79,7 +79,7 @@ def build(builder):
 
     opponent = poker.add_label("Opponent", container)
 
-    opponent.add_component(poker.add_label("BetAmount", number))
+    opponent.add_component(poker.add_label("BetAmount", number, capture=True))
 
     # components are used to track which component belongs to which element
 
@@ -95,6 +95,5 @@ def build(builder):
     player.add_component(card)
     player.add_component(poker_act_btn_lbl)
     player.add_component(button)
-    player.add_component(state_label)
 
     player.add_property(position)
