@@ -33,11 +33,6 @@ module data_conversion
         end
     end
 
-    @inline function calculatemultiplier(act::Action, gs::GameState, ps::PlayerState)
-        if gs.round > 0
-        end
-    end
-
     @inline function toactiondata(act::Action, gs::GameState, ps::PlayerState)
         action_id = act.action_id
         if action_id == BET_ID
@@ -67,13 +62,20 @@ module data_conversion
 
     @inline function fromactiondata(act::ActionData, gs::GameState, ps::PlayerState)
         act_type = act.action_type
-        amount = act.amount
-        multiplier = (amount - gs.last_bet)/callamount(gs, ps)
         
         #TODO: we should have an objects cache if the action doesn't exist,
         # instanciate it.
 
-        Action(FROM_ACTION_DATA_MAP[act_type], pot_multiplier)
+        #FIXME: we are assuming that pre flop action is 4 times the pot size bet (parametrize this)
+
+        if gs.round > 0
+            multiplier = (act.amount - gs.last_bet)/(gs.pot_size - callamount(gs, ps))
+            return Action(FROM_ACTION_DATA_MAP[act_type], multiplier, 4*multiplier)
+        else
+            multiplier = act.amount/bigblind(gs)
+            return Action(FROM_ACTION_DATA_MAP[act_type], multiplier/4, multiplier)
+        end
+        
 
     end
 
