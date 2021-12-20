@@ -42,10 +42,14 @@ module data_conversion
             amount=betamount(act, gs, ps))
         elseif action_id == CALL_ID
             return ActionData(
-                action_type=ActionData_ActionType.CALL)
+                action_type=ActionData_ActionType.CALL,
+                multiplier=0,
+                amount=0)
         elseif action_id == CHECK_ID
             return ActionData(
-                action_type=ActionData_ActionType.CHECK)
+                action_type=ActionData_ActionType.CHECK,
+                multiplier=0,
+                amount=0)
         elseif action_id == RAISE_ID
             return ActionData(
                 action_type=ActionData_ActionType.RAISE,
@@ -53,14 +57,22 @@ module data_conversion
                 amount=betamount(act, gs, ps))
         elseif action_id == ALL_ID
             return ActionData(
-                action_type=ActionData_ActionType.ALL_IN)
+                action_type=ActionData_ActionType.ALL_IN,
+                multiplier=0,
+                amount=0)
         elseif action_id == FOLD_ID
             return ActionData(
-                action_type=ActionData_ActionType.FOLD)
+                action_type=ActionData_ActionType.FOLD,
+                multiplier=0,
+                amount=0)
         end
     end
 
-    @inline function fromactiondata(act::ActionData, gs::GameState, ps::PlayerState)
+    @inline function fromactiondata(
+        act::ActionData, 
+        gs::GameState, 
+        ps::PlayerState)
+
         act_type = act.action_type
         
         #TODO: we should have an objects cache if the action doesn't exist,
@@ -70,13 +82,19 @@ module data_conversion
 
         if gs.round > 0
             multiplier = (act.amount - gs.last_bet)/(gs.pot_size - callamount(gs, ps))
-            return Action(FROM_ACTION_DATA_MAP[act_type], multiplier, 4*multiplier)
+            
+            return Action(
+                FROM_ACTION_DATA_MAP[act_type], 
+                multiplier, 
+                4*multiplier)
         else
             multiplier = act.amount/bigblind(gs)
-            return Action(FROM_ACTION_DATA_MAP[act_type], multiplier/4, multiplier)
+            
+            return Action(
+                FROM_ACTION_DATA_MAP[act_type], 
+                multiplier/4, 
+                multiplier)
         end
-        
-
     end
 
     @inline function fromcardsdata(card_data::CardsData)

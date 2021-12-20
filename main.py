@@ -1,9 +1,33 @@
 import os
 
+import json
+
+import subprocess
+
 import click
 
 from gscrap.projects import projects
 from gscrap.projects import workspace
+
+class GameClient(object):
+    def __init__(self, server_url, script_path):
+        self._process = None
+        self._server_url = server_url
+        self._script_path = script_path
+
+    def start(self, game_settings):
+        self._process = subprocess.Popen([
+            'julia',
+            self._script_path,
+            '--chips', game_settings['chips'],
+            '--small_blind', game_settings['small_blind'],
+            '--big_blind', game_settings['big_blind'],
+            '-tpt', game_settings['time_per_turn'],
+            '--server_url', self._server_url])
+
+    def stop(self):
+        if self._process:
+            self._process.terminate()
 
 @click.group()
 def main():
@@ -17,8 +41,11 @@ def create(project_name):
 @main.command()
 @click.argument('project_name')
 def start(project_name):
+    cwd = os.getcwd()
 
-    wks = workspace.WorkSpace(os.getcwd(), project_name)
+    server_url = 'localhost::50051'
+
+    wks = workspace.WorkSpace(cwd, project_name)
 
     startup_file_path = os.path.join(wks.project_dir, "startup.py")
 
@@ -28,7 +55,27 @@ def start(project_name):
         code = compile(f.read(), startup_file_path, 'exec')
         exec(code, namespace)
 
-    namespace.get('start')(wks)
+    with open(os.path.join(wks.project_dir, "settings.json")) as f:
+        settings = json.load(f)
+
+    num_players = settings["num_players"]
+
+    if num_players == 2:
+        game_client = GameClient(
+            server_url,
+            os.path.join(cwd, 'headsup.jl'))
+
+    elif num_players > 2:
+        raise ValueError("{} Player mode not supported".join(num_players))
+
+    namespace.get('start')(
+        wks,
+        settings,
+        game_client,
+        server_url,
+    )
+
+    #todo: handle terminating game client from here!
 
     # we have an initial scene (we can start from an arbitrary scene, preferably a confirmation scene),
 

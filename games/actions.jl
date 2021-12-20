@@ -76,13 +76,19 @@ end
 
 mutable struct ActionSet
     actions::Vector{Action}
-
-    ActionSet(actions) = new(sort!(actions))
+    mapping::Dict{Action, Action}
+    ActionSet(actions) = new(sort!(actions), _createmapping(actions))
 
 end
 
-function createactionset(action_set::Vector{Action})
-    return sort!(action_set)
+@inline function _createmapping(action_list::Vector{Action})
+    mapping = Dict{Action, Action}()
+    
+    for action in action_list
+        mapping[action] = action
+    end
+
+    return mapping
 end
 
 const CALL = Action(CALL_ID, 0, 0)
@@ -101,6 +107,10 @@ end
     return action.amount
 end
 
+@inline function Base.in(action::Action, actions::ActionSet)
+    return in(action, keys(actions.mapping))
+end
+
 @inline function Base.getindex(actions::ActionSet, index::Int)
     return actions.actions[index]
 end
@@ -108,6 +118,8 @@ end
 @inline function Base.length(actions::ActionSet)
     return length(actions.actions)
 end
+
+Base.hash(a::Action, h::UInt) = hash(a.id, hash(a.pot_multiplier, hash(a.blind_multiplier, hash(:Action, h))))
 
 @inline function Base.:(==)(p1::Action, p2::Action)
     return p1.id == p2.id && p1.pot_multiplier == p2.pot_multiplier && p1.blind_multiplier == p2.blind_multiplier
