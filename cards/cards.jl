@@ -57,7 +57,11 @@ end
 end
 
 function pretty_print_cards(cards::Vector{UInt64})
-    pretty_suits = Dict{UInt64,String}(1 => "♠", 2 => "♡", 4 => "♢", 8 => "♣")
+    pretty_suits = Dict{UInt64,String}(
+        1 => "♠", 
+        2 => "♡", 
+        4 => "♢", 
+        8 => "♣")
 
     function int_to_pretty_str(card::UInt64)
 

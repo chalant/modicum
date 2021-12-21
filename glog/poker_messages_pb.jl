@@ -38,7 +38,7 @@ function meta(::Type{PlayerData})
     ProtoBuf.metalock() do
         if !isassigned(__meta_PlayerData)
             __meta_PlayerData[] = target = ProtoMeta(PlayerData)
-            allflds = Pair{Symbol,Union{Type,String}}[:position => UInt32, :_type => Int32, :is_active => Bool]
+            allflds = Pair{Symbol,Union{Type,String}}[:position => UInt32, :player_type => Int32, :is_active => Bool]
             meta(target, PlayerData, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
         end
         __meta_PlayerData[]
@@ -47,7 +47,7 @@ end
 function Base.getproperty(obj::PlayerData, name::Symbol)
     if name === :position
         return (obj.__protobuf_jl_internal_values[name])::UInt32
-    elseif name === :_type
+    elseif name === :player_type
         return (obj.__protobuf_jl_internal_values[name])::Int32
     elseif name === :is_active
         return (obj.__protobuf_jl_internal_values[name])::Bool

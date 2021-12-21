@@ -16,14 +16,18 @@ class GameClient(object):
         self._script_path = script_path
 
     def start(self, game_settings):
-        self._process = subprocess.Popen([
-            'julia',
-            self._script_path,
-            '--chips', game_settings['chips'],
-            '--small_blind', game_settings['small_blind'],
-            '--big_blind', game_settings['big_blind'],
-            '-tpt', game_settings['time_per_turn'],
-            '--server_url', self._server_url])
+        try:
+            self._process = subprocess.Popen([
+                'julia',
+                self._script_path,
+                '--num_players', str(game_settings['num_players']),
+                '--chips', str(game_settings['chips']),
+                '--small_blind', str(game_settings['small_blind']),
+                '--big_blind', str(game_settings['big_blind']),
+                '--time_per_turn', str(game_settings['time_per_turn']),
+                '--server_url', self._server_url])
+        except Exception as e:
+            print("Failed!", e)
 
     def stop(self):
         if self._process:
@@ -43,7 +47,7 @@ def create(project_name):
 def start(project_name):
     cwd = os.getcwd()
 
-    server_url = 'localhost::50051'
+    server_url = 'localhost:50051'
 
     wks = workspace.WorkSpace(cwd, project_name)
 
@@ -64,8 +68,7 @@ def start(project_name):
         game_client = GameClient(
             server_url,
             os.path.join(cwd, 'headsup.jl'))
-
-    elif num_players > 2:
+    else:
         raise ValueError("{} Player mode not supported".join(num_players))
 
     namespace.get('start')(

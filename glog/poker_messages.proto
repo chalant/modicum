@@ -28,7 +28,7 @@ message PlayerData{
     OPPONENT = 1;
   }
 
-  PlayerType type = 2;
+  PlayerType player_type = 2;
   bool is_active = 3;
 }
 

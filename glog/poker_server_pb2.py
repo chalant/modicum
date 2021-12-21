@@ -13,7 +13,7 @@ from google.protobuf import service_reflection
 _sym_db = _symbol_database.Default()
 
 
-from glog import poker_messages_pb2 as poker__messages__pb2
+import poker_messages_pb2 as poker__messages__pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(

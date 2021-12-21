@@ -3,9 +3,14 @@ module data_conversion
     using games
     using poker
     using cards
+    using actions
+    using players
+
+    using PokerClients
 
     export toactiondata
     export fromcardsdata
+    export toplayerdata
 
     const ACTION_MAPPINGS = Dict{UInt8, Int32}(
         BET_ID => ActionData_ActionType.BET, 
@@ -23,6 +28,25 @@ module data_conversion
         ActionData_ActionType.ALL_IN => ALL_ID,
         ActionData_ActionType.CHECK => CHECK_ID,
     )
+
+    @inline function _get_player_type(pos::UInt8)
+        if pos == 0
+            return PlayerData_PlayerType.MAIN
+        else
+            return PlayerData_PlayerType.OPPONENT
+        end
+    end
+
+    @inline function toplayerdata(ps::PlayerState)
+        pos = players.position(ps)
+        pd = PokerClients.PlayerData(;
+            position=pos,
+            player_type=_get_player_type(pos),
+            is_active=ps.active
+            )
+
+        return pd
+    end
 
     @inline function getmultiplier(act::Action, gs::GameState)
         #TODO: also check if the player is the first to bet.
@@ -69,7 +93,7 @@ module data_conversion
     end
 
     @inline function fromactiondata(
-        act::ActionData, 
+        act::PokerClients.ActionData, 
         gs::GameState, 
         ps::PlayerState)
 
@@ -97,8 +121,15 @@ module data_conversion
         end
     end
 
-    @inline function fromcardsdata(card_data::CardsData)
-        return new_card(card_data.rank, card_data.suit)
+    @inline function fromcardsdata(cards_data::PokerClients.CardsData)
+        cards = Vector{UInt64}()
+        
+        for card in cards_data.cards
+            push!(cards, new_card(card.rank, card.suit))
+        end
+
+        return cards
+
     end
 
 end

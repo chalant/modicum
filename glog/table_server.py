@@ -397,7 +397,7 @@ class PokerTableServer(srv.PokerServiceServicer):
 
     def GetBlinds(self, request, context):
         with capture.capture_context(self._window) as cm:
-            player = request.player_data
+            player = request
             #get the bet amount of the player in position
 
             while True:
@@ -420,27 +420,40 @@ class PokerTableServer(srv.PokerServiceServicer):
                 return self._detect_cards(cm, board.river_cards)
 
     def GetPlayerAction(self, request, context):
-        print("Yo!")
         with capture.capture_context(self._window) as cm:
             return self._detect_opponent_action(
                 cm,
                 self._players[request.position])
 
     def GetPlayerCards(self, request, context):
-        print("Yo!")
         with capture.capture_context(self._window) as ch:
             return self._detect_cards(ch, self._player.cards)
 
+    def GetPlayers(self, request, context):
+        for player in self._players:
+            pos = player.position
+            if pos == 0:
+                pt = msg.PlayerData.MAIN
+            else:
+                pt = msg.PlayerData.OPPONENT
+
+            yield msg.PlayerData(
+                position=player.position,
+                player_type=pt,
+                is_active=True
+            )
+
     def GetDealer(self, request_iterator, context):
         players = list(request_iterator)
-
+        pls = self._players
         #loop multiple times between players until a dealer is found.
 
         with capture.capture_context(self._window) as cm:
             while True:
-                for player in players:
-                    if self._detect_dealer(cm, player.dealer) == 'Dealer':
-                        return player
+                for pl in players:
+                    if pl.is_active == True:
+                        if self._detect_dealer(cm, pls[pl.position].dealer) == "Dealer":
+                            return pl
 
     def PerformAction(self, request, context):
         #todo: should maybe return a status so that we know if the action was executed

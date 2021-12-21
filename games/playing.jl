@@ -11,6 +11,7 @@ export rotateplayers!
 export betamount
 export update!
 export _postblinds!
+export postblinds!
 
 export callamount
 
@@ -533,7 +534,7 @@ end
 @inline function nextplayer!(gs::GameState)
     n = length(gs.players_states)
     st = _nextplayer(gs, n)
-
+    
     while !st.active || st.chips == 0
         st = _nextplayer(gs, n)
     end
@@ -715,8 +716,6 @@ end
 
     #first player posts bigblind
     ps = gs.player
-
-
 
     # println("Big Blind ", players.id(gs.player))
 

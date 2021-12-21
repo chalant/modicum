@@ -28,8 +28,8 @@ class Application(object):
             self,
             container,
             table_server,
-            game_client_path,
-            server_url):
+            game_client,
+            game_settings):
         """
 
         Parameters
@@ -48,10 +48,8 @@ class Application(object):
 
         self._pkr_table = table_server
 
-        self._game_client_path = game_client_path
-        self._server_url = server_url
-
-        self._game_client_process = None
+        self._game_client = game_client
+        self._game_settings = game_settings
 
     def _start_selection(self):
         self._window_selector.start_selection(
@@ -63,12 +61,11 @@ class Application(object):
     def _on_window_selected(self, window_event):
         self._pkr_table.set_window(window_event)
 
-        #TODO: wait for the main window
+        #TODO: wait for table scene
 
-        self._game_client_process = subprocess.Popen([
-            'julia',
-            self._game_client_path,
-            '--server_url', self._server_url])
+        print("Starting game client...")
+
+        self._game_client.start(self._game_settings)
 
         self._pkr_table.set_to_ready()
 
@@ -84,12 +81,9 @@ def start(workspace, game_settings, game_client, server_url='localhost:50051'):
 
     fp = filter_pipelines.FilterPipelines()
 
-    with open(path.join(workspace.project_dir, "settings.json")) as f:
-        settings = json.load(f)
-
     tb = table_server.PokerTableServer(
         project.load_scene("table"),
-        settings,
+        game_settings,
         fp)
 
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -108,7 +102,8 @@ def start(workspace, game_settings, game_client, server_url='localhost:50051'):
     Application(
         root,
         tb,
-        path.join(workspace.working_dir, "game_client.jl"),
-        server_url)
+        game_client,
+        game_settings
+    )
 
     root.mainloop()
