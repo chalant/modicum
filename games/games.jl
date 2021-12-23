@@ -198,8 +198,12 @@ end
 @inline shared(game::Game) = game.shared_state
 @inline shared(gs::GameState) = shared(gs.game)
 
-@inline privatecards(player::Player, data::SharedData) = data.private_cards[player.id]
-@inline privatecards(ps::PlayerState, data::SharedData) = data.private_cards[players.id(ps)]
+@inline _privatecards(player::Player, data::SharedData) = data.private_cards[player.id]
+@inline _privatecards(ps::PlayerState, data::SharedData) = data.private_cards[players.id(ps)]
+
+@inline function privatecards(player::Player, g::Game{T, U}) where {T <: GameSetup, U <: GameMode}
+    return _privatecards(player, shared(g))
+end
 
 @inline publiccards(sh::SharedData) = sh.public_cards
 @inline publiccards(game::Game) = shared(game).public_cards
@@ -250,12 +254,13 @@ end
 
 end
 
-@inline function Base.copy(src::GameState)
-    dest = GameState()
-    _copy!(dest, src)
-    dest.players_states = copy(src.players_states)
-    return dest
-end
+# @inline function Base.copy(src::GameState)
+#     #todo: we need the type of game state and 
+#     dest = GameState()
+#     _copy!(dest, src)
+#     dest.players_states = copy(src.players_states)
+#     return dest
+# end
 
 @inline function Base.copy!(dest::GameState, src::GameState)
     _copy!(dest, src)

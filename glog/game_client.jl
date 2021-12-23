@@ -20,6 +20,69 @@ struct LiveGame <: GameSetup
     client::PokerServiceBlockingClient
 end
 
+@inline function playing.updateprivatecards!(gs::GameState, g::Game{LiveGame, T}) where T <: GameMode
+    data = shared(g)
+    stp = setup(g)
+
+    for ps in gs.players_states
+        id = players.id(ps)
+        
+        if id != stp.main_player && ps.active == true
+            data.privatecards[id] = getplayercards(stp.client, id - 1)
+        end
+    end
+
+    return data
+
+end
+
+@inline function playing.setpubliccards!(gs::GameState, g::Game{LiveGame, T}) where T <: GameMode
+    data = shared(g)
+    stp = setup(g)
+    #todo fetch board cards, remove them from internal deck (so that when we simulate, 
+    # we don't take those cards into account)
+    local request::PokerClients.BoardCardsRequest
+
+    if gs.round == 1
+        request = PokerClients.BoardCardsRequest(
+            ;round=PokerClients.BoardCardsRequest_Round.FLOP)
+    elseif gs.round == 2
+        request = PokerClients.BoardCardsRequest(
+            ;round=PokerClients.BoardCardsRequest_Round.TURN)
+    elseif gs.round == 3
+        request = PokerClients.BoardCardsRequest(
+            ;round=PokerClients.BoardCardsRequest_Round.RIVER)
+    else
+        error("Unsupported value", " ", gs.round)
+    end
+    
+    response, future = PokerClients.GetBoardCards(stp.client, resquest)
+
+    #todo: populate public cards array.
+    #note: we can pre-allocate a size of five element to the array
+    #todo: we need to remove the cards from the deck
+    empty!(data.public_cards)
+    append!(data.public_cards, fromcardsdata(response))
+    
+    #remove public cards from deck
+    setdiff!(data.deck, data.public_cards)
+
+    return data
+end
+
+@inline function playing.setpubliccards!(gs::GameState, g::Game{LiveGame, T}) where T <: GameMode
+    #todo: fetch board cards from server
+
+end
+
+@inline function getplayercards(client::PokerServiceBlockingClient, player_id::Integer)
+    cards_data, future = PokerClients.GetPlayerCards(
+            client,
+            PokerClients.PlayerData(position=UInt32(player_id)))
+
+    return fromcardsdata(cards_data)
+end
+
 @inline function playing.postblinds!(gs::GameState, g::Game{LiveGame, U}) where U <: GameMode
     client = getclient!(setup(gs))
 
@@ -156,11 +219,12 @@ function start(
         #increment position to one since julia indexing starts
         #from 1
 
-        ply = Player(pos, p)
+        ply = Player(p, p)
         st = PlayerState()
 
         if pos == 0
             main_player = st
+            game.main_player = main_player
         end
 
         st.chips = chips
@@ -197,23 +261,6 @@ function start(
             client, 
             player_stream)
 
-    # @sync begin
-    #     player_stream = Channel{PokerClients.PlayerData}(1) 
-    #     @async begin
-    #         for ps in players_states
-    #             println("Putting", " ", ps)
-    #             put!(player_stream, toplayerdata(ps))
-    #             println("PUT")
-    #         end
-    #         close(player_stream)
-    #     end
-
-    #     dealer, future = PokerClients.GetDealer(
-    #         client, 
-    #         player_stream)
-
-    # end
-
     #re-order players such that the dealer is last
     putlast!(players_states, UInt8(dealer.position))
 
@@ -232,11 +279,6 @@ function start(
 
     lgs.total_bet = 0
     lgs.active_players = active_players
-
-    shared_data.private_cards = private_cards
-    
-    #todo: exclude private cards of the main player
-    shared_data.deck = get_deck()
 
     #todo: need an action set (which should be the same as the blueprint model)
     # otherwise the performance would probably not be the same.
@@ -263,12 +305,6 @@ function start(
     game.actions = action_set
 
     main_player_position = players.position(main_player)
-    
-    cards_data, future = PokerClients.GetPlayerCards(
-            client,
-            PokerClients.PlayerData(position=UInt32(main_player_position - 1)))
-
-    private_cards[main_player_position] = fromcardsdata(cards_data)
 
     #post blinds
     postblinds!(lgs, game)
@@ -276,10 +312,28 @@ function start(
     previous_action_id::UInt32 = 6
     previous_action_amount::UInt32 = 0
 
+    #initialize main player cards and deck
+
+    mp_private_cards = getplayercards(
+        client, 
+        players.id(main_player) - 1)
+
+    private_cards[main_player_position] = mp_private_cards
+
+    shared_data.private_cards = private_cards
+    
+    cards_deck = get_deck()
+    
+    #remove private cards from deck
+    setdiff!(cards_deck, mp_private_cards)
+
+    shared_data.deck = shuffle!(cards_deck)
+
     # game loop.
     # note: loop breaks when the main player is eliminated or wins
 
     while true
+        
         current_player = lgs.player
 
         if current_player == main_player
@@ -305,7 +359,7 @@ function start(
                     previous_action_id  = opp_act.action_type
                     previous_action_amount = opp_act.amount
                     break
-                
+
                 elseif previous_action_id == opp_act.action_type
                     if opp_act.amount != previous_action_amount
                         previous_action_id  = opp_act.action_type
@@ -342,9 +396,19 @@ function start(
 
         #todo: in certain game modes, (sit and go) we can quit any time at the end of a game.
         #todo: we need to implement a special initialization step for games modes...
+        
+        #todo: if the state_id is ended, fetch private cards, then suffle
 
         if state_id == TERM_ID
+            #todo: maybe wait for server input... and call IsReady
             break
+        elseif state_id == ENDED
+            # perform some initialization after the game ended
+            # put back private cards in the deck,
+            # fetch private cards from server
+            # remove them from deck, shuffle
+            # fetch private cards, then suffle
+            
         end
     end
 

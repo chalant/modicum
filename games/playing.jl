@@ -220,9 +220,18 @@ function _notlastround!(gs::GameState)
 
 end
 
-function _lastround!(gs::GameState)
+@inline function updateprivatecards!(gs::GameState, g::Game)
+    #this function is used to 
+    return shared(g)
+end
+
+@inline function updatepubliccards!(gs::GameState, g::Game)
+    return shared(g)
+end
+
+@inline function _lastround!(gs::GameState)
     #called when the game has reached the last round
-    data = shared(gs)
+    data = updateprivatecards!(gs, gs.game)
 
     best_rk = MAX_RANK + 1
 
@@ -457,6 +466,9 @@ end
         push!(data.public_cards, pop!(data.deck))
         data.deck_cursor -= 1
     end
+
+    return data
+
 end
 
 @inline function performchance!(a::Action, gs::GameState, ps::PlayerState)
@@ -598,8 +610,8 @@ end
 
 function distributecards!(
     gs::GameState,
-    g::Game{LiveSimulation},
-    data::SharedData)
+    g::Game{LiveSimulation, T},
+    data::SharedData) where T <: GameMode
 
     deck = data.deck
 
@@ -635,8 +647,6 @@ function putbackcards!(
     gs::GameState,
     g::Game{LiveSimulation, T},
     data::SharedData) where T <: GameMode
-
-    stp = game!(gs)
 
     main = g.main_player
 
