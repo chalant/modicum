@@ -71,14 +71,8 @@ end
 
         gs.active_players = a
 
-    if a > 1
-        println("Rotating Players")
-        rotateplayers!(states, bb)
-    else
-        #game terminates if there is only one player left
-        st = gs.terminated
-        gs.state = st
-    end
+    rotateplayers!(states, bb)
+
 end
 
 @inline function _setbetplayer!(gs::GameState, ps::PlayerState)
@@ -125,9 +119,6 @@ end
 end
 
 @inline function update!(gs::GameState, action::Action, ps::PlayerState)
-    ap = gs.active_players
-    all_in = gs.all_in
-
     #avoid infinit loop when all players went all-in
     if gs.active_players != gs.all_in
         gs.prev_player = ps
@@ -344,7 +335,9 @@ end
 end
 
 @inline function update!(gs::GameState, g::Game)
-    if stateid(gs.state) == ENDED_ID
+    #todo: instead of computing earnings here, delegate
+    # it to the client
+    if gs.state == ENDED_ID
         if gs.round >= numrounds!(g)
             # game has reached the last round
             return _lastround!(gs)
@@ -651,15 +644,14 @@ function putbackcards!(
     main = g.main_player
 
     for state in gs.players_states
-        #only distribute to opponents and active players
         if main != state && state.active == true
             append!(deck, privatecards(state, data))
         end
     end
 
     #remove public cards up until the relative root game round
-    n = g.card_per_round[gs.round] - g.cards_per_round[data.round]
-    for i in 1:n
+    
+    for _ in 1:sum(g.cards_per_round[1:data.round]) - g.cards_per_round[data.round]
         push!(data.deck, pop!(data.public_cards))
     end
 end

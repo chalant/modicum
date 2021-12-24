@@ -58,10 +58,6 @@ end
     
     response, future = PokerClients.GetBoardCards(stp.client, resquest)
 
-    #todo: populate public cards array.
-    #note: we can pre-allocate a size of five element to the array
-    #todo: we need to remove the cards from the deck
-    empty!(data.public_cards)
     append!(data.public_cards, fromcardsdata(response))
     
     #remove public cards from deck
@@ -159,7 +155,8 @@ function start(
     client = PokerServiceBlockingClient(server_url)
 
     game = Game{LiveGame, T}()
-    game.game_setup = LiveGame(client)
+    game_setup = LiveGame(client)
+    game.game_setup = game_setup
 
     lgs = GameState{Game{LiveGame, T}}()
     lgs.game = game
@@ -272,7 +269,6 @@ function start(
 
     lgs.actions_mask = trues(length(actions!(lgs)))
     lgs.active_players = num_players
-    lgs.state = STARTED
 
     game.players = players_vec
     lgs.players_states = players_states
@@ -306,9 +302,6 @@ function start(
 
     main_player_position = players.position(main_player)
 
-    #post blinds
-    postblinds!(lgs, game)
-
     previous_action_id::UInt32 = 6
     previous_action_amount::UInt32 = 0
 
@@ -329,6 +322,11 @@ function start(
 
     shared_data.deck = shuffle!(cards_deck)
 
+    lgs.state = STARTED_ID
+
+    #post blinds
+    postblinds!(lgs, game)
+
     # game loop.
     # note: loop breaks when the main player is eliminated or wins
 
@@ -345,6 +343,8 @@ function start(
                 lgs,
                 main_player
             )
+
+            current_player.action = act.id
 
             PokerClients.PerformAction(client, toactiondata(act, lgs))
         else
@@ -388,27 +388,65 @@ function start(
                 opp_action,
                 lgs,
                 current_player)
+            
+            current_player.action = opp_action.id
         end
 
-        state = update!(lgs, game)
+        state_id = update!(lgs, game)
 
-        state_id = state.id
-
-        #todo: in certain game modes, (sit and go) we can quit any time at the end of a game.
         #todo: we need to implement a special initialization step for games modes...
         
         #todo: if the state_id is ended, fetch private cards, then suffle
 
         if state_id == TERM_ID
-            #todo: maybe wait for server input... and call IsReady
+            #todo: maybe wait for server input to know if game should end
+            #and call IsReady
             break
-        elseif state_id == ENDED
-            # perform some initialization after the game ended
-            # put back private cards in the deck,
-            # fetch private cards from server
-            # remove them from deck, shuffle
-            # fetch private cards, then suffle
+        
+        elseif state_id == ENDED_ID
+            #todo: in certain game modes, (sit and go) 
+            # we can quit any time at the end of a game.
+            # maybe wait for server input... and call IsReady
             
+            #reset some game state variables
+            gs.round = 0
+            gs.last_bet = 0
+            gs.pot_size = 0
+            gs.position = 1
+            gs.all_in = 0
+            
+            #put back public cards
+            for _ in 1:game.num_public_cards
+                push!(cards_deck, pop!(public_cards))
+            end
+            
+            #put back private cards
+            for ps in players_states
+                pc = private_cards(ps)
+                
+                for _ in 1:game.num_private_cards
+                    push!(cards_deck, pop!(pc))
+                end
+
+            end
+            
+            #update player positions and reset variables
+            activateplayers!(gs, game, shared_data)
+            
+            #set current player
+            gs.player = gs.player_states[1]
+
+            pc = getplayercards(
+                client, 
+                players.id(main_player) - 1)
+
+            private_cards[main_player_position] = pc
+            
+            #remove private cards from deck and shuffle
+            setdiff!(cards_deck, pc)
+            shuffle!(cards_deck)
+            
+            gs.state = STARTED_ID
         end
     end
 

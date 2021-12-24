@@ -146,12 +146,7 @@ end
 #tracks game state.
 
 mutable struct GameState{T<:AbstractGame}
-    state::State
-
-    initializing::State
-    started::State
-    ended::State
-    terminated::State
+    state::UInt8
 
     action::Action
 
