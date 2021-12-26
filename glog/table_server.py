@@ -188,6 +188,9 @@ class PokerTableServer(srv.PokerServiceServicer):
                 list(self._get_cards_zone(connection, turn_ist, card_rct, rank_rct, suit_rct)),
                 list(self._get_cards_zone(connection, river_ist, card_rct, rank_rct, suit_rct)))
 
+        self._previous_action = ""
+        self._previous_amount = 0.0
+
     def _get_capture_zone(self, connection, target_instance, target_rectangle):
         bbox = next(
             rectangles.get_components_that_are_instances_of_rectangle(
@@ -306,6 +309,8 @@ class PokerTableServer(srv.PokerServiceServicer):
                     window.capture(card.rank_bbox))
 
                 if rank_label:
+                    if rank_label == "10":
+                        rank_label = "T"
                     break
 
             while True:
@@ -338,19 +343,32 @@ class PokerTableServer(srv.PokerServiceServicer):
 
 
     def _detect_opponent_action(self, window, opponent):
-        action = self._detect_action(window, opponent.action)
-
-        if action in _BET_ACTIONS:
-            amount = self._detect_bet_amount(window, opponent.bet_amount)
-            while not amount:
+        while True:
+            action = self._detect_action(window, opponent.action)
+            if action in _BET_ACTIONS:
                 amount = self._detect_bet_amount(window, opponent.bet_amount)
-        else:
-            amount = 0.0
+                while not amount:
+                    amount = self._detect_bet_amount(window, opponent.bet_amount)
+            else:
+                amount = 0.0
 
-        return msg.ActionData(
-            action_type=self._get_action_type(action),
-            multiplier=1.0,
-            amount=amount)
+            if action != self._previous_action:
+                self._previous_action = action
+
+                return msg.ActionData(
+                    action_type=self._get_action_type(action),
+                    multiplier=1.0,
+                    amount=amount)
+
+            elif action == self._previous_action:
+                if amount != self._previous_amount:
+
+                    self._previous_amount = amount
+
+                    return msg.ActionData(
+                        action_type=self._get_action_type(action),
+                        multiplier=1.0,
+                        amount=amount)
 
     def _detect_bet_amount(self, window, amount):
         amount_labeler = self._amount_labeler
@@ -463,4 +481,7 @@ class PokerTableServer(srv.PokerServiceServicer):
             "Multiplier ", request.multiplier,
             "Amount ", request.amount)
 
-        return msg.Empty()
+        print("Press Any Key...")
+
+        if input():
+            return msg.Empty()

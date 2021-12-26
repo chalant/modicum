@@ -1,5 +1,7 @@
 module game_client
 
+using Random
+
 using ArgParse
 
 using games
@@ -20,6 +22,24 @@ struct LiveGame <: GameSetup
     client::PokerServiceBlockingClient
 end
 
+@inline function message(action::Action, gs::GameState)
+    id = action.id
+
+    if id == CHECK_ID
+        return string("Check")
+    elseif id == RAISE_ID
+        return string("Raise ", betamount(action, gs, gs.player))
+    elseif id == ALL_ID
+        return string("Play all ", chips(gs))
+    elseif id == FOLD_ID
+        return string("Fold")
+    elseif id == CALL_ID
+        return string("Call ", callamount(gs, gs.player))
+    elseif id == BET_ID
+        return string("Bet ", betamount(action, gs, gs.player))
+    end
+end
+
 @inline function playing.updateprivatecards!(gs::GameState, g::Game{LiveGame, T}) where T <: GameMode
     data = shared(g)
     stp = setup(g)
@@ -27,8 +47,8 @@ end
     for ps in gs.players_states
         id = players.id(ps)
         
-        if id != stp.main_player && ps.active == true
-            data.privatecards[id] = getplayercards(stp.client, id - 1)
+        if id != g.main_player && ps.active == true
+            data.private_cards[id] = getplayercards(stp.client, id - 1)
         end
     end
 
@@ -45,30 +65,28 @@ end
 
     if gs.round == 1
         request = PokerClients.BoardCardsRequest(
-            ;round=PokerClients.BoardCardsRequest_Round.FLOP)
+            ;round=PokerClients.Round.FLOP)
     elseif gs.round == 2
         request = PokerClients.BoardCardsRequest(
-            ;round=PokerClients.BoardCardsRequest_Round.TURN)
+            ;round=PokerClients.Round.TURN)
     elseif gs.round == 3
         request = PokerClients.BoardCardsRequest(
-            ;round=PokerClients.BoardCardsRequest_Round.RIVER)
+            ;round=PokerClients.Round.RIVER)
     else
         error("Unsupported value", " ", gs.round)
     end
     
-    response, future = PokerClients.GetBoardCards(stp.client, resquest)
+    response, future = PokerClients.GetBoardCards(stp.client, request)
 
-    append!(data.public_cards, fromcardsdata(response))
+    for card in fromcardsdata(response)
+        push!(data.public_cards, card)
+        data.deck_cursor -= 1
+    end
     
     #remove public cards from deck
     setdiff!(data.deck, data.public_cards)
 
     return data
-end
-
-@inline function playing.setpubliccards!(gs::GameState, g::Game{LiveGame, T}) where T <: GameMode
-    #todo: fetch board cards from server
-
 end
 
 @inline function getplayercards(client::PokerServiceBlockingClient, player_id::Integer)
@@ -84,47 +102,26 @@ end
 
     data = shared(gs)
 
-    sb = gs.players_states[1]
-    bb = gs.players_states[2]
+    #todo: this depends on the game mode!
+
+    sb = gs.players_states[2]
+    bb = gs.players_states[1]
 
     #update blinds
 
     data.sb = PokerClients.GetBlinds(client, PlayersData[players.position(sb)])[1].value
     data.bb = PokerClients.GetBlinds(client, PlayersData[players.position(bb)])[1].value
 
+    println(
+        "Posting Blinds ", 
+        data.sb, " ", 
+        data.bb)
+
     _postblinds!(gs, g)
 end
 
 @inline function getclient!(gs::LiveGame)
     return gs.client
-end
-
-@inline function playing.setpubliccards!(gs::GameState, g::Game{LiveGame, U}) where U <: GameMode
-        client = getclient!(game!(gs))
-
-        data = shared(gs)
-        
-        round = gs.round
-
-        if round == 1
-            round_request = Round.FLOP
-        elseif round == 2
-            round_request = Round.TURN
-        elseif round == 3
-            round_request = Round.RIVER
-        end
-
-        board_cards = PokerClients.GetBoardCards(
-            client, 
-            PokerClients.BoardCardsRequest(round=round_request))
-
-        for card in board_cards.cards
-            #todo convert card to internal data structure
-            append!(data.public_cards, card)
-            #todo find and remove card from local deck
-            data.deck_cursor -= 1
-        end
-
 end
 
 @inline function putlast!(pls::Vector{PlayerState}, last_position::UInt8)
@@ -153,6 +150,8 @@ function start(
     chips::UInt32) where T <: GameMode
 
     client = PokerServiceBlockingClient(server_url)
+
+    println(client.controller)
 
     game = Game{LiveGame, T}()
     game_setup = LiveGame(client)
@@ -187,6 +186,30 @@ function start(
 
     game.cards_per_round = Vector{UInt8}([UInt8(3), UInt8(1), UInt8(1)])
 
+    #todo: need an action set (which should be the same as the blueprint model)
+    # otherwise the performance would probably not be the same.
+
+    # note: ideally, a blueprint strategy is trained against a certain game setup.
+    # and is bound to that.
+    # multiple games can share the same game setup
+    
+    #TODO: a strategy should be a "bundle" with action set etc.
+
+    action_set = ActionSet([
+        CALL,
+        FOLD,
+        ALL,
+        CHECK,
+        Action(RAISE_ID, 0.5, 2),
+        Action(RAISE_ID, 0.75, 3),
+        Action(RAISE_ID, 1, 4),
+        Action(BET_ID, 0.5, 2),
+        Action(BET_ID, 0.75, 3),
+        Action(BET_ID, 1, 4)]
+    )
+
+    game.actions = action_set
+
     #todo: make a request to the server to know if we can start playing
     PokerClients.IsReady(client, PokerClients.Empty()) 
 
@@ -195,6 +218,7 @@ function start(
     players_vec = Vector{Player}(undef, num_players)
     players_states = Vector{PlayerState}(undef, num_players)
     private_cards = Vector{Vector{UInt64}}(undef, num_players)
+    public_cards = Vector{UInt64}()
 
     active_players = 0
 
@@ -221,11 +245,12 @@ function start(
 
         if pos == 0
             main_player = st
-            game.main_player = main_player
+            game.main_player = ply
         end
 
         st.chips = chips
         st.bet = 0
+        st.pot = 0
         is_active = player.is_active
 
         if is_active == true
@@ -259,13 +284,15 @@ function start(
             player_stream)
 
     #re-order players such that the dealer is last
-    putlast!(players_states, UInt8(dealer.position))
+    putlast!(players_states, UInt8(dealer.position + 1))
 
     println("Done")
     
     #set first player to act
     lgs.player = players_states[1]
     lgs.position = 1
+
+    println("First Player ", players.id(lgs.player), " ", players.id(main_player))
 
     lgs.actions_mask = trues(length(actions!(lgs)))
     lgs.active_players = num_players
@@ -276,36 +303,18 @@ function start(
     lgs.total_bet = 0
     lgs.active_players = active_players
 
-    #todo: need an action set (which should be the same as the blueprint model)
-    # otherwise the performance would probably not be the same.
+    lgs.round = 0
+    lgs.last_bet = 0
+    lgs.pot_size = 0
+    lgs.position = 1
+    lgs.all_in = 0
 
-    # note: ideally, a blueprint strategy is trained against a certain game setup.
-    # and is bound to that.
-    # multiple games can share the same game setup
-    
-    #TODO: a strategy should be a "bundle" with action set etc.
-
-    action_set = ActionSet([
-        CALL,
-        FOLD,
-        ALL,
-        CHECK,
-        Action(RAISE_ID, 0.5, 2),
-        Action(RAISE_ID, 0.75, 3),
-        Action(RAISE_ID, 1, 4),
-        Action(BET_ID, 0.5, 2),
-        Action(BET_ID, 0.75, 3),
-        Action(BET_ID, 1, 4)]
-    )
-
-    game.actions = action_set
 
     main_player_position = players.position(main_player)
 
-    previous_action_id::UInt32 = 6
-    previous_action_amount::UInt32 = 0
-
     #initialize main player cards and deck
+
+    println("Fetching Cards...")
 
     mp_private_cards = getplayercards(
         client, 
@@ -314,6 +323,7 @@ function start(
     private_cards[main_player_position] = mp_private_cards
 
     shared_data.private_cards = private_cards
+    shared_data.public_cards = public_cards
     
     cards_deck = get_deck()
     
@@ -321,6 +331,8 @@ function start(
     setdiff!(cards_deck, mp_private_cards)
 
     shared_data.deck = shuffle!(cards_deck)
+
+    println("Done")
 
     lgs.state = STARTED_ID
 
@@ -330,13 +342,19 @@ function start(
     # game loop.
     # note: loop breaks when the main player is eliminated or wins
 
+    previous_round = lgs.round
+
     while true
         
         current_player = lgs.player
 
         if current_player == main_player
             #todo: choose an action from the action set then perform it
-            act = action_set[sample(action_set, actionsmask(main_player))]
+            act = action_set[sample(action_set, actionsmask!(lgs))]
+
+            println("You should play: ", message(act, lgs))
+
+            PokerClients.PerformAction(client, toactiondata(act, lgs, current_player))
 
             perform!(
                 act,
@@ -346,30 +364,18 @@ function start(
 
             current_player.action = act.id
 
-            PokerClients.PerformAction(client, toactiondata(act, lgs))
         else
-            local opp_act::PokerClients.ActionData
+            # local opp_act::PokerClients.ActionData
             
-            # loop until the action has changed
+            println("Waiting for Opponent action...")
 
-            while true
-                opp_act = PokerClients.GetPlayerAction(client, PlayersData[cpl.position])
-                
-                if previous_action_id != opp_act.action_type
-                    previous_action_id  = opp_act.action_type
-                    previous_action_amount = opp_act.amount
-                    break
-
-                elseif previous_action_id == opp_act.action_type
-                    if opp_act.amount != previous_action_amount
-                        previous_action_id  = opp_act.action_type
-                        previous_action_amount = opp_act.amount
-                        break
-                    end
-                end
-            end
+            opp_act, future = PokerClients.GetPlayerAction(
+                    client, 
+                    PlayersData[players.position(current_player)])
             
             opp_action = fromactiondata(opp_act, lgs, current_player)
+            
+            println("Opponent performed: ", message(opp_action, lgs))
 
             if !(opp_action in action_set)
                 #TODO: if the opponent action is not in the action set, start sub-game solving
@@ -378,9 +384,13 @@ function start(
                 #NOTE: we start from a copy if the live game state.
 
                 println(
-                    "Action", 
-                    opp_action.pot_multiplier, 
-                    opp_action.blind_multiplier, 
+                    "Action ", 
+                    message(opp_action, lgs),
+                    " ",
+                    opp_action.pot_multiplier,
+                    " ", 
+                    opp_action.blind_multiplier,
+                    " ", 
                     "Not in set")
             end
 
@@ -409,32 +419,35 @@ function start(
             # maybe wait for server input... and call IsReady
             
             #reset some game state variables
-            gs.round = 0
-            gs.last_bet = 0
-            gs.pot_size = 0
-            gs.position = 1
-            gs.all_in = 0
+            lgs.round = 0
+            lgs.last_bet = 0
+            lgs.pot_size = 0
+            lgs.position = 1
+            lgs.all_in = 0
+            lgs.total_bet = 0
             
             #put back public cards
-            for _ in 1:game.num_public_cards
+            for _ in 1:length(public_cards)
                 push!(cards_deck, pop!(public_cards))
             end
-            
+
             #put back private cards
             for ps in players_states
-                pc = private_cards(ps)
-                
-                for _ in 1:game.num_private_cards
+                pc = private_cards[players.position(ps)]
+
+                for _ in 1:length(pc)
                     push!(cards_deck, pop!(pc))
-                end
+                end 
 
             end
             
             #update player positions and reset variables
-            activateplayers!(gs, game, shared_data)
+            activateplayers!(lgs)
             
             #set current player
-            gs.player = gs.player_states[1]
+            lgs.player = lgs.players_states[1]
+
+            println("ENDED!", " ", players.id(lgs.player))
 
             pc = getplayercards(
                 client, 
@@ -446,8 +459,14 @@ function start(
             setdiff!(cards_deck, pc)
             shuffle!(cards_deck)
             
-            gs.state = STARTED_ID
+            lgs.state = STARTED_ID
+
+            postblinds!(lgs, game)
+
         end
+
+        previous_round = lgs.round
+
     end
 
 end

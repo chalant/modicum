@@ -5,10 +5,12 @@ module data_conversion
     using cards
     using actions
     using players
+    using playing
 
     using PokerClients
 
     export toactiondata
+    export fromactiondata
     export fromcardsdata
     export toplayerdata
 
@@ -29,6 +31,13 @@ module data_conversion
         ActionData_ActionType.CHECK => CHECK_ID,
     )
 
+    const FROM_CARDS_DATA_SUIT = Dict{String, String}(
+        "Diamond" => "d",
+        "Heart" => "h",
+        "Spade" => "s",
+        "Club" => "c"
+    )
+
     @inline function _get_player_type(pos::UInt8)
         if pos == 0
             return PlayerData_PlayerType.MAIN
@@ -38,19 +47,19 @@ module data_conversion
     end
 
     @inline function toplayerdata(ps::PlayerState)
-        pos = players.position(ps)
-        pd = PokerClients.PlayerData(;
+        pos = UInt8(players.position(ps) - 1)
+        
+        return PokerClients.PlayerData(;
             position=pos,
             player_type=_get_player_type(pos),
-            is_active=ps.active
-            )
+            is_active=ps.active)
 
         return pd
     end
 
     @inline function getmultiplier(act::Action, gs::GameState)
         #TODO: also check if the player is the first to bet.
-        if g.round > 0
+        if gs.round > 0
             return act.pot_multiplier
         else
             return act.blind_multiplier
@@ -58,34 +67,34 @@ module data_conversion
     end
 
     @inline function toactiondata(act::Action, gs::GameState, ps::PlayerState)
-        action_id = act.action_id
+        action_id = act.id
         if action_id == BET_ID
-            return ActionData(
+            return PokerClients.ActionData(;
             action_type=ActionData_ActionType.BET,
             multiplier=getmultiplier(act, gs),
             amount=betamount(act, gs, ps))
         elseif action_id == CALL_ID
-            return ActionData(
+            return PokerClients.ActionData(;
                 action_type=ActionData_ActionType.CALL,
                 multiplier=0,
                 amount=0)
         elseif action_id == CHECK_ID
-            return ActionData(
+            return PokerClients.ActionData(;
                 action_type=ActionData_ActionType.CHECK,
                 multiplier=0,
                 amount=0)
         elseif action_id == RAISE_ID
-            return ActionData(
+            return PokerClients.ActionData(;
                 action_type=ActionData_ActionType.RAISE,
                 multiplier=getmultiplier(act, gs),
                 amount=betamount(act, gs, ps))
         elseif action_id == ALL_ID
-            return ActionData(
+            return PokerClients.ActionData(;
                 action_type=ActionData_ActionType.ALL_IN,
                 multiplier=0,
                 amount=0)
         elseif action_id == FOLD_ID
-            return ActionData(
+            return PokerClients.ActionData(;
                 action_type=ActionData_ActionType.FOLD,
                 multiplier=0,
                 amount=0)
@@ -105,7 +114,7 @@ module data_conversion
         #FIXME: we are assuming that pre flop action is 4 times the pot size bet (parametrize this)
 
         if gs.round > 0
-            multiplier = (act.amount - gs.last_bet)/(gs.pot_size - callamount(gs, ps))
+            multiplier = (act.amount - gs.last_bet)/(gs.total_bet - callamount(gs, ps))
             
             return Action(
                 FROM_ACTION_DATA_MAP[act_type], 
@@ -119,13 +128,16 @@ module data_conversion
                 multiplier/4, 
                 multiplier)
         end
+
+        println("Multiplier! ", multiplier)
+
     end
 
     @inline function fromcardsdata(cards_data::PokerClients.CardsData)
         cards = Vector{UInt64}()
         
         for card in cards_data.cards
-            push!(cards, new_card(card.rank, card.suit))
+            push!(cards, new_card(card.rank, FROM_CARDS_DATA_SUIT[card.suit]))
         end
 
         return cards

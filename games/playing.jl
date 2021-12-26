@@ -69,7 +69,9 @@ end
         st.pot = 0
     end
 
-        gs.active_players = a
+    gs.active_players = a
+
+    println("Active Players ", a)
 
     rotateplayers!(states, bb)
 
@@ -112,9 +114,8 @@ end
     if gs.round < numrounds!(gs)
         return performchance!(CHANCE, gs, ps)
     else
-        st = gs.ended
-        gs.state = st
-        return st
+        gs.state = ENDED_ID
+        return ENDED_ID
     end
 end
 
@@ -126,10 +127,9 @@ end
         np = nextplayer!(gs)
         update!(action, gs, np)
 
-        st = gs.started
-        gs.state = st
+        gs.state = STARTED_ID
 
-        return st
+        return STARTED_ID
     else
         return nextround!(gs, np)
     end
@@ -197,10 +197,10 @@ function _notlastround!(gs::GameState)
     gs.all_in = 0
 
     if n != 1
-        gs.state = gs.ended
+        gs.state = ENDED_ID
     else
         #game terminates when only one player remains
-        gs.state = gs.terminated
+        gs.state = TERM_ID
     end
 
 #     if g.round >= 2
@@ -259,14 +259,14 @@ end
             #player receives the amount proportional to the potential gains he might make
             earnings = _computepotentialearning!(states, ps)
 
-            if earnings >= g.pot_size
-                amt = (earnings ^ 2) / (g.pot_size * w)
+            if earnings >= gs.pot_size
+                amt = (earnings ^ 2) / (gs.pot_size * w)
             else
                 amt = earnings
             end
 
             println("Earnings ", earnings)
-            println(" Pot ", g.pot_size)
+            println(" Pot ", gs.pot_size)
 
             claimed_amt += amt
             ps.chips += amt
@@ -287,7 +287,7 @@ end
 
     end
 
-    bb = bigblind(stp)
+    bb = bigblind(gs)
     n = length(states)
     bp = countbetplayers(states)
 
@@ -299,8 +299,8 @@ end
         #redistribute unclaimed chips
 
         if ps.pot != 0
-            if g.pot_size - claimed_amt > 0
-                ps.chips += ((_computepotentialearning!(states, ps) - claimed_amt) ^ 2) / ((g.pot_size - claimed_amt) * df)
+            if gs.pot_size - claimed_amt > 0
+                ps.chips += ((_computepotentialearning!(states, ps) - claimed_amt) ^ 2) / ((gs.pot_size - claimed_amt) * df)
             end
             ps.pot = 0
         end
@@ -319,18 +319,18 @@ end
 
 
     if n > 1
-        g.state = g.ended
-        g.active_players = n
-        g.all_in = n
+        gs.state = ENDED_ID
+        gs.active_players = n
+        gs.all_in = n
 
     else
         #game terminates when only one player remains
-        g.state = g.terminated
+        gs.state = TERM_ID
     end
 
 #     _revertplayersorder!(g.gm, g.players_states)
 
-    return g.state
+    return gs.state
 
 end
 
@@ -441,9 +441,8 @@ end
 
     # if only one player remains the game ends
     if gs.active_players == 1
-        st = gs.ended
-        gs.state = st
-        return st
+        gs.state = ENDED_ID
+        return ENDED_ID
 
     elseif gs.all_in == gs.active_players
         return nextround!(gs, ps)
@@ -683,7 +682,7 @@ end
 
     # reset data from last root game
     copy!(g, game!(dg), data, g)
-    return g.state
+    return gs.state
 end
 
 @inline function performsmallblind!(gs::GameState)
@@ -737,7 +736,7 @@ end
 #     _update!(viewactions(stp), AFTER_SB, g, ps)
 
 #     # go back to first player
-#     g.player = nextplayer(g)
+    # gs.player = np
 end
 
 @inline function _postblinds!(gs::GameState, g::Game{T, Normal}) where T <: GameSetup
@@ -761,7 +760,7 @@ end
 
 #     distributecards!(g, stp, data)
 
-    gs.state = gs.started
+    gs.state = STARTED_ID
     gs.round = 0
     gs.last_bet = 0
     gs.pot_size = 0

@@ -52,7 +52,7 @@ end
 
 @inline function get_deck()
     return Vector{UInt64}([
-        new_card(rank, suit) for rank in str_ranks for suit in suits
+        new_card(rank, suit) for rank in STRRANKS for suit in SUITS
     ])
 end
 

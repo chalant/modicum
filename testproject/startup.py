@@ -1,9 +1,3 @@
-from os import path
-
-import subprocess
-
-import json
-
 from concurrent import futures
 
 import tkinter as tk
@@ -11,7 +5,6 @@ import tkinter as tk
 import grpc
 
 from glog import poker_server_pb2_grpc, table_server
-from glog import poker_messages_pb2 as msg
 
 from gscrap.data.filters import filter_pipelines
 from gscrap.projects import projects
