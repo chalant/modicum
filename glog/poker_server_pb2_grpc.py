@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from glog import poker_messages_pb2 as poker__messages__pb2
+import glog.poker_messages_pb2 as poker__messages__pb2
 
 
 class PokerServiceStub(object):
@@ -31,7 +31,7 @@ class PokerServiceStub(object):
                 )
         self.GetPlayerAction = channel.unary_unary(
                 '/poker.PokerService/GetPlayerAction',
-                request_serializer=poker__messages__pb2.PlayerData.SerializeToString,
+                request_serializer=poker__messages__pb2.PlayerActionRequest.SerializeToString,
                 response_deserializer=poker__messages__pb2.ActionData.FromString,
                 )
         self.GetPlayerCards = channel.unary_unary(
@@ -46,8 +46,8 @@ class PokerServiceStub(object):
                 )
         self.GetBlinds = channel.unary_unary(
                 '/poker.PokerService/GetBlinds',
-                request_serializer=poker__messages__pb2.PlayerData.SerializeToString,
-                response_deserializer=poker__messages__pb2.Amount.FromString,
+                request_serializer=poker__messages__pb2.BlindsRequest.SerializeToString,
+                response_deserializer=poker__messages__pb2.Blinds.FromString,
                 )
         self.PerformAction = channel.unary_unary(
                 '/poker.PokerService/PerformAction',
@@ -127,7 +127,7 @@ def add_PokerServiceServicer_to_server(servicer, server):
             ),
             'GetPlayerAction': grpc.unary_unary_rpc_method_handler(
                     servicer.GetPlayerAction,
-                    request_deserializer=poker__messages__pb2.PlayerData.FromString,
+                    request_deserializer=poker__messages__pb2.PlayerActionRequest.FromString,
                     response_serializer=poker__messages__pb2.ActionData.SerializeToString,
             ),
             'GetPlayerCards': grpc.unary_unary_rpc_method_handler(
@@ -142,8 +142,8 @@ def add_PokerServiceServicer_to_server(servicer, server):
             ),
             'GetBlinds': grpc.unary_unary_rpc_method_handler(
                     servicer.GetBlinds,
-                    request_deserializer=poker__messages__pb2.PlayerData.FromString,
-                    response_serializer=poker__messages__pb2.Amount.SerializeToString,
+                    request_deserializer=poker__messages__pb2.BlindsRequest.FromString,
+                    response_serializer=poker__messages__pb2.Blinds.SerializeToString,
             ),
             'PerformAction': grpc.unary_unary_rpc_method_handler(
                     servicer.PerformAction,
@@ -223,7 +223,7 @@ class PokerService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/poker.PokerService/GetPlayerAction',
-            poker__messages__pb2.PlayerData.SerializeToString,
+            poker__messages__pb2.PlayerActionRequest.SerializeToString,
             poker__messages__pb2.ActionData.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
@@ -274,8 +274,8 @@ class PokerService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/poker.PokerService/GetBlinds',
-            poker__messages__pb2.PlayerData.SerializeToString,
-            poker__messages__pb2.Amount.FromString,
+            poker__messages__pb2.BlindsRequest.SerializeToString,
+            poker__messages__pb2.Blinds.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

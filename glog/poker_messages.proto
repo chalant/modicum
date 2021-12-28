@@ -19,7 +19,16 @@ message InitialData {
   float bb_amount = 4;
 }
 
-message PlayerData{
+message Blinds {
+  float small_blind = 1;
+  float big_blind = 2;
+}
+
+message BlindsRequest {
+  uint32 num_hands = 1;
+}
+
+message PlayerData {
   uint32 position = 1;
   //main or opponent
 
@@ -34,6 +43,11 @@ message PlayerData{
 
 message Empty {
 
+}
+
+message PlayerActionRequest {
+  uint32 round = 1;
+  PlayerData player_data = 2;
 }
 
 message BoardCardsRequest {

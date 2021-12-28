@@ -11,9 +11,9 @@ service PokerService {
   rpc IsReady(Empty) returns (Empty);
   rpc GetPlayers(Empty) returns (stream PlayerData);
   rpc GetDealer(stream PlayerData) returns (PlayerData);
-  rpc GetPlayerAction (PlayerData) returns (ActionData);
+  rpc GetPlayerAction (PlayerActionRequest) returns (ActionData);
   rpc GetPlayerCards (PlayerData) returns (CardsData);
   rpc GetBoardCards (BoardCardsRequest) returns (CardsData);
-  rpc GetBlinds(PlayerData) returns (Amount);
+  rpc GetBlinds(BlindsRequest) returns (Blinds);
   rpc PerformAction(ActionData) returns (Empty);
 }

@@ -19,7 +19,7 @@ struct History
 end
 
 History(n::UInt8, g::Game, s::Vector{Float32}, u::Vector{Float32}) = History(
-    Dict{UInt64, Node}(), Dict{Int, History}(), n, g, s, u)
+    Dict{UInt64, Node}(), Dict{Int, History}(), n, g, u)
 
 function infoset(h::History, key::UInt64)
     info = h.infosets

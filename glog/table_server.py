@@ -14,6 +14,7 @@ from gscrap.data.properties import properties
 
 _BET_ACTIONS = {'Bet', 'Call', 'Raise', 'All-In'}
 
+
 class CaptureZone(object):
     __slots__ = ['bbox']
 
@@ -59,7 +60,7 @@ class Opponent(object):
 
 
 class PokerTableServer(srv.PokerServiceServicer):
-    def __init__(self, scene, settings, filter_pipelines):
+    def __init__(self, scene, settings, filter_pipelines, antes_increase):
         """
 
         Parameters
@@ -190,6 +191,8 @@ class PokerTableServer(srv.PokerServiceServicer):
 
         self._previous_action = ""
         self._previous_amount = 0.0
+        self._previous_round = 0
+        self._antes_increase = antes_increase
 
     def _get_capture_zone(self, connection, target_instance, target_rectangle):
         bbox = next(
@@ -199,7 +202,6 @@ class PokerTableServer(srv.PokerServiceServicer):
                 target_rectangle)).bbox
 
         return CaptureZone(bbox)
-
 
     def _get_dealer_zone(self, connection, target_instance, dealer_rectangle):
         dealer_bbox = next(
@@ -302,7 +304,6 @@ class PokerTableServer(srv.PokerServiceServicer):
         suit_labeler = self._suit_labeler
 
         for card in cards:
-
             while True:
                 rank_label = labeler.label(
                     rank_labeler,
@@ -341,8 +342,7 @@ class PokerTableServer(srv.PokerServiceServicer):
 
         return res
 
-
-    def _detect_opponent_action(self, window, opponent):
+    def _detect_opponent_action(self, window, opponent, rd):
         while True:
             action = self._detect_action(window, opponent.action)
             if action in _BET_ACTIONS:
@@ -353,6 +353,8 @@ class PokerTableServer(srv.PokerServiceServicer):
                 amount = 0.0
 
             if action != self._previous_action:
+                self._previous_amount = amount
+                self._previous_round = rd
                 self._previous_action = action
 
                 return msg.ActionData(
@@ -364,6 +366,18 @@ class PokerTableServer(srv.PokerServiceServicer):
                 if amount != self._previous_amount:
 
                     self._previous_amount = amount
+                    self._previous_round = rd
+                    self._previous_action = action
+
+                    return msg.ActionData(
+                        action_type=self._get_action_type(action),
+                        multiplier=1.0,
+                        amount=amount)
+
+                elif rd != self._previous_round:
+                    self._previous_amount = amount
+                    self._previous_round = rd
+                    self._previous_action = action
 
                     return msg.ActionData(
                         action_type=self._get_action_type(action),
@@ -402,6 +416,8 @@ class PokerTableServer(srv.PokerServiceServicer):
             window.capture(dealer.bbox))
 
     def set_to_ready(self):
+        #start antes increase thread
+        self._antes_increase.start()
         self._is_ready.set()
 
     def set_window(self, window):
@@ -409,22 +425,24 @@ class PokerTableServer(srv.PokerServiceServicer):
 
     def IsReady(self, request, context):
         self._is_ready.wait()
-        # self._is_ready.clear()
 
         return msg.Empty()
 
     def GetBlinds(self, request, context):
         with capture.capture_context(self._window) as cm:
-            player = request
-            #get the bet amount of the player in position
+            self._antes_increase.set_hands_number(request.num_hands)
 
-            while True:
-                bet_amount = self._detect_bet_amount(cm, self._players[player.position].bet_amount)
+            # while True:
+            #     bet_amount = self._detect_bet_amount(cm, self._players[player.position].bet_amount)
+            #
+            #     if bet_amount:
+            #         return msg.Amount(
+            #             value=bet_amount)
 
-                if bet_amount:
-                    return msg.Amount(
-                        value=bet_amount)
-
+            return msg.Blinds(
+                small_blind=self._antes_increase.small_blind,
+                big_blind=self._antes_increase.big_blind
+            )
 
     def GetBoardCards(self, request, context):
         with capture.capture_context(self._window) as cm:
@@ -438,14 +456,17 @@ class PokerTableServer(srv.PokerServiceServicer):
                 return self._detect_cards(cm, board.river_cards)
 
     def GetPlayerAction(self, request, context):
+        player = request.player_data
+
         with capture.capture_context(self._window) as cm:
             return self._detect_opponent_action(
                 cm,
-                self._players[request.position])
+                self._players[player.position],
+                request.round)
 
     def GetPlayerCards(self, request, context):
         with capture.capture_context(self._window) as ch:
-            return self._detect_cards(ch, self._player.cards)
+            return self._detect_cards(ch, self._players[request.position].cards)
 
     def GetPlayers(self, request, context):
         for player in self._players:
@@ -464,7 +485,7 @@ class PokerTableServer(srv.PokerServiceServicer):
     def GetDealer(self, request_iterator, context):
         players = list(request_iterator)
         pls = self._players
-        #loop multiple times between players until a dealer is found.
+        # loop multiple times between players until a dealer is found.
 
         with capture.capture_context(self._window) as cm:
             while True:
@@ -474,7 +495,7 @@ class PokerTableServer(srv.PokerServiceServicer):
                             return pl
 
     def PerformAction(self, request, context):
-        #todo: should maybe return a status so that we know if the action was executed
+        # todo: should maybe return a status so that we know if the action was executed
 
         print(
             "Action ", request.action_type,

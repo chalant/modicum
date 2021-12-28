@@ -1,5 +1,7 @@
 from concurrent import futures
 
+import threading
+
 import tkinter as tk
 
 import grpc
@@ -56,7 +58,7 @@ class Application(object):
 
         #TODO: wait for table scene
 
-        print("Starting game client...")
+        print("Starting Game Client...")
 
         self._game_client.start(self._game_settings)
 
@@ -68,7 +70,12 @@ class Application(object):
     def _on_abort(self):
         pass
 
-def start(workspace, game_settings, game_client, server_url='localhost:50051'):
+def start(
+        workspace,
+        game_settings,
+        game_client,
+        antes_increase,
+        server_url='localhost:50051'):
 
     project = projects.Project(workspace)
 
@@ -77,7 +84,9 @@ def start(workspace, game_settings, game_client, server_url='localhost:50051'):
     tb = table_server.PokerTableServer(
         project.load_scene("table"),
         game_settings,
-        fp)
+        fp,
+        antes_increase
+    )
 
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 

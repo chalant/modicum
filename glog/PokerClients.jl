@@ -73,11 +73,11 @@ import .poker: GetPlayerAction
 """
     GetPlayerAction
 
-- input: poker.PlayerData
+- input: poker.PlayerActionRequest
 - output: poker.ActionData
 """
-GetPlayerAction(client::PokerServiceBlockingClient, inp::poker.PlayerData) = GetPlayerAction(client.stub, client.controller, inp)
-GetPlayerAction(client::PokerServiceClient, inp::poker.PlayerData, done::Function) = GetPlayerAction(client.stub, client.controller, inp, done)
+GetPlayerAction(client::PokerServiceBlockingClient, inp::poker.PlayerActionRequest) = GetPlayerAction(client.stub, client.controller, inp)
+GetPlayerAction(client::PokerServiceClient, inp::poker.PlayerActionRequest, done::Function) = GetPlayerAction(client.stub, client.controller, inp, done)
 
 import .poker: GetPlayerCards
 """
@@ -103,11 +103,11 @@ import .poker: GetBlinds
 """
     GetBlinds
 
-- input: poker.PlayerData
-- output: poker.Amount
+- input: poker.BlindsRequest
+- output: poker.Blinds
 """
-GetBlinds(client::PokerServiceBlockingClient, inp::poker.PlayerData) = GetBlinds(client.stub, client.controller, inp)
-GetBlinds(client::PokerServiceClient, inp::poker.PlayerData, done::Function) = GetBlinds(client.stub, client.controller, inp, done)
+GetBlinds(client::PokerServiceBlockingClient, inp::poker.BlindsRequest) = GetBlinds(client.stub, client.controller, inp)
+GetBlinds(client::PokerServiceClient, inp::poker.BlindsRequest, done::Function) = GetBlinds(client.stub, client.controller, inp, done)
 
 import .poker: PerformAction
 """

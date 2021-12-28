@@ -109,10 +109,28 @@ end
 end
 
 @inline function nextround!(gs::GameState, ps::PlayerState)
-
     gs.round += 1
+    
     if gs.round < numrounds!(gs)
         return performchance!(CHANCE, gs, ps)
+    else
+        gs.state = ENDED_ID
+        return ENDED_ID
+    end
+end
+
+@inline function nextround!(gs::GameState{Game{T, HeadsUp}}, ps::PlayerState) where T <: GameSetup
+    gs.round += 1
+    
+    if gs.round < numrounds!(gs)
+        state_id = performchance!(CHANCE, gs, ps)
+        #reset position and current player 
+        #so that next player to act is the first player in the queue
+        gs.position = 1
+        gs.player = gs.players_states[1]
+        gs.state = state_id
+        
+        return state_id
     else
         gs.state = ENDED_ID
         return ENDED_ID
@@ -733,10 +751,6 @@ end
 
     _update!(actions!(gs), AFTER_BB, gs, np)
 
-#     _update!(viewactions(stp), AFTER_SB, g, ps)
-
-#     # go back to first player
-    # gs.player = np
 end
 
 @inline function _postblinds!(gs::GameState, g::Game{T, Normal}) where T <: GameSetup

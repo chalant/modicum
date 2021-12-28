@@ -8,6 +8,86 @@ const Round = (;[
     Symbol("RIVER") => Int32(2),
 ]...)
 
+mutable struct Blinds <: ProtoType
+    __protobuf_jl_internal_meta::ProtoMeta
+    __protobuf_jl_internal_values::Dict{Symbol,Any}
+    __protobuf_jl_internal_defaultset::Set{Symbol}
+
+    function Blinds(; kwargs...)
+        obj = new(meta(Blinds), Dict{Symbol,Any}(), Set{Symbol}())
+        values = obj.__protobuf_jl_internal_values
+        symdict = obj.__protobuf_jl_internal_meta.symdict
+        for nv in kwargs
+            fldname, fldval = nv
+            fldtype = symdict[fldname].jtyp
+            (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
+            if fldval !== nothing
+                values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            end
+        end
+        obj
+    end
+end # mutable struct Blinds
+const __meta_Blinds = Ref{ProtoMeta}()
+function meta(::Type{Blinds})
+    ProtoBuf.metalock() do
+        if !isassigned(__meta_Blinds)
+            __meta_Blinds[] = target = ProtoMeta(Blinds)
+            allflds = Pair{Symbol,Union{Type,String}}[:small_blind => Float32, :big_blind => Float32]
+            meta(target, Blinds, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
+        end
+        __meta_Blinds[]
+    end
+end
+function Base.getproperty(obj::Blinds, name::Symbol)
+    if name === :small_blind
+        return (obj.__protobuf_jl_internal_values[name])::Float32
+    elseif name === :big_blind
+        return (obj.__protobuf_jl_internal_values[name])::Float32
+    else
+        getfield(obj, name)
+    end
+end
+
+mutable struct BlindsRequest <: ProtoType
+    __protobuf_jl_internal_meta::ProtoMeta
+    __protobuf_jl_internal_values::Dict{Symbol,Any}
+    __protobuf_jl_internal_defaultset::Set{Symbol}
+
+    function BlindsRequest(; kwargs...)
+        obj = new(meta(BlindsRequest), Dict{Symbol,Any}(), Set{Symbol}())
+        values = obj.__protobuf_jl_internal_values
+        symdict = obj.__protobuf_jl_internal_meta.symdict
+        for nv in kwargs
+            fldname, fldval = nv
+            fldtype = symdict[fldname].jtyp
+            (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
+            if fldval !== nothing
+                values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            end
+        end
+        obj
+    end
+end # mutable struct BlindsRequest
+const __meta_BlindsRequest = Ref{ProtoMeta}()
+function meta(::Type{BlindsRequest})
+    ProtoBuf.metalock() do
+        if !isassigned(__meta_BlindsRequest)
+            __meta_BlindsRequest[] = target = ProtoMeta(BlindsRequest)
+            allflds = Pair{Symbol,Union{Type,String}}[:num_hands => UInt32]
+            meta(target, BlindsRequest, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
+        end
+        __meta_BlindsRequest[]
+    end
+end
+function Base.getproperty(obj::BlindsRequest, name::Symbol)
+    if name === :num_hands
+        return (obj.__protobuf_jl_internal_values[name])::UInt32
+    else
+        getfield(obj, name)
+    end
+end
+
 const PlayerData_PlayerType = (;[
     Symbol("MAIN") => Int32(0),
     Symbol("OPPONENT") => Int32(1),
@@ -85,6 +165,47 @@ function meta(::Type{Empty})
             meta(target, Empty, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
         end
         __meta_Empty[]
+    end
+end
+
+mutable struct PlayerActionRequest <: ProtoType
+    __protobuf_jl_internal_meta::ProtoMeta
+    __protobuf_jl_internal_values::Dict{Symbol,Any}
+    __protobuf_jl_internal_defaultset::Set{Symbol}
+
+    function PlayerActionRequest(; kwargs...)
+        obj = new(meta(PlayerActionRequest), Dict{Symbol,Any}(), Set{Symbol}())
+        values = obj.__protobuf_jl_internal_values
+        symdict = obj.__protobuf_jl_internal_meta.symdict
+        for nv in kwargs
+            fldname, fldval = nv
+            fldtype = symdict[fldname].jtyp
+            (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
+            if fldval !== nothing
+                values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            end
+        end
+        obj
+    end
+end # mutable struct PlayerActionRequest
+const __meta_PlayerActionRequest = Ref{ProtoMeta}()
+function meta(::Type{PlayerActionRequest})
+    ProtoBuf.metalock() do
+        if !isassigned(__meta_PlayerActionRequest)
+            __meta_PlayerActionRequest[] = target = ProtoMeta(PlayerActionRequest)
+            allflds = Pair{Symbol,Union{Type,String}}[:round => UInt32, :player_data => PlayerData]
+            meta(target, PlayerActionRequest, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
+        end
+        __meta_PlayerActionRequest[]
+    end
+end
+function Base.getproperty(obj::PlayerActionRequest, name::Symbol)
+    if name === :round
+        return (obj.__protobuf_jl_internal_values[name])::UInt32
+    elseif name === :player_data
+        return (obj.__protobuf_jl_internal_values[name])::PlayerData
+    else
+        getfield(obj, name)
     end
 end
 
@@ -384,4 +505,4 @@ function Base.getproperty(obj::Amount, name::Symbol)
     end
 end
 
-export Round, InitialData, PlayerData_PlayerType, PlayerData, Empty, BoardCardsRequest, PlayerStateData, CardsData, CardData, ActionData_ActionType, ActionData, Amount
+export Round, InitialData, Blinds, BlindsRequest, PlayerData_PlayerType, PlayerData, Empty, PlayerActionRequest, BoardCardsRequest, PlayerStateData, CardsData, CardData, ActionData_ActionType, ActionData, Amount

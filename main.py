@@ -1,13 +1,85 @@
+import abc
 import os
 
 import json
 
 import subprocess
+import threading
 
 import click
 
-from gscrap.projects import projects
 from gscrap.projects import workspace
+
+
+class AntesIncrease(abc.ABC):
+    @abc.abstractmethod
+    def start(self):
+        pass
+
+    @abc.abstractmethod
+    def set_hands_number(self, hand_number):
+        pass
+
+class TimerAntesIncrease(AntesIncrease):
+    def __init__(self, interval, sb, bb, increase_value):
+        self._timer = None
+        self._interval = interval
+
+        self._sb = sb
+        self._bb = bb
+
+        self._increase_value = increase_value
+        self._lock = threading.Lock()
+
+    def start(self):
+        self._timer = timer = threading.Timer(
+            self._interval,
+            self._increase)
+
+        timer.start()
+
+    @property
+    def big_blind(self):
+        with self._lock:
+            return self._bb
+
+    @property
+    def small_blind(self):
+        with self._lock:
+            return self._sb
+
+    def _increase(self):
+        with self._lock:
+            self._sb += self._increase_value
+            self._bb += self._increase_value
+
+    def set_hands_number(self, hand_number):
+        pass
+
+class HandAntesIncrease(AntesIncrease):
+    def __init__(self, max_hands, sb, bb, increase_value):
+        self._max_hands = max_hands
+
+        self._sb = sb
+        self._bb = bb
+
+        self._increase_value = increase_value
+
+    @property
+    def big_blind(self):
+        return self._bb
+
+    @property
+    def small_blind(self):
+        return self._sb
+
+    def start(self):
+        pass
+
+    def set_hands_number(self, hand_number):
+        if hand_number % self._max_hands == 0 and hand_number != 0:
+            self._sb += self._increase_value
+            self._bb += self._increase_value
 
 class GameClient(object):
     def __init__(self, server_url, script_path):
@@ -71,11 +143,31 @@ def start(project_name):
     else:
         raise ValueError("{} Player mode not supported".join(num_players))
 
+    antes_settings = settings['antes_increase']
+    antes_type = antes_settings["type"]
+    every = antes_settings["every"]
+
+    if antes_type == 'timer':
+        antes_increase = TimerAntesIncrease(
+            every,
+            settings["small_blind"],
+            settings["big_blind"],
+            antes_settings["amount"])
+    elif antes_type == 'hands':
+        antes_increase = HandAntesIncrease(
+            every,
+            settings["small_blind"],
+            settings["big_blind"],
+            antes_settings["amount"])
+    else:
+        raise ValueError("Antes increase of type {} not supported".format(antes_type))
+
     namespace.get('start')(
         wks,
         settings,
         game_client,
-        server_url,
+        antes_increase,
+        server_url
     )
 
     #todo: handle terminating game client from here!

@@ -7,10 +7,10 @@ const _PokerService_methods = MethodDescriptor[
         MethodDescriptor("IsReady", 1, Empty, Empty),
         MethodDescriptor("GetPlayers", 2, Empty, Channel{PlayerData}),
         MethodDescriptor("GetDealer", 3, Channel{PlayerData}, PlayerData),
-        MethodDescriptor("GetPlayerAction", 4, PlayerData, ActionData),
+        MethodDescriptor("GetPlayerAction", 4, PlayerActionRequest, ActionData),
         MethodDescriptor("GetPlayerCards", 5, PlayerData, CardsData),
         MethodDescriptor("GetBoardCards", 6, BoardCardsRequest, CardsData),
-        MethodDescriptor("GetBlinds", 7, PlayerData, Amount),
+        MethodDescriptor("GetBlinds", 7, BlindsRequest, Blinds),
         MethodDescriptor("PerformAction", 8, ActionData, Empty)
     ] # const _PokerService_methods
 const _PokerService_desc = ServiceDescriptor("poker.PokerService", 1, _PokerService_methods)
@@ -36,8 +36,8 @@ GetPlayers(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::
 GetDealer(stub::PokerServiceStub, controller::ProtoRpcController, inp::Channel{PlayerData}, done::Function) = call_method(stub.impl, _PokerService_methods[3], controller, inp, done)
 GetDealer(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::Channel{PlayerData}) = call_method(stub.impl, _PokerService_methods[3], controller, inp)
 
-GetPlayerAction(stub::PokerServiceStub, controller::ProtoRpcController, inp::PlayerData, done::Function) = call_method(stub.impl, _PokerService_methods[4], controller, inp, done)
-GetPlayerAction(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::PlayerData) = call_method(stub.impl, _PokerService_methods[4], controller, inp)
+GetPlayerAction(stub::PokerServiceStub, controller::ProtoRpcController, inp::PlayerActionRequest, done::Function) = call_method(stub.impl, _PokerService_methods[4], controller, inp, done)
+GetPlayerAction(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::PlayerActionRequest) = call_method(stub.impl, _PokerService_methods[4], controller, inp)
 
 GetPlayerCards(stub::PokerServiceStub, controller::ProtoRpcController, inp::PlayerData, done::Function) = call_method(stub.impl, _PokerService_methods[5], controller, inp, done)
 GetPlayerCards(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::PlayerData) = call_method(stub.impl, _PokerService_methods[5], controller, inp)
@@ -45,8 +45,8 @@ GetPlayerCards(stub::PokerServiceBlockingStub, controller::ProtoRpcController, i
 GetBoardCards(stub::PokerServiceStub, controller::ProtoRpcController, inp::BoardCardsRequest, done::Function) = call_method(stub.impl, _PokerService_methods[6], controller, inp, done)
 GetBoardCards(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::BoardCardsRequest) = call_method(stub.impl, _PokerService_methods[6], controller, inp)
 
-GetBlinds(stub::PokerServiceStub, controller::ProtoRpcController, inp::PlayerData, done::Function) = call_method(stub.impl, _PokerService_methods[7], controller, inp, done)
-GetBlinds(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::PlayerData) = call_method(stub.impl, _PokerService_methods[7], controller, inp)
+GetBlinds(stub::PokerServiceStub, controller::ProtoRpcController, inp::BlindsRequest, done::Function) = call_method(stub.impl, _PokerService_methods[7], controller, inp, done)
+GetBlinds(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::BlindsRequest) = call_method(stub.impl, _PokerService_methods[7], controller, inp)
 
 PerformAction(stub::PokerServiceStub, controller::ProtoRpcController, inp::ActionData, done::Function) = call_method(stub.impl, _PokerService_methods[8], controller, inp, done)
 PerformAction(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::ActionData) = call_method(stub.impl, _PokerService_methods[8], controller, inp)

@@ -18,8 +18,9 @@ export parse_commandline
 
 const PlayersData = Vector{PokerClients.PlayerData}()
 
-struct LiveGame <: GameSetup
+mutable struct LiveGame <: GameSetup
     client::PokerServiceBlockingClient
+    num_hands::UInt64
 end
 
 @inline function message(action::Action, gs::GameState)
@@ -40,6 +41,16 @@ end
     end
 end
 
+@inline function getplayeraction(client::PokerServiceBlockingClient, gs::GameState, player::PlayerState)
+    return fromactiondata(PokerClients.GetPlayerAction(
+                    client,
+                    PokerClients.PlayerActionRequest(
+                        ;round=gs.round, 
+                        player_data=PlayersData[players.position(player)]))[1], 
+                    gs, 
+                    player)
+end
+
 @inline function playing.updateprivatecards!(gs::GameState, g::Game{LiveGame, T}) where T <: GameMode
     data = shared(g)
     stp = setup(g)
@@ -47,8 +58,9 @@ end
     for ps in gs.players_states
         id = players.id(ps)
         
-        if id != g.main_player && ps.active == true
+        if ps != g.main_player && ps.active == true
             data.private_cards[id] = getplayercards(stp.client, id - 1)
+            println("Updated Cards:", pretty_print_cards(data.private_cards[id]), " ID ", id)
         end
     end
 
@@ -97,20 +109,17 @@ end
     return fromcardsdata(cards_data)
 end
 
-@inline function playing.postblinds!(gs::GameState, g::Game{LiveGame, U}) where U <: GameMode
-    client = getclient!(setup(gs))
+@inline function playing.postblinds!(gs::GameState, g::Game{LiveGame, T}) where T <: GameMode
+    client = getclient!(setup(g))
 
-    data = shared(gs)
-
-    #todo: this depends on the game mode!
-
-    sb = gs.players_states[2]
-    bb = gs.players_states[1]
+    data = shared(g)
 
     #update blinds
 
-    data.sb = PokerClients.GetBlinds(client, PlayersData[players.position(sb)])[1].value
-    data.bb = PokerClients.GetBlinds(client, PlayersData[players.position(bb)])[1].value
+    blinds = PokerClients.GetBlinds(client, PokerClients.BlindsRequest(;num_hands=setup(g).num_hands))[1]
+
+    data.sb = blinds.small_blind
+    data.bb = blinds.big_blind
 
     println(
         "Posting Blinds ", 
@@ -120,8 +129,8 @@ end
     _postblinds!(gs, g)
 end
 
-@inline function getclient!(gs::LiveGame)
-    return gs.client
+@inline function getclient!(stp::LiveGame)
+    return stp.client
 end
 
 @inline function putlast!(pls::Vector{PlayerState}, last_position::UInt8)
@@ -154,16 +163,14 @@ function start(
     println(client.controller)
 
     game = Game{LiveGame, T}()
-    game_setup = LiveGame(client)
+    game_setup = LiveGame(client, 0)
+    
     game.game_setup = game_setup
 
     lgs = GameState{Game{LiveGame, T}}()
     lgs.game = game
 
     shared_data = SharedData()
-
-    #todo: should we include small blind data variation in the simulation?
-    # it is either time based or round based? (maybe each 4 or 5 rounds?)
 
     #todo: action set should also be provided when we launch the game (note should
     # correspond to the one we trained with)
@@ -353,7 +360,8 @@ function start(
             act = action_set[sample(action_set, actionsmask!(lgs))]
 
             println("You should play: ", message(act, lgs))
-
+            
+            #blocks until player performed the action.
             PokerClients.PerformAction(client, toactiondata(act, lgs, current_player))
 
             perform!(
@@ -368,12 +376,8 @@ function start(
             # local opp_act::PokerClients.ActionData
             
             println("Waiting for Opponent action...")
-
-            opp_act, future = PokerClients.GetPlayerAction(
-                    client, 
-                    PlayersData[players.position(current_player)])
             
-            opp_action = fromactiondata(opp_act, lgs, current_player)
+            opp_action = getplayeraction(client, lgs, current_player)
             
             println("Opponent performed: ", message(opp_action, lgs))
 
@@ -454,12 +458,17 @@ function start(
                 players.id(main_player) - 1)
 
             private_cards[main_player_position] = pc
+
+            println("Private Cards: ", pretty_print_cards(pc), " ")
             
             #remove private cards from deck and shuffle
             setdiff!(cards_deck, pc)
             shuffle!(cards_deck)
             
             lgs.state = STARTED_ID
+            
+            #increase number of hands
+            game_setup.num_hands += 1
 
             postblinds!(lgs, game)
 
