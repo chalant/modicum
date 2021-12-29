@@ -1,0 +1,17 @@
+{
+  "num_players": 2,
+  "chips": 1000,
+  "small_blind": 15,
+  "big_blind": 30,
+  "time_per_turn": "Inf",
+  "antes_increase": {
+    "type": "hands",
+    "every": 8,
+    "increase_type": "multiply",
+    "amount": 2
+  },
+  "animation_times": {
+    "showdown": 8,
+    "fold": 9
+  }
+}

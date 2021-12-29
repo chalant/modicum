@@ -124,7 +124,7 @@ module data_conversion
         if act_type == BET_ID || act_type == RAISE_ID
 
             if gs.round > 0
-                if act.amount == bigblind(gs)
+                if act.amount == bigblind(gs) || act_type == BET_ID
                     return Action(act_type, 0, 1)
                 end
 
