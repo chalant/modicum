@@ -112,7 +112,7 @@ end
     gs.round += 1
     
     if gs.round < numrounds!(gs)
-        return performchance!(CHANCE, gs, ps)
+        return performchance!(gs, ps)
     else
         gs.state = ENDED_ID
         return ENDED_ID
@@ -123,7 +123,7 @@ end
     gs.round += 1
     
     if gs.round < numrounds!(gs)
-        state_id = performchance!(CHANCE, gs, ps)
+        state_id = performchance!(gs, ps)
         #reset position and current player 
         #so that next player to act is the first player in the queue
         gs.position = 1
@@ -139,10 +139,11 @@ end
 
 @inline function update!(gs::GameState, action::Action, ps::PlayerState)
     #avoid infinit loop when all players went all-in
+    np = nextplayer!(gs)
+
     if gs.active_players != gs.all_in
         gs.prev_player = ps
 
-        np = nextplayer!(gs)
         update!(action, gs, np)
 
         gs.state = STARTED_ID
@@ -432,18 +433,23 @@ end
     return update!(gs, a, ps)
 end
 
+@inline function onbetactionperformed!(gs::GameState)
+
+end
+
 @inline function performcall!(a::Action, gs::GameState, ps::PlayerState)
     if gs.active_players - gs.all_in == 1
         # if all the other players went all-in, move to next round
         # g.r_all_in += 1
         _bet!(callamount(gs, ps), gs, ps)
+        onbetactionperformed!(gs)
         return nextround!(gs, ps)
-
     else
         np = peekplayer(gs)
 
         if gs.bet_player == np && np.action != BB_ID
             bet!(callamount(gs, ps), gs, ps)
+            onbetactionperformed!(gs)
             # if it is the next player that bet, move to the next round
             return nextround!(gs, ps)
         end
@@ -481,15 +487,19 @@ end
 
 end
 
-@inline function performchance!(a::Action, gs::GameState, ps::PlayerState)
+@inline function beforechancereset!(gs::GameState, g::Game)
+end
+
+@inline function performchance!(gs::GameState, ps::PlayerState)
     #update once per round
     #updates = data.updates
 
     states = gs.players_states
 
     ap = gs.active_players
+    gm = game!(gs)
 
-    setpubliccards!(gs, game!(gs))
+    setpubliccards!(gs, gm)
 
     for ps in states
         # assign potential earnings to each active player
@@ -500,6 +510,8 @@ end
         end
 
     end
+
+    beforechancereset!(gs, gm)
 
     for ps in states
         ps.bet = 0
@@ -517,11 +529,11 @@ end
     # all went all-in or all except one went all-in
 
     if all_in == ap || (ap - all_in) == 1
-        
         return nextround!(gs, ps)
     end
-    #update available actions
-    return update!(gs, a, ps)
+
+    return update!(gs, CHANCE, ps)
+    
 end
 
 @inline function perform!(a::Action, gs::GameState, ps::PlayerState)
@@ -531,6 +543,7 @@ end
         return performallin!(a, gs, ps)
     elseif id == BET_ID || id == RAISE_ID
         bet!(betamount(a, gs, ps), gs, ps)
+        onbetactionperformed!(gs)
         return update!(gs, a, ps)
     elseif id == CHECK_ID
         return performcheck!(a, gs, ps)
@@ -538,8 +551,8 @@ end
         return performcall!(a, gs, ps)
     elseif id == FOLD_ID
         return performfold!(a, gs, ps)
-    elseif id == CHANCE_ID
-        return performchance!(a, gs, ps)
+    # elseif id == CHANCE_ID
+    #     return performchance!(a, gs, ps)
     end
 
     return update!(gs, a, ps)
@@ -945,42 +958,8 @@ end
     elseif id == SB_ID
         _update!(actions!(gs), AFTER_SB, gs, ps)
     end
-end
 
-@inline function updateafterbet!(gs::GameState, ps::PlayerState)
-    _update!(actions!(gs), AFTER_BET, gs, ps)
-end
-
-@inline function updateafterallin!(gs::GameState, ps::PlayerState)
-    _update!(actions!(gs), AFTER_ALL, g, ps)
-end
-
-@inline function updateaftercall!(gs::GameState, ps::PlayerState)
-    _update!(actions!(gs), AFTER_CALL, g, ps)
-end
-
-@inline function updateafterfold!(gs::GameState, ps::PlayerState)
-        _update!(actions!(gs), AFTER_FOLD, g, ps)
-end
-
-@inline function updateafterraise(gs::GameState, ps::PlayerState)
-        _update!(actions!(gs), AFTER_RAISE, g, ps)
-end
-
-@inline function updateaftercheck(gs::GameState, ps::PlayerState)
-        _update!(actions!(gs), AFTER_CHECK, g, ps)
-end
-
-@inline function updateafterchance(gs::GameState, ps::PlayerState)
-        _update!(actions!(gs), AFTER_CHANCE, g, ps)
-end
-
-@inline function updateafterbigblind(gs::GameState, ps::PlayerState)
-        _update!(actions!(gs), AFTER_BB, g, ps)
-end
-
-@inline function updateaftersmallblind(gs::GameState, ps::PlayerState)
-        _update!(actions!(gs), AFTER_SB, g, ps)
+    return gs.state
 end
 
 @inline function _activateaction!(a::Action, gs::GameState, ps::PlayerState)

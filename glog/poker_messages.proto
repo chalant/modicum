@@ -41,6 +41,12 @@ message PlayerData {
   bool is_active = 3;
 }
 
+message PlayerCardsRequest {
+  bool new_hand = 1;
+  bool showdown = 2;
+  PlayerData player = 3;
+}
+
 message Empty {
 
 }
@@ -48,6 +54,7 @@ message Empty {
 message PlayerActionRequest {
   uint32 round = 1;
   PlayerData player_data = 2;
+  bool new_hand = 3;
 }
 
 message BoardCardsRequest {

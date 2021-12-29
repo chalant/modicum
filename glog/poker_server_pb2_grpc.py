@@ -36,7 +36,7 @@ class PokerServiceStub(object):
                 )
         self.GetPlayerCards = channel.unary_unary(
                 '/poker.PokerService/GetPlayerCards',
-                request_serializer=poker__messages__pb2.PlayerData.SerializeToString,
+                request_serializer=poker__messages__pb2.PlayerCardsRequest.SerializeToString,
                 response_deserializer=poker__messages__pb2.CardsData.FromString,
                 )
         self.GetBoardCards = channel.unary_unary(
@@ -132,7 +132,7 @@ def add_PokerServiceServicer_to_server(servicer, server):
             ),
             'GetPlayerCards': grpc.unary_unary_rpc_method_handler(
                     servicer.GetPlayerCards,
-                    request_deserializer=poker__messages__pb2.PlayerData.FromString,
+                    request_deserializer=poker__messages__pb2.PlayerCardsRequest.FromString,
                     response_serializer=poker__messages__pb2.CardsData.SerializeToString,
             ),
             'GetBoardCards': grpc.unary_unary_rpc_method_handler(
@@ -240,7 +240,7 @@ class PokerService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/poker.PokerService/GetPlayerCards',
-            poker__messages__pb2.PlayerData.SerializeToString,
+            poker__messages__pb2.PlayerCardsRequest.SerializeToString,
             poker__messages__pb2.CardsData.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

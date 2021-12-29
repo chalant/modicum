@@ -5,11 +5,16 @@ import json
 
 import subprocess
 import threading
+import time
 
 import click
 
 from gscrap.projects import workspace
 
+class BehaviorSettings(object):
+    def __init__(self, antes_increase, animations_timer):
+        self.antes_increase = antes_increase
+        self.animation_timers = animations_timer
 
 class AntesIncrease(abc.ABC):
     @abc.abstractmethod
@@ -80,6 +85,19 @@ class HandAntesIncrease(AntesIncrease):
         if hand_number % self._max_hands == 0 and hand_number != 0:
             self._sb += self._increase_value
             self._bb += self._increase_value
+
+class AnimationsTimer(object):
+    def __init__(self, animation_times):
+        self._showdown_time = animation_times["showdown"]
+        self._fold_time = animation_times["fold"]
+
+    def wait(self, showdown):
+        if showdown:
+            print("ShowDown Animation!")
+            time.sleep(self._showdown_time)
+        else:
+            print("Fold Animation!")
+            time.sleep(self._fold_time)
 
 class GameClient(object):
     def __init__(self, server_url, script_path):
@@ -153,6 +171,7 @@ def start(project_name):
             settings["small_blind"],
             settings["big_blind"],
             antes_settings["amount"])
+
     elif antes_type == 'hands':
         antes_increase = HandAntesIncrease(
             every,
@@ -166,7 +185,9 @@ def start(project_name):
         wks,
         settings,
         game_client,
-        antes_increase,
+        BehaviorSettings(
+            antes_increase,
+            AnimationsTimer(settings["animation_times"])),
         server_url
     )
 

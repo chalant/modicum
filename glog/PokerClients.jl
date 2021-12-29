@@ -83,11 +83,11 @@ import .poker: GetPlayerCards
 """
     GetPlayerCards
 
-- input: poker.PlayerData
+- input: poker.PlayerCardsRequest
 - output: poker.CardsData
 """
-GetPlayerCards(client::PokerServiceBlockingClient, inp::poker.PlayerData) = GetPlayerCards(client.stub, client.controller, inp)
-GetPlayerCards(client::PokerServiceClient, inp::poker.PlayerData, done::Function) = GetPlayerCards(client.stub, client.controller, inp, done)
+GetPlayerCards(client::PokerServiceBlockingClient, inp::poker.PlayerCardsRequest) = GetPlayerCards(client.stub, client.controller, inp)
+GetPlayerCards(client::PokerServiceClient, inp::poker.PlayerCardsRequest, done::Function) = GetPlayerCards(client.stub, client.controller, inp, done)
 
 import .poker: GetBoardCards
 """

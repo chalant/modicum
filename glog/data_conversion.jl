@@ -68,31 +68,37 @@ module data_conversion
 
     @inline function toactiondata(act::Action, gs::GameState, ps::PlayerState)
         action_id = act.id
+        
         if action_id == BET_ID
             return PokerClients.ActionData(;
             action_type=ActionData_ActionType.BET,
             multiplier=getmultiplier(act, gs),
             amount=betamount(act, gs, ps))
+        
         elseif action_id == CALL_ID
             return PokerClients.ActionData(;
                 action_type=ActionData_ActionType.CALL,
                 multiplier=0,
                 amount=0)
-        elseif action_id == CHECK_ID
-            return PokerClients.ActionData(;
-                action_type=ActionData_ActionType.CHECK,
-                multiplier=0,
-                amount=0)
+        
+            elseif action_id == CHECK_ID
+                return PokerClients.ActionData(;
+                    action_type=ActionData_ActionType.CHECK,
+                    multiplier=0,
+                    amount=0)
+        
         elseif action_id == RAISE_ID
             return PokerClients.ActionData(;
                 action_type=ActionData_ActionType.RAISE,
                 multiplier=getmultiplier(act, gs),
                 amount=betamount(act, gs, ps))
+        
         elseif action_id == ALL_ID
             return PokerClients.ActionData(;
                 action_type=ActionData_ActionType.ALL_IN,
                 multiplier=0,
                 amount=0)
+        
         elseif action_id == FOLD_ID
             return PokerClients.ActionData(;
                 action_type=ActionData_ActionType.FOLD,
@@ -104,32 +110,50 @@ module data_conversion
     @inline function fromactiondata(
         act::PokerClients.ActionData, 
         gs::GameState, 
-        ps::PlayerState)
+        ps::PlayerState,
+        last_bet::Float32,
+        pot::Float32)
 
-        act_type = act.action_type
-        
+        act_type = FROM_ACTION_DATA_MAP[act.action_type]
+
         #TODO: we should have an objects cache if the action doesn't exist,
         # instanciate it.
 
         #FIXME: we are assuming that pre flop action is 4 times the pot size bet (parametrize this)
 
-        if gs.round > 0
-            multiplier = (act.amount - gs.last_bet)/(gs.total_bet - callamount(gs, ps))
-            
-            return Action(
-                FROM_ACTION_DATA_MAP[act_type], 
-                multiplier, 
-                4*multiplier)
-        else
-            multiplier = act.amount/bigblind(gs)
-            
-            return Action(
-                FROM_ACTION_DATA_MAP[act_type], 
-                multiplier/4, 
-                multiplier)
-        end
+        if act_type == BET_ID || act_type == RAISE_ID
 
-        println("Multiplier! ", multiplier)
+            if gs.round > 0
+                if act.amount == bigblind(gs)
+                    return Action(act_type, 0, 1)
+                end
+
+                multiplier = (act.amount - last_bet)/(pot - callamount(gs, ps))
+
+                return Action(
+                    act_type, 
+                    multiplier, 
+                    4*multiplier)
+            else
+                multiplier = act.amount/bigblind(gs)
+
+                if multiplier == NaN || multiplier == Inf
+                    println(
+                        act.amount, " ", 
+                        last_bet, " ", 
+                        pot, " ", 
+                        callamount(gs, ps))
+                end
+                
+                return Action(
+                    act_type, 
+                    multiplier/4, 
+                    multiplier)
+            end
+        
+        else
+            return Action(act_type, 0, 0)
+        end
 
     end
 

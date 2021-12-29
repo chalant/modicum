@@ -8,7 +8,7 @@ const _PokerService_methods = MethodDescriptor[
         MethodDescriptor("GetPlayers", 2, Empty, Channel{PlayerData}),
         MethodDescriptor("GetDealer", 3, Channel{PlayerData}, PlayerData),
         MethodDescriptor("GetPlayerAction", 4, PlayerActionRequest, ActionData),
-        MethodDescriptor("GetPlayerCards", 5, PlayerData, CardsData),
+        MethodDescriptor("GetPlayerCards", 5, PlayerCardsRequest, CardsData),
         MethodDescriptor("GetBoardCards", 6, BoardCardsRequest, CardsData),
         MethodDescriptor("GetBlinds", 7, BlindsRequest, Blinds),
         MethodDescriptor("PerformAction", 8, ActionData, Empty)
@@ -39,8 +39,8 @@ GetDealer(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::C
 GetPlayerAction(stub::PokerServiceStub, controller::ProtoRpcController, inp::PlayerActionRequest, done::Function) = call_method(stub.impl, _PokerService_methods[4], controller, inp, done)
 GetPlayerAction(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::PlayerActionRequest) = call_method(stub.impl, _PokerService_methods[4], controller, inp)
 
-GetPlayerCards(stub::PokerServiceStub, controller::ProtoRpcController, inp::PlayerData, done::Function) = call_method(stub.impl, _PokerService_methods[5], controller, inp, done)
-GetPlayerCards(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::PlayerData) = call_method(stub.impl, _PokerService_methods[5], controller, inp)
+GetPlayerCards(stub::PokerServiceStub, controller::ProtoRpcController, inp::PlayerCardsRequest, done::Function) = call_method(stub.impl, _PokerService_methods[5], controller, inp, done)
+GetPlayerCards(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::PlayerCardsRequest) = call_method(stub.impl, _PokerService_methods[5], controller, inp)
 
 GetBoardCards(stub::PokerServiceStub, controller::ProtoRpcController, inp::BoardCardsRequest, done::Function) = call_method(stub.impl, _PokerService_methods[6], controller, inp, done)
 GetBoardCards(stub::PokerServiceBlockingStub, controller::ProtoRpcController, inp::BoardCardsRequest) = call_method(stub.impl, _PokerService_methods[6], controller, inp)

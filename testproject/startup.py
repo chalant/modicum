@@ -1,7 +1,5 @@
 from concurrent import futures
 
-import threading
-
 import tkinter as tk
 
 import grpc
@@ -45,6 +43,7 @@ class Application(object):
 
         self._game_client = game_client
         self._game_settings = game_settings
+        self._running = False
 
     def _start_selection(self):
         self._window_selector.start_selection(
@@ -56,13 +55,19 @@ class Application(object):
     def _on_window_selected(self, window_event):
         self._pkr_table.set_window(window_event)
 
-        #TODO: wait for table scene
+        #TODO: wait for table scene.. this needs some additional logic
 
         print("Starting Game Client...")
 
         self._game_client.start(self._game_settings)
 
         self._pkr_table.set_to_ready()
+
+        self._running = True
+
+    def stop(self):
+        if self._running:
+            self._game_client.stop()
 
     def _on_error(self):
         pass
@@ -74,7 +79,7 @@ def start(
         workspace,
         game_settings,
         game_client,
-        antes_increase,
+        behavior_settings,
         server_url='localhost:50051'):
 
     project = projects.Project(workspace)
@@ -85,7 +90,7 @@ def start(
         project.load_scene("table"),
         game_settings,
         fp,
-        antes_increase
+        behavior_settings
     )
 
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -101,11 +106,16 @@ def start(
 
     #todo: make a game client object that encapsulates a process and pass it as argument
 
-    Application(
+    app = Application(
         root,
         tb,
         game_client,
         game_settings
     )
+
+    def on_closing():
+        app.stop()
+
+    root.protocol("WM_DELETE_WINDOW", on_closing)
 
     root.mainloop()

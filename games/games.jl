@@ -90,6 +90,7 @@ const INIT_ID = UInt8(0)
 const STARTED_ID = UInt8(1)
 const ENDED_ID = UInt8(2)
 const TERM_ID = UInt8(3)
+const CHANCE_ID = UInt8(4)
 
 struct State
     id::UInt8
@@ -120,6 +121,7 @@ mutable struct SharedData
 end
 
 abstract type AbstractGame end
+abstract type AbstractGameState end
 
 # todo: small blind and big blinds can change throughout a game
 # move them to the game
@@ -145,7 +147,7 @@ end
 
 #tracks game state.
 
-mutable struct GameState{T<:AbstractGame}
+mutable struct GameState{T<:AbstractGame} <: AbstractGameState
     state::UInt8
 
     action::Action

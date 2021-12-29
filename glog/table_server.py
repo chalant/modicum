@@ -60,7 +60,7 @@ class Opponent(object):
 
 
 class PokerTableServer(srv.PokerServiceServicer):
-    def __init__(self, scene, settings, filter_pipelines, antes_increase):
+    def __init__(self, scene, settings, filter_pipelines, behavior_settings):
         """
 
         Parameters
@@ -192,7 +192,8 @@ class PokerTableServer(srv.PokerServiceServicer):
         self._previous_action = ""
         self._previous_amount = 0.0
         self._previous_round = 0
-        self._antes_increase = antes_increase
+        self._antes_increase = behavior_settings.antes_increase
+        self._animation_timer = behavior_settings.animation_timers
 
     def _get_capture_zone(self, connection, target_instance, target_rectangle):
         bbox = next(
@@ -342,7 +343,7 @@ class PokerTableServer(srv.PokerServiceServicer):
 
         return res
 
-    def _detect_opponent_action(self, window, opponent, rd):
+    def _detect_opponent_action(self, window, opponent, rd, new_hand):
         while True:
             action = self._detect_action(window, opponent.action)
             if action in _BET_ACTIONS:
@@ -383,6 +384,19 @@ class PokerTableServer(srv.PokerServiceServicer):
                         action_type=self._get_action_type(action),
                         multiplier=1.0,
                         amount=amount)
+
+                elif new_hand:
+                    self._previous_amount = amount
+                    self._previous_round = rd
+                    self._previous_action = action
+
+                    return msg.ActionData(
+                        msg.ActionData(
+                            action_type=self._get_action_type(action),
+                            multiplier=1.0,
+                            amount=amount)
+                    )
+
 
     def _detect_bet_amount(self, window, amount):
         amount_labeler = self._amount_labeler
@@ -462,11 +476,19 @@ class PokerTableServer(srv.PokerServiceServicer):
             return self._detect_opponent_action(
                 cm,
                 self._players[player.position],
-                request.round)
+                request.round,
+                request.new_hand
+            )
 
     def GetPlayerCards(self, request, context):
+        #todo: block for a certain duration
+        if request.new_hand:
+            self._animation_timer.wait(request.showdown)
+
+        player = request.player
+
         with capture.capture_context(self._window) as ch:
-            return self._detect_cards(ch, self._players[request.position].cards)
+            return self._detect_cards(ch, self._players[player.position].cards)
 
     def GetPlayers(self, request, context):
         for player in self._players:

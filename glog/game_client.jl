@@ -21,6 +21,8 @@ const PlayersData = Vector{PokerClients.PlayerData}()
 mutable struct LiveGame <: GameSetup
     client::PokerServiceBlockingClient
     num_hands::UInt64
+    pot::Float32
+    last_bet::Float32
 end
 
 @inline function message(action::Action, gs::GameState)
@@ -41,14 +43,31 @@ end
     end
 end
 
-@inline function getplayeraction(client::PokerServiceBlockingClient, gs::GameState, player::PlayerState)
+@inline function playing.onbetactionperformed!(gs::GameState{Game{LiveGame, T}}) where T <: GameMode
+    stp = setup(gs.game)
+    
+    stp.pot = gs.total_bet
+    stp.last_bet = stp.last_bet
+end
+
+@inline function playing.beforechancereset!(gs::GameState, gm::Game{LiveGame, T}) where T <: GameMode
+    stp = setup(gm)
+    
+    stp.pot = gs.total_bet
+    stp.last_bet = 0
+end
+
+@inline function getplayeraction(stp::LiveGame, gs::GameState, player::PlayerState, new_hand::Bool)
     return fromactiondata(PokerClients.GetPlayerAction(
-                    client,
+                    stp.client,
                     PokerClients.PlayerActionRequest(
                         ;round=gs.round, 
-                        player_data=PlayersData[players.position(player)]))[1], 
+                        player_data=PlayersData[players.position(player)], 
+                        new_hand=new_hand))[1], 
                     gs, 
-                    player)
+                    player,
+                    stp.last_bet,
+                    stp.pot)
 end
 
 @inline function playing.updateprivatecards!(gs::GameState, g::Game{LiveGame, T}) where T <: GameMode
@@ -59,7 +78,7 @@ end
         id = players.id(ps)
         
         if ps != g.main_player && ps.active == true
-            data.private_cards[id] = getplayercards(stp.client, id - 1)
+            data.private_cards[id] = getplayercards(stp.client, id - 1, gs, g)
             println("Updated Cards:", pretty_print_cards(data.private_cards[id]), " ID ", id)
         end
     end
@@ -94,6 +113,8 @@ end
         push!(data.public_cards, card)
         data.deck_cursor -= 1
     end
+
+    println("Public Cards:", pretty_print_cards(data.public_cards))
     
     #remove public cards from deck
     setdiff!(data.deck, data.public_cards)
@@ -101,12 +122,13 @@ end
     return data
 end
 
-@inline function getplayercards(client::PokerServiceBlockingClient, player_id::Integer)
-    cards_data, future = PokerClients.GetPlayerCards(
-            client,
-            PokerClients.PlayerData(position=UInt32(player_id)))
-
-    return fromcardsdata(cards_data)
+@inline function getplayercards(client::PokerServiceBlockingClient, player_id::Integer, gs::GameState, g::Game)
+    return fromcardsdata(PokerClients.GetPlayerCards(
+        client,
+        PokerClients.PlayerCardsRequest(;
+            new_hand=gs.state == ENDED_ID,
+            showdown=gs.round >= g.num_rounds,
+            player=PokerClients.PlayerData(position=UInt32(player_id))))[1])
 end
 
 @inline function playing.postblinds!(gs::GameState, g::Game{LiveGame, T}) where T <: GameMode
@@ -163,7 +185,7 @@ function start(
     println(client.controller)
 
     game = Game{LiveGame, T}()
-    game_setup = LiveGame(client, 0)
+    game_setup = LiveGame(client, 0, 0, 0)
     
     game.game_setup = game_setup
 
@@ -210,6 +232,7 @@ function start(
         Action(RAISE_ID, 0.5, 2),
         Action(RAISE_ID, 0.75, 3),
         Action(RAISE_ID, 1, 4),
+        Action(BET_ID, 0, 1),
         Action(BET_ID, 0.5, 2),
         Action(BET_ID, 0.75, 3),
         Action(BET_ID, 1, 4)]
@@ -325,7 +348,9 @@ function start(
 
     mp_private_cards = getplayercards(
         client, 
-        players.id(main_player) - 1)
+        players.id(main_player) - 1, 
+        lgs, 
+        game)
 
     private_cards[main_player_position] = mp_private_cards
 
@@ -350,6 +375,8 @@ function start(
     # note: loop breaks when the main player is eliminated or wins
 
     previous_round = lgs.round
+
+    new_hand = true
 
     while true
         
@@ -377,7 +404,14 @@ function start(
             
             println("Waiting for Opponent action...")
             
-            opp_action = getplayeraction(client, lgs, current_player)
+            opp_action = getplayeraction(
+                game_setup, 
+                lgs, 
+                current_player,
+                new_hand
+            )
+
+            new_hand = false
             
             println("Opponent performed: ", message(opp_action, lgs))
 
@@ -455,7 +489,9 @@ function start(
 
             pc = getplayercards(
                 client, 
-                players.id(main_player) - 1)
+                players.id(main_player) - 1,
+                lgs,
+                game)
 
             private_cards[main_player_position] = pc
 
@@ -471,6 +507,8 @@ function start(
             game_setup.num_hands += 1
 
             postblinds!(lgs, game)
+
+            new_hand = true
 
         end
 

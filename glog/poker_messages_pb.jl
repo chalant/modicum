@@ -136,6 +136,49 @@ function Base.getproperty(obj::PlayerData, name::Symbol)
     end
 end
 
+mutable struct PlayerCardsRequest <: ProtoType
+    __protobuf_jl_internal_meta::ProtoMeta
+    __protobuf_jl_internal_values::Dict{Symbol,Any}
+    __protobuf_jl_internal_defaultset::Set{Symbol}
+
+    function PlayerCardsRequest(; kwargs...)
+        obj = new(meta(PlayerCardsRequest), Dict{Symbol,Any}(), Set{Symbol}())
+        values = obj.__protobuf_jl_internal_values
+        symdict = obj.__protobuf_jl_internal_meta.symdict
+        for nv in kwargs
+            fldname, fldval = nv
+            fldtype = symdict[fldname].jtyp
+            (fldname in keys(symdict)) || error(string(typeof(obj), " has no field with name ", fldname))
+            if fldval !== nothing
+                values[fldname] = isa(fldval, fldtype) ? fldval : convert(fldtype, fldval)
+            end
+        end
+        obj
+    end
+end # mutable struct PlayerCardsRequest
+const __meta_PlayerCardsRequest = Ref{ProtoMeta}()
+function meta(::Type{PlayerCardsRequest})
+    ProtoBuf.metalock() do
+        if !isassigned(__meta_PlayerCardsRequest)
+            __meta_PlayerCardsRequest[] = target = ProtoMeta(PlayerCardsRequest)
+            allflds = Pair{Symbol,Union{Type,String}}[:new_hand => Bool, :showdown => Bool, :player => PlayerData]
+            meta(target, PlayerCardsRequest, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
+        end
+        __meta_PlayerCardsRequest[]
+    end
+end
+function Base.getproperty(obj::PlayerCardsRequest, name::Symbol)
+    if name === :new_hand
+        return (obj.__protobuf_jl_internal_values[name])::Bool
+    elseif name === :showdown
+        return (obj.__protobuf_jl_internal_values[name])::Bool
+    elseif name === :player
+        return (obj.__protobuf_jl_internal_values[name])::PlayerData
+    else
+        getfield(obj, name)
+    end
+end
+
 mutable struct Empty <: ProtoType
     __protobuf_jl_internal_meta::ProtoMeta
     __protobuf_jl_internal_values::Dict{Symbol,Any}
@@ -193,7 +236,7 @@ function meta(::Type{PlayerActionRequest})
     ProtoBuf.metalock() do
         if !isassigned(__meta_PlayerActionRequest)
             __meta_PlayerActionRequest[] = target = ProtoMeta(PlayerActionRequest)
-            allflds = Pair{Symbol,Union{Type,String}}[:round => UInt32, :player_data => PlayerData]
+            allflds = Pair{Symbol,Union{Type,String}}[:round => UInt32, :player_data => PlayerData, :new_hand => Bool]
             meta(target, PlayerActionRequest, allflds, ProtoBuf.DEF_REQ, ProtoBuf.DEF_FNUM, ProtoBuf.DEF_VAL, ProtoBuf.DEF_PACK, ProtoBuf.DEF_WTYPES, ProtoBuf.DEF_ONEOFS, ProtoBuf.DEF_ONEOF_NAMES)
         end
         __meta_PlayerActionRequest[]
@@ -204,6 +247,8 @@ function Base.getproperty(obj::PlayerActionRequest, name::Symbol)
         return (obj.__protobuf_jl_internal_values[name])::UInt32
     elseif name === :player_data
         return (obj.__protobuf_jl_internal_values[name])::PlayerData
+    elseif name === :new_hand
+        return (obj.__protobuf_jl_internal_values[name])::Bool
     else
         getfield(obj, name)
     end
@@ -505,4 +550,4 @@ function Base.getproperty(obj::Amount, name::Symbol)
     end
 end
 
-export Round, InitialData, Blinds, BlindsRequest, PlayerData_PlayerType, PlayerData, Empty, PlayerActionRequest, BoardCardsRequest, PlayerStateData, CardsData, CardData, ActionData_ActionType, ActionData, Amount
+export Round, InitialData, Blinds, BlindsRequest, PlayerData_PlayerType, PlayerData, PlayerCardsRequest, Empty, PlayerActionRequest, BoardCardsRequest, PlayerStateData, CardsData, CardData, ActionData_ActionType, ActionData, Amount
