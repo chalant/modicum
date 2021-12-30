@@ -25,15 +25,42 @@ class AntesIncrease(abc.ABC):
     def set_hands_number(self, hand_number):
         pass
 
+class IncreaseBehavior(abc.ABC):
+    @abc.abstractmethod
+    def increase(self, sb, bb):
+        raise NotImplementedError
+
+
+class MultiplyIncrease(IncreaseBehavior):
+    def __init__(self, amount):
+        self._amount = amount
+
+    def increase(self, sb, bb):
+        sb *= self._amount
+        bb *= self._amount
+
+        return sb, bb
+
+class AdditiveIncrease(IncreaseBehavior):
+    def __init__(self, amount):
+        self._amount = amount
+
+    def increase(self, sb, bb):
+        sb += self._amount
+        bb += self._amount
+
+        return  sb, bb
+
 class TimerAntesIncrease(AntesIncrease):
-    def __init__(self, interval, sb, bb, increase_value):
+    def __init__(self, interval, sb, bb, increase_behavior):
         self._timer = None
         self._interval = interval
 
         self._sb = sb
         self._bb = bb
 
-        self._increase_value = increase_value
+        self._increase_behavior = increase_behavior
+
         self._lock = threading.Lock()
 
     def start(self):
@@ -55,20 +82,19 @@ class TimerAntesIncrease(AntesIncrease):
 
     def _increase(self):
         with self._lock:
-            self._sb += self._increase_value
-            self._bb += self._increase_value
+            self._sb, self._bb = self._increase_behavior.increase()
 
     def set_hands_number(self, hand_number):
         pass
 
 class HandAntesIncrease(AntesIncrease):
-    def __init__(self, max_hands, sb, bb, increase_value):
+    def __init__(self, max_hands, sb, bb, increase_behavior):
         self._max_hands = max_hands
 
         self._sb = sb
         self._bb = bb
 
-        self._increase_value = increase_value
+        self._increase_behavior = increase_behavior
 
     @property
     def big_blind(self):
@@ -83,8 +109,9 @@ class HandAntesIncrease(AntesIncrease):
 
     def set_hands_number(self, hand_number):
         if hand_number % self._max_hands == 0 and hand_number != 0:
-            self._sb += self._increase_value
-            self._bb += self._increase_value
+            self._sb, self._bb = self._increase_behavior.increase(
+                self._sb,
+                self._bb)
 
 class AnimationsTimer(object):
     def __init__(self, animation_times):
@@ -165,19 +192,33 @@ def start(project_name):
     antes_type = antes_settings["type"]
     every = antes_settings["every"]
 
+    increase_mode = settings["increase_mode"]
+
+    if increase_mode == 'multiply':
+        increase_behavior = MultiplyIncrease(
+            settings['amount'])
+    elif increase_mode == 'additive':
+        increase_behavior = AdditiveIncrease(
+            settings['amount'])
+    else:
+        raise ValueError('Increase mode {} not supported'.format(increase_mode))
+
+    sb = settings["small_blind"]
+    bb = settings["big_blind"]
+
     if antes_type == 'timer':
         antes_increase = TimerAntesIncrease(
             every,
-            settings["small_blind"],
-            settings["big_blind"],
-            antes_settings["amount"])
+            sb,
+            bb,
+            increase_behavior)
 
     elif antes_type == 'hands':
         antes_increase = HandAntesIncrease(
             every,
-            settings["small_blind"],
-            settings["big_blind"],
-            antes_settings["amount"])
+            sb,
+            bb,
+            increase_behavior)
     else:
         raise ValueError("Antes increase of type {} not supported".format(antes_type))
 

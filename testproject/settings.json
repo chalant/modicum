@@ -7,7 +7,7 @@
   "antes_increase": {
     "type": "hands",
     "every": 8,
-    "increase_type": "multiply",
+    "increase_mode": "multiply",
     "amount": 2
   },
   "animation_times": {
