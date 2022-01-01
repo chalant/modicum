@@ -40,7 +40,10 @@ def build(builder):
     poker_action_label.add_instance("Raise")
     poker_action_label.add_instance("Null")  # no action
 
-    poker_act_btn_lbl = poker.add_label("PlayerAction", button, classifiable=True)
+    poker_act_btn_lbl = poker.add_label(
+        "PlayerAction",
+        button,
+        classifiable=True)
 
     poker_act_btn_lbl.add_instance("Call")
     poker_act_btn_lbl.add_instance("Fold")
@@ -79,7 +82,10 @@ def build(builder):
 
     opponent = poker.add_label("Opponent", container)
 
-    opponent.add_component(poker.add_label("BetAmount", number, capture=True))
+    opponent.add_component(poker.add_label(
+        "BetAmount",
+        number,
+        capture=True))
 
     # components are used to track which component belongs to which element
 
