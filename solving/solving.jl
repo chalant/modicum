@@ -6,26 +6,17 @@ using .tree
 using .games
 using .filtering
 
-abstract type Solver end
-
-struct CFR <: Solver
-end
-
-struct MCCFR <: Solver
-end
-
-struct CFRP <: Solver
-end
-
 # todo add compression data to resources folder
 # filter for private cards
-const PR_FILTER = Filter(indexdata(IndexData, "/resources/lossless/pre_flop"))
+const PreFlopFilter = Filter(indexdata(
+    IndexData, 
+    "/resources/lossless/pre_flop"))
 
 function key(pr::Vector{UInt64}, cc::Vector{UInt64})
     #returns a unique key for a combination of private and public hands
     if length(cc) == 0
         # return equivalent index (after compression)
-        return filterindex(PR_FILTER, pr)
+        return filterindex(PreFlopFilter, pr)
     end
     return evaluate(pr, cc)
 end
@@ -91,12 +82,11 @@ end
 
 # Implementation of solve functions could depend on the type of algorithm (MCsolve, solve+, ...)
 function solve(
+    gs::GameState,
+    g::Game{Training, T},
     h::History,
-    g::Game,
-    st::Started,
-    pl::Player,
-    p0::Float32,
-    p1::Float32)
+    p0::U,
+    p1::U) where {T <: GameMode, U <: AbstractFloat}
 
     stp = setup(g)
     data = shared(g)
@@ -104,7 +94,11 @@ function solve(
     # note: in mcsolve variant, we sample only one action from the adversary
     n = length(stp.actions)
     # retrieve infoset based on player cards and community cards from current history
-    info = infoset(h, key(privatecards(pl, data), data.public_cards))
+    info = infoset(
+        h, 
+        key(privatecards(pl, data), 
+        data.public_cards))
+    
     # get strategy profile of the infoset
     strg = strategy!(info, h, g, stp, pl == g.player ? p0 : p1)
     util::Float32 = 0
@@ -113,23 +107,25 @@ function solve(
     # This block could be specialized (to a type of solver )
     # =========================================================================
     i = 1
-    ply = g.player
+    ply = gs.player
 
-    for a in viewactions(g, ply)
+    for a in viewactions(gs, ply)
         #only execute active actions
         if actionsmask(ply)[i] == 1
             # retrieve history associated with the action
             ha = history(h, a.id, utils, n)
             #copy game data to next history node
-            copy!(ha.game, g)
+            copy!(ha.game_state, gs)
             stg = strg[i]
+            
+            game_state = ha.game_state
 
             if g.player == pl
                 # perform action and update game state
-                ut = solve(ha, ha.game, perform!(a, ha.game, g.player), p0 * stg, p1)
+                ut = solve(ha, game_state, perform!(a, game_state, gs.player), p0 * stg, p1)
             else
                 # todo finish inputs (p0 and p1)
-                ut = solve(ha, ha.game, perform!(a, ha.game, g.player), p0, p1 * stg)
+                ut = solve(ha, game_state, perform!(a, game_state, gs.player), p0, p1 * stg)
             end
             utils[i] = ut
             util += st * ut

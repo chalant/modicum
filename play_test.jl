@@ -325,17 +325,18 @@ function play()
 
                 idx = choose_action(GAMESTATE, SETUP.actions)
                 st = perform!(actions[idx], GAMESTATE, pl)
+                pl.action = idx
             else
                 # println(availableactions!(GAMESTATE))
                 
-                idx = sample(actions, actionsmask!(GAMESTATE))
+                idx = sample(actionsmask!(GAMESTATE))
                 act = actions[idx]
+                
                 println("Player", players.id(pl), ": ", message(act, GAMESTATE))
+                
                 st = perform!(act, GAMESTATE, pl)
-                pl.action = idx
+                pl.action = act.id
             end
-
-            pl.action = idx
 
             # if it is not the players turn, perform random moves until it is
             # the users turn, display available actions, then wait for input

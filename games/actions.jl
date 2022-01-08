@@ -40,6 +40,8 @@ export smallblindamount
 export raiseamount
 export betamount
 
+using StaticArrays
+
 const CALL_ID = UInt8(1)
 const FOLD_ID = UInt8(2)
 const CHECK_ID = UInt8(3)
@@ -50,11 +52,11 @@ const BB_ID =  UInt8(7)
 const CHANCE_ID =  UInt8(8)
 const ALL_ID =  UInt8(9)
 
-const ACTION_SET1 = Vector{UInt8}([CALL_ID, FOLD_ID, RAISE_ID, ALL_ID])
-const ACTION_SET2 = Vector{UInt8}([FOLD_ID, CHECK_ID, BET_ID, ALL_ID])
-const ACTION_SET3 = Vector{UInt8}([CHECK_ID, RAISE_ID, ALL_ID])
+const ACTION_SET1 = @SVector [CALL_ID, FOLD_ID, RAISE_ID, ALL_ID]
+const ACTION_SET2 = @SVector [FOLD_ID, CHECK_ID, BET_ID, ALL_ID]
+const ACTION_SET3 = @SVector [CHECK_ID, RAISE_ID, ALL_ID]
 
-const AFTER_CALL = Vector{UInt8}([CALL_ID, FOLD_ID, CHECK_ID, RAISE_ID, ALL_ID])
+const AFTER_CALL = @SVector [CALL_ID, FOLD_ID, CHECK_ID, RAISE_ID, ALL_ID]
 
 const AFTER_RAISE = ACTION_SET1
 const AFTER_BET = ACTION_SET1
@@ -65,8 +67,8 @@ const AFTER_CHANCE = ACTION_SET2
 
 const AFTER_FOLD = AFTER_CALL
 
-const AFTER_ALL = Vector{UInt8}([CALL_ID, FOLD_ID, CHECK_ID, ALL_ID])
-const AFTER_SB = Vector{UInt8}([BB_ID])
+const AFTER_ALL = @SVector [CALL_ID, FOLD_ID, CHECK_ID, ALL_ID]
+const AFTER_SB = @SVector [BB_ID]
 
 struct Action
     id::UInt8

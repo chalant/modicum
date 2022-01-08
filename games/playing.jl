@@ -16,6 +16,7 @@ export postblinds!
 export callamount
 
 using Random
+using StaticArrays
 
 using games
 
@@ -108,33 +109,21 @@ end
 
 end
 
-@inline function nextround!(gs::GameState, ps::PlayerState)
-    gs.round += 1
-    
-    if gs.round < numrounds!(gs)
-        return performchance!(gs, ps)
-    else
-        gs.state = ENDED_ID
-        return ENDED_ID
-    end
+@inline function nextround!(gs::GameState, ps::PlayerState)    
+    return performchance!(gs, ps)
 end
 
-@inline function nextround!(gs::GameState{Game{T, HeadsUp}}, ps::PlayerState) where T <: GameSetup
-    gs.round += 1
+@inline function nextround!(gs::GameState{Game{T, HeadsUp}}, ps::PlayerState) where T <: GameSetup    
+
+    state_id = performchance!(gs, ps)
+    #reset position and current player 
+    #so that next player to act is the first player in the queue
+    gs.position = 1
+    gs.player = gs.players_states[1]
+    gs.state = state_id
     
-    if gs.round < numrounds!(gs)
-        state_id = performchance!(gs, ps)
-        #reset position and current player 
-        #so that next player to act is the first player in the queue
-        gs.position = 1
-        gs.player = gs.players_states[1]
-        gs.state = state_id
-        
-        return state_id
-    else
-        gs.state = ENDED_ID
-        return ENDED_ID
-    end
+    return state_id
+
 end
 
 @inline function update!(gs::GameState, action::Action, ps::PlayerState)
@@ -370,7 +359,7 @@ end
 
 end
 
-@inline function rotateplayers!(pls::Vector{PlayerState}, bb::AbstractFloat)
+@inline function rotateplayers!(pls::SVector{N, PlayerState}, bb::AbstractFloat)
     i = 1
 
     for ps in pls
@@ -490,6 +479,18 @@ end
 @inline function beforechancereset!(gs::GameState, g::Game)
 end
 
+@inline function endhand!(gs::GameState, gm::Game)
+    
+    while gs.round < numround!(gs)
+        setpubliccards!(gs, gm)
+        gs.round += 1
+
+    gs.state = ENDED_ID
+    return ENDED_ID
+
+    end
+end
+
 @inline function performchance!(gs::GameState, ps::PlayerState)
     #update once per round
     #updates = data.updates
@@ -525,11 +526,17 @@ end
     ap = gs.active_players
     all_in = gs.all_in
 
-
     # all went all-in or all except one went all-in
 
     if all_in == ap || (ap - all_in) == 1
-        return nextround!(gs, ps)
+        return endhand!(gs, gm)
+    end
+
+    gs.round += 1
+
+    if gs.round >= limit!(gs)
+        gs.state = ENDED_ID
+        return ENDED_ID
     end
 
     return update!(gs, CHANCE, ps)
@@ -810,7 +817,7 @@ end
     return gs.state
 end
 
-@inline function sample(a::ActionSet, wv::Vector{Bool})
+@inline function sample(wv::Vector{Bool})
     n = length(wv)
     t = rand()
     i = 1
@@ -818,6 +825,7 @@ end
 
     #count active actions (could use game.num_actions instead)
     c = 0
+    
     for j in 1:n
         if @inbounds wv[j] == 1
             c += 1
@@ -895,7 +903,7 @@ end
 
 @inline function _update!(
     acts::ActionSet,
-    ids::Vector{UInt8},
+    ids::SVector{UInt8},
     gs::GameState,
     ps::PlayerState)
 

@@ -46,6 +46,7 @@ export playersstates!
 
 using Random
 using Parameters
+using StaticArrays
 
 using players
 using actions
@@ -147,7 +148,7 @@ end
 
 #tracks game state.
 
-mutable struct GameState{T<:AbstractGame} <: AbstractGameState
+mutable struct GameState{N, T<:AbstractGame} <: AbstractGameState
     state::UInt8
 
     action::Action
@@ -157,7 +158,7 @@ mutable struct GameState{T<:AbstractGame} <: AbstractGameState
     bet_player::PlayerState
 
     players_states::Vector{PlayerState}
-    actions_mask::Vector{Bool}
+    actions_mask::SVector{N, Bool}
 
     active_players::UInt8 # players that have not folded
     round::UInt8
@@ -172,7 +173,7 @@ mutable struct GameState{T<:AbstractGame} <: AbstractGameState
 
     game::T
 
-    GameState{T}() where T <: AbstractGame = new()
+    GameState{N, T}() where T <: AbstractGame = new()
 end
 
 @inline function stateid(st::State)
@@ -221,6 +222,9 @@ end
 
 @inline numrounds!(g::Game) = g.num_rounds
 @inline numrounds!(gs::GameState) = numrounds!(gs.game)
+
+@inline limit!(g::Game) = g.num_rounds
+@inline limit!(gs::GameState) = limit!(gs.game)
 
 @inline gamemode!(g::Game) = g.game_mode
 

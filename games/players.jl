@@ -104,7 +104,7 @@ end
 end
 
 @inline function Base.copy!(p::Vector{PlayerState}, s::Vector{PlayerState})
-    for i in length(p)
+    for i in 1:length(p)
         copy!(p[i], s[i])
     end
 end

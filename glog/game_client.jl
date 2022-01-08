@@ -182,15 +182,10 @@ function start(
 
     client = PokerServiceBlockingClient(server_url)
 
-    println(client.controller)
-
     game = Game{LiveGame, T}()
     game_setup = LiveGame(client, 0, 0, 0)
     
     game.game_setup = game_setup
-
-    lgs = GameState{Game{LiveGame, T}}()
-    lgs.game = game
 
     shared_data = SharedData()
 
@@ -237,6 +232,12 @@ function start(
         Action(BET_ID, 0.75, 3),
         Action(BET_ID, 1, 4)]
     )
+
+    lgs = GameState{length(action_set), Game{LiveGame, T}}()
+
+    lgs.actions_mask = @SVector [trues(length(action_set))]
+    
+    lgs.game = game
 
     game.actions = action_set
 
@@ -324,7 +325,6 @@ function start(
 
     println("First Player ", players.id(lgs.player), " ", players.id(main_player))
 
-    lgs.actions_mask = trues(length(actions!(lgs)))
     lgs.active_players = num_players
 
     game.players = players_vec
@@ -384,7 +384,7 @@ function start(
 
         if current_player == main_player
             #todo: choose an action from the action set then perform it
-            act = action_set[sample(action_set, actionsmask!(lgs))]
+            act = action_set[sample(actionsmask!(lgs))]
 
             println("You should play: ", message(act, lgs))
             
