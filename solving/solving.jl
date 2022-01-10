@@ -21,11 +21,11 @@ function key(pr::Vector{UInt64}, cc::Vector{UInt64})
     return evaluate(pr, cc)
 end
 
-function strategy!(n::Node, h::History, g::Game, stp::GameSetup, w::Float32)
-    st = n.stg_profile
+function updatestrategy!(info_set::Node, h::History, g::Game, stp::GameSetup, w::Float32)
+    st = info_set.stg_profile
     i = 1
     for a in stp.actions
-        if g.actions_mask[a.id] == 1
+        if g.actions_mask[i] == 1
             cr = n.cum_regret[i]
             r = cr > 0 ? cr : 0
             st[i] = r
@@ -101,7 +101,7 @@ function solve(
     
     # get strategy profile of the infoset
     strg = strategy!(info, h, g, stp, pl == g.player ? p0 : p1)
-    util::Float32 = 0
+    util = Float32(0)
     utils = h.utils
 
     # This block could be specialized (to a type of solver )
