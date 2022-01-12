@@ -17,6 +17,7 @@ export callamount
 
 using Random
 using StaticArrays
+using AbstractPlay
 
 using games
 
@@ -72,8 +73,6 @@ end
 
     gs.active_players = a
 
-    println("Active Players ", a)
-
     rotateplayers!(states, bb)
 
 end
@@ -113,7 +112,7 @@ end
     return performchance!(gs, ps)
 end
 
-@inline function nextround!(gs::GameState{Game{T, HeadsUp}}, ps::PlayerState) where T <: GameSetup    
+@inline function nextround!(gs::GameState{N, 2, Game{T}}, ps::PlayerState) where T <: GameSetup 
 
     state_id = performchance!(gs, ps)
     #reset position and current player 
@@ -297,7 +296,7 @@ end
 
     bb = bigblind(gs)
     n = length(states)
-    bp = countbetplayers(states)
+    bp = countbetplayers!(states)
 
     # give back unclaimed chips
 
@@ -377,7 +376,7 @@ end
 
 end
 
-@inline function countbetplayers(pls::Vector{PlayerState})
+@inline function countbetplayers!(pls::Vector{PlayerState})
         i = 0
 
         for ps in pls
@@ -464,7 +463,7 @@ end
     return update!(gs, a, ps)
 end
 
-@inline function setpubliccards!(gs::GameState, g::Game{T, U}) where {T <: GameSetup, U <: GameMode}
+@inline function setpubliccards!(gs::GameState, g::Game{T}) where {T <: GameSetup}
     data = shared(g)
 
     for i in 1:g.cards_per_round[gs.round]
@@ -565,7 +564,7 @@ end
     return update!(gs, a, ps)
 end
 
-@inline function _nextplayer(state::GameState, n::Int)
+@inline function _nextplayer!(state::GameState, n::Int)
 
     state.position == n ? state.position = 1 : state.position += 1
     # get the state with the corresponding position
@@ -575,10 +574,10 @@ end
 
 @inline function nextplayer!(gs::GameState)
     n = length(gs.players_states)
-    st = _nextplayer(gs, n)
+    st = _nextplayer!(gs, n)
     
     while !st.active || st.chips == 0
-        st = _nextplayer(gs, n)
+        st = _nextplayer!(gs, n)
     end
 
     gs.player = st
@@ -640,8 +639,8 @@ end
 
 function distributecards!(
     gs::GameState,
-    g::Game{LiveSimulation, T},
-    data::SharedData) where T <: GameMode
+    g::Game{LiveSimulation},
+    data::SharedData)
 
     deck = data.deck
 
@@ -675,8 +674,8 @@ end
 
 function putbackcards!(
     gs::GameState,
-    g::Game{LiveSimulation, T},
-    data::SharedData) where T <: GameMode
+    g::Game{LiveSimulation},
+    data::SharedData)
 
     main = g.main_player
 
@@ -773,7 +772,7 @@ end
 
 end
 
-@inline function _postblinds!(gs::GameState, g::Game{T, Normal}) where T <: GameSetup
+@inline function _postblinds!(gs::GameState{N, P, Game{T}}, g::Game{T}) where T <: GameSetup
     if numplayers!(g) > 2
         println("SmallBlind ", players.id(gs.player))
         performsmallblind!(gs)
@@ -784,7 +783,7 @@ end
     end
 end
 
-@inline function _postblinds!(gs::GameState, g::Game{T, HeadsUp}) where T <: GameSetup
+@inline function _postblinds!(gs::GameState{N, 2, Game{T}}, g::Game{T}) where T <: GameSetup
     _headsupblinds!(gs)
 end
 

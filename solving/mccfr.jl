@@ -1,12 +1,14 @@
 include("tree.jl")
 include("abstraction/filtering.jl")
 
+using StaticArrays
+
 using solving
 using solver
 using playing
 
-mutable struct MCCFR{N, T<:AbstractFloat} <: Solver
-    probs::MVector{N, T}
+struct MCCFR{N, T<:AbstractFloat} <: Solver
+    probs::SVector{N, T}
     epsilon::T 
 end
 
@@ -48,15 +50,22 @@ end
     return st
 end
 
-#todo: handle ended state etc.
-
 function innersolve(
-    solver::MCCFR{N, T}, 
-    gs::GameState, 
-    g::Game{FullTraining, U},
+    solver::MCCFR{A, T}, 
+    gs::GameState{A, 2, Game{FullTraining}}, 
+    g::Game{FullTraining},
     data::SharedData,
-    h::History{N, T}, 
-    pl::PlayerState) where {T<:AbstractFloat, U<:GameMode}
+    h::History{A, T}, 
+    pl::PlayerState) where {T<:AbstractFloat, A}
+
+    #todo: handle ended and terminated states!
+    # get utility on ended state
+
+    state = gs.state
+
+    if state == ENDED_ID
+        #todo return utility
+        return
 
     util = Float32(0)
 
@@ -66,12 +75,13 @@ function innersolve(
         data.public_cards)
     )
 
-    p = solver.probs[id(ply)]
-
-    stg = updatestrategy!(info, gs, g, p)
+    stg = updatestrategy!(
+        info, 
+        gs, g, 
+        solver.probs[id(ply)])
     
-    # todo: use static arrays instead of caching utils...
-    utils = h.utils
+    # use static array to avoid heap allocations
+    utils = SVector{A, T}(zeros(A))
 
     i = 1
     ply = gs.player
@@ -80,11 +90,10 @@ function innersolve(
     actions = actions!(g)
 
     if pl == ply
-        # perform all actions
         # todo: spawn thread of each action!
         for a in actions
             if action_mask[i] == 1
-                ha = history(h, a.id, utils, n)
+                ha = history(h, a.id, n)
                 
                 game_state = ha.game_state
                 
@@ -97,8 +106,8 @@ function innersolve(
                 ut = innersolve(
                     solver, 
                     game_state,
-                    g, data, ha, 
-                    pl)
+                    g, data, 
+                    ha, pl)
                 
                 utils[i] = ut
                 util += stg[i] * ut
@@ -114,9 +123,14 @@ function innersolve(
         
         i = 1
 
+        pos = id(ply)
+        
+        #opponent reach probability
+        rp = solver.probs[pos + @fastmath (-1)^(pos-1)]
+
         for _ in actions
-            if g.actions_mask[i] == 1
-                info.cum_regret[i] += p * utils[i] - util
+            if action_mask[i] == 1
+                info.cum_regret[i] += rp * (utils[i] - util)
             end
             
             i += 1
@@ -131,7 +145,7 @@ function innersolve(
             action_mask, 
             solver.epsilon)]
 
-        ha = history(h, a.id, utils, n)
+        ha = history(h, a.id, n)
 
         game_state = ha.game_state
 
@@ -142,8 +156,8 @@ function innersolve(
         return innersolve(
             solver,
             game_state,
-            g, data, ha,
-            pl)
+            g, data, 
+            ha, pl)
     end
 
 end
@@ -151,8 +165,8 @@ end
 function solving.solve(
     solver::MCCFR{T}, 
     gs::GameState, 
-    g::Game{FullTraining, U}, 
-    itr::Iteration) where {T<:AbstractFloat, U<:GameMode}
+    g::Game{FullSolving}, 
+    itr::Iteration) where {T<:AbstractFloat}
 
     data = shared(g)
     n = g.num_actions
@@ -182,8 +196,7 @@ end
 function solving.solve(
     solve::MCCFR{T},
     gs::GameState,
-    g::Game{DepthLimited, U}) where {T<:AbstractFloat, U<:GameMode}
-
+    g::Game{DepthLimitedSolving}) where {T<:AbstractFloat}
     
 
 end

@@ -11,8 +11,10 @@ function main()
     println("Starting Heads up game!")
     parsed_args = parse_commandline()
 
+    #start two player game.
+
     start(
-        HeadsUp(),
+        Val(2),
         parsed_args["server_url"],
         parsed_args["small_blind"],
         parsed_args["big_blind"],

@@ -59,12 +59,6 @@ abstract type GameMode  end
 struct Full <: GameLength
 end
 
-struct DepthLimited{T<:Estimation} <: GameLength
-    limit::UInt8
-    estimation::T # method for estimating utility (NN, MC Rollouts...)
-end
-
-
 
 abstract type GameSetup end
 
@@ -126,12 +120,12 @@ abstract type AbstractGameState end
 
 # todo: small blind and big blinds can change throughout a game
 # move them to the game
-mutable struct Game{T<:GameSetup, U<:GameMode} <: AbstractGame
+mutable struct Game{T<:GameSetup} <: AbstractGame
     players::Vector{Player} #mapping of players
     main_player::Player
 
     game_setup::T
-    game_mode::U
+    
     shared_state::SharedData
 
     num_rounds::UInt8
@@ -148,7 +142,7 @@ end
 
 #tracks game state.
 
-mutable struct GameState{N, T<:AbstractGame} <: AbstractGameState
+mutable struct GameState{A, P, T<:AbstractGame} <: AbstractGameState
     state::UInt8
 
     action::Action
@@ -157,8 +151,8 @@ mutable struct GameState{N, T<:AbstractGame} <: AbstractGameState
     prev_player::PlayerState
     bet_player::PlayerState
 
-    players_states::Vector{PlayerState}
-    actions_mask::SVector{N, Bool}
+    players_states::SizedArray{P, PlayerState}
+    actions_mask::MVector{A, Bool}
 
     active_players::UInt8 # players that have not folded
     round::UInt8
@@ -232,6 +226,7 @@ end
 @inline numplayers!(g::Game) = numplayers!(gamemode!(g))
 @inline numplayers!(gs::GameState) = numplayers!(gs.game)
 
+@inline actions!(g::AbstractGame) = g.actions
 @inline actions!(g::Game) = g.actions
 @inline actions!(gs::GameState) = actions!(game!(gs))
 

@@ -76,8 +76,8 @@ struct Action
     blind_multiplier::Float32
 end
 
-mutable struct ActionSet
-    actions::Vector{Action}
+mutable struct ActionSet{N}
+    actions::SizedVector{N, Action}
     mapping::Dict{Action, Action}
     ActionSet(actions) = new(sort!(actions), _createmapping(actions))
 

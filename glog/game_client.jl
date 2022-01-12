@@ -3,6 +3,7 @@ module game_client
 using Random
 
 using ArgParse
+using StaticArrays
 
 using games
 using cards
@@ -174,15 +175,15 @@ end
 end
 
 function start(
-    gm::T, 
+    ::Val{N},
     server_url::String, 
     small_blind::Float32, 
     big_blind::Float32, 
-    chips::UInt32) where T <: GameMode
+    chips::UInt32) where {N, A}
 
     client = PokerServiceBlockingClient(server_url)
 
-    game = Game{LiveGame, T}()
+    game = Game{N, LiveGame}()
     game_setup = LiveGame(client, 0, 0, 0)
     
     game.game_setup = game_setup
@@ -219,7 +220,7 @@ function start(
     
     #TODO: a strategy should be a "bundle" with action set etc.
 
-    action_set = ActionSet([
+    action_set = ActionSet{11}([
         CALL,
         FOLD,
         ALL,
@@ -233,9 +234,12 @@ function start(
         Action(BET_ID, 1, 4)]
     )
 
-    lgs = GameState{length(action_set), Game{LiveGame, T}}()
+    lgs = GameState{
+        length(action_set), 
+        N, 
+        Game{N, LiveGame}}()
 
-    lgs.actions_mask = @SVector [trues(length(action_set))]
+    lgs.actions_mask = MVector{11, Bool}(trues(A))
     
     lgs.game = game
 
@@ -247,7 +251,7 @@ function start(
     num_players = gm.num_players
 
     players_vec = Vector{Player}(undef, num_players)
-    players_states = Vector{PlayerState}(undef, num_players)
+    players_states = SizedVector{N, PlayerState}(undef)
     private_cards = Vector{Vector{UInt64}}(undef, num_players)
     public_cards = Vector{UInt64}()
 
