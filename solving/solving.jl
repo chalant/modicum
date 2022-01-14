@@ -1,6 +1,5 @@
-include("tree.jl")
-include("games/playing.jl")
-include("abstraction/filtering.jl")
+include("infosets.jl")
+include("../abstraction/filtering.jl")
 
 using .tree
 using .games

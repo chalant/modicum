@@ -10,8 +10,8 @@ export distributecards!
 export rotateplayers!
 export betamount
 export update!
-export _postblinds!
 export postblinds!
+export _postblinds!
 
 export callamount
 
@@ -161,24 +161,36 @@ end
     return pot
 end
 
-function _notlastround!(gs::GameState)
+function _notlastround!(gs::GameState{A, P, Game{T}}) where {A, P, T<:GameSetup}
     # game did not go to the last round => all except one player
     # have folded
+    
+    results = @MVector zeros(Float32, P)
+    
+    i = 0
     states = gs.players_states
     #give all the chips to the only active player
+
     for ps in states
+        i += 1
+        
         if ps.active == true
             amt = _computepotentialearning!(states, ps)
 
             ps.chips += amt
+            
+            results[players.id(ps)] = amt
 
             println(
             "Winner! ", players.id(ps),
             " Amount ", amt,
             " Total Chips ", ps.chips)
-
+        
+        else
+            amt = -ps.total_bet
+            results[players.id(ps)] = amt
+            ps.chips += amt
         end
-
 
         ps.pot = 0
         ps.bet = 0
@@ -189,7 +201,7 @@ function _notlastround!(gs::GameState)
     gs.pot_size = 0
 
     bb = bigblind(gs)
-    n = numplayers!(gs)
+    n = P
 
     # count remaining players
     for ps in states
@@ -210,11 +222,7 @@ function _notlastround!(gs::GameState)
         gs.state = TERM_ID
     end
 
-#     if g.round >= 2
-#         _revertplayersorder!(g.run_mode, states)
-#     end
-
-    return gs.state
+    return winners
 
 end
 
@@ -227,19 +235,26 @@ end
     return shared(g)
 end
 
-@inline function _lastround!(gs::GameState)
+@inline function _lastround!(gs::GameState{A, P, Game{T}}) where {A, P, T<:GameSetup}
     #called when the game has reached the last round
+    
+    results = @MVector zeros(Float32, P)
+    ranks = @MVector fill(MAX_RANK + 1, P)
+    
     data = updateprivatecards!(gs, gs.game)
 
     best_rk = MAX_RANK + 1
 
     states = gs.players_states
 
+    i = 1
     #evaluate players hand ranks
     for ps in states
+        i += 1
+        
         if ps.active == true
             rank = evaluate(data.private_cards[players.id(ps)], data.public_cards)
-            ps.rank = rank
+            ranks[i] = rank 
             if rank < best_rk
                 best_rk = rank
             end
@@ -248,10 +263,12 @@ end
 
 
     w = 0 # total winners
-    htb = 0 # highest total bet
 
-    for ps in states
-        if ps.rank == best_rk
+    i = 1
+
+    for _ in 1:P
+        i += 1
+        if ranks[i] == best_rk
             w += 1
         end
 
@@ -260,34 +277,51 @@ end
     #todo: if there are two winners, select the player with the highest second private card
     claimed_amt = 0
     #distribute earnings to the winners
+    i = 1
+
+    #fixme: check earnings calculations
+    
     for ps in states
-        if ps.active == true && ps.rank == best_rk
+        i += 1
 
-            #player receives the amount proportional to the potential gains he might make
-            earnings = _computepotentialearning!(states, ps)
+        rank = ranks[i]
 
-            if earnings >= gs.pot_size
-                amt = (earnings ^ 2) / (gs.pot_size * w)
-            else
-                amt = earnings
+        earnings = _computepotentialearning!(states, ps)
+        
+        if earnings >= gs.pot_size
+            amt = (earnings ^ 2) / (gs.pot_size * w)
+        else
+            amt = earnings
+        end
+
+        if ps.active == true && rank == best_rk
+
+            if rank == best_rk
+                #player receives the amount proportional to the potential gains he might make
+                println("Earnings ", earnings)
+                println("Pot ", gs.pot_size)
+
+                claimed_amt += amt
+                ps.chips += amt
+
+                ps.pot = 0
+                ps.total_bet = 0
+
+                results[players.id(ps)] = amt
+                
+                println(
+                    "Winner: ", players.id(ps),
+                    " Amount: ", amt,
+                    " Total Chips: ", ps.chips,
+                    " Cards: ", pretty_print_cards(data.private_cards[players.id(ps)]),
+                    " ", pretty_print_cards(data.public_cards))
+            
+            elseif rank > best_rk
+                results[players.id(ps)] = -1 * amt
             end
 
-            println("Earnings ", earnings)
-            println(" Pot ", gs.pot_size)
-
-            claimed_amt += amt
-            ps.chips += amt
-
-            ps.pot = 0
-            ps.total_bet = 0
-
-            println(
-            "Winner: ", players.id(ps),
-            " Amount: ", amt,
-            " Total Chips: ", ps.chips,
-            " Cards: ", pretty_print_cards(data.private_cards[players.id(ps)]),
-            " ", pretty_print_cards(data.public_cards))
-
+        else ps.active == false
+            results[players.id(ps)] = -1 * ps.total_bet
         end
 
         ps.bet = 0
@@ -295,7 +329,7 @@ end
     end
 
     bb = bigblind(gs)
-    n = length(states)
+    n = P
     bp = countbetplayers!(states)
 
     # give back unclaimed chips
@@ -307,7 +341,9 @@ end
 
         if ps.pot != 0
             if gs.pot_size - claimed_amt > 0
-                ps.chips += ((_computepotentialearning!(states, ps) - claimed_amt) ^ 2) / ((gs.pot_size - claimed_amt) * df)
+                amt = ((_computepotentialearning!(states, ps) - claimed_amt) ^ 2) / ((gs.pot_size - claimed_amt) * df)
+                ps.chips += amt
+                results[players.id(ps)] += amt
             end
             ps.pot = 0
         end
@@ -337,25 +373,23 @@ end
 
 #     _revertplayersorder!(g.gm, g.players_states)
 
-    return gs.state
+    return results
 
 end
 
-@inline function update!(gs::GameState, g::Game)
-    #todo: instead of computing earnings here, delegate
-    # it to the client
-    if gs.state == ENDED_ID
-        if gs.round >= numrounds!(g)
-            # game has reached the last round
-            return _lastround!(gs)
-        else
-            # all players except one have folded
-            return _notlastround!(gs)
-        end
+@inline function showdown!(gs::GameState, g::Game)
+    if gs.round >= numrounds!(g)
+        # game has reached the last round
+        return _lastround!(gs)
     else
-        return gs.state
+        # all players except one have folded
+        return _notlastround!(gs)
     end
+end
 
+@inline function update!(gs::GameState, g::Game)
+    showdown!(gs, g)
+    return gs.state
 end
 
 @inline function rotateplayers!(pls::SVector{N, PlayerState}, bb::AbstractFloat)

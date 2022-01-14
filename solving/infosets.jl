@@ -14,14 +14,14 @@ struct Node{N, T<:AbstractFloat}
     util::T
 end
 
-struct History{T<:AbstractFloat}
+struct History{T<:GameState}
     infosets::Dict{UInt64, Node}
     histories::Dict{UInt8, History}
     num_actions::UInt8
-    game_state::GameState # history keeps a reference to a game state data
+    game_state::T # history keeps a reference to a game state data
 end
 
-History(n::UInt8, gs::GameState) = History(
+History(n::UInt8, gs::T) where T<:GameState = History(
     Dict{UInt64, Node}(), 
     Dict{Int64, History}(), 
     n, gs)
@@ -44,21 +44,21 @@ function history(h::History, action::UInt8, num_actions::Int)
 end
 
 function history(
-    h::History, 
-    action::UInt8, 
-    num_actions::UInt8)
+    h::History{T}, 
+    action_idx::UInt8, 
+    num_actions::UInt8) where T<:GameState
     
     hist = h.histories
-    if haskey(hist, action)
-        return hist[action]
+    if haskey(hist, action_idx)
+        return hist[action_idx]
     else
-        hst = History{A}(
+        hst = History{T}(
             Dict{UInt64, Node}(), 
-            Dict{UInt8, History}(), 
+            Dict{UInt8, History{T}}(), 
             num_actions,
-            GameState())
+            T())
 
-        hist[action] = hst
+        hist[action_idx] = hst
         
         return hst
 

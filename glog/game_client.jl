@@ -234,12 +234,9 @@ function start(
         Action(BET_ID, 1, 4)]
     )
 
-    lgs = GameState{
-        length(action_set), 
-        N, 
-        Game{N, LiveGame}}()
+    lgs = GameState{A, N, Game{LiveGame}}()
 
-    lgs.actions_mask = MVector{11, Bool}(trues(A))
+    lgs.actions_mask = @MVector ones(Bool, A)
     
     lgs.game = game
 
@@ -299,7 +296,6 @@ function start(
         players_vec[p] = ply
         players_states[p] = st
 
-        st.rank = Int16(7463)
         private_cards[p] = Vector{UInt64}()
     end
 
@@ -444,7 +440,8 @@ function start(
             current_player.action = opp_action.id
         end
 
-        state_id = update!(lgs, game)
+        # #we compute winner here!
+        # state_id = update!(lgs, game)
 
         #todo: we need to implement a special initialization step for games modes...
         
@@ -460,6 +457,8 @@ function start(
             # we can quit any time at the end of a game.
             # maybe wait for server input... and call IsReady
             
+            winner = computewinner!(lgs, g)
+
             #reset some game state variables
             lgs.round = 0
             lgs.last_bet = 0

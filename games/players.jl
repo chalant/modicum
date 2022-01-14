@@ -30,7 +30,6 @@ mutable struct PlayerState <: ID
     total_bet::Float32 # player game total bet
     pot::Float32 # player potential gain in case of a win
     active::Bool
-    rank::UInt16 # player card rank
     action::UInt8
 
     player:: Player
