@@ -31,20 +31,17 @@ end
 end
 
 @inline function updatestrategy!(
-    info_set::Node, 
-    actions_mask::MVector{A, Bool}) where A
+    cum_regrets::StaticVector{A, T}, 
+    actions_mask::StaticVector{A, Bool}) where {T <: AbstractFloat, A}
 
-    st = info_set.stg_profile
+    st = @MVector zeros(T, A)
 
     for i in 1:A
         if actions_mask[i] == 1
-            cr = info_set.cum_regret[i]
+            cr = cum_regrets[i]
             r = cr > 0 ? cr : 0
             st[i] = r
             norm += r
-        else
-            st[i] = 0 # unavailable action
-        end
     end
 
     return st
@@ -56,7 +53,7 @@ end
     utils::MVector{A, T},
     node_utils::MVector{A, T}) where {T<:AbstractFloat, A, P}              
     
-    ha = history(h, action_idx, n)
+    ha = history(h, action_idx)
 
     game_state = ha.game_state
 
@@ -64,7 +61,7 @@ end
     copy!(game_state, gs)
 
     #perform action and update state of copy
-    perform!(a, game_state, gs.player)
+    perform!(a, game_state, game_state.player)
 
     stgi = stg[action_idx]
 
@@ -86,7 +83,7 @@ function innersolve(
     gs::GameState{A, 2, Game{FullTraining}}, 
     g::Game{FullTraining},
     data::SharedData,
-    h::History{A, T}, 
+    h::History{T}, 
     pl::PlayerState,
     p0::T,
     p1::T) where {T<:AbstractFloat, A}
@@ -204,8 +201,6 @@ function solving.solve(
         for pl in g.players
             shuffle!(data.deck)
             distributecards!(gs, g, data)
-
-            pos = players.id(ply)
             
             util += innersolve(
                 solver, 
@@ -213,8 +208,7 @@ function solving.solve(
                 data, 
                 h, pl, 
                 T(1), T(1))
-            
-            probs = solver.probs
+        
 
             putbackcards!(root, g, data)
         end

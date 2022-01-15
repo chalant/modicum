@@ -263,12 +263,4 @@ end
     copy!(dest.players_states, src.players_states)
 end
 
-@inline function Base.copy(shr::SharedData, pl::PlayerState)
-    return SharedData(
-        setdiff(shr.deck, shr.public_cards, privatecards(pl, shr)),
-        copy(shr.public_cards),
-        copy(shr.private_cards),
-        [false for _ in 1:length(shr.updated)])
-end
-
 end
