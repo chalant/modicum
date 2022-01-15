@@ -41,7 +41,6 @@ end
             cr = cum_regrets[i]
             r = cr > 0 ? cr : 0
             st[i] = r
-            norm += r
     end
 
     return st

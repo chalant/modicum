@@ -1,5 +1,6 @@
 using solver
 using StaticArrays
+using IterTools
 
 #todo: need a vectorized version 
 
@@ -12,17 +13,14 @@ function regretmatching(::CFRPlus, infoset::Node)
 end
 
 @inline function updatestrategy!(
-    cum_regrets::StaticVector{A, T}, 
-    actions_mask::StaticVector{A, Bool}) where {A, T <: AbstractFloat}
+    cum_regrets::StaticVector{N, T}) where {N, T <: AbstractFloat}
     
-    st = @MVector zeros(T, M)
+    st = @MVector zeros(T, N)
 
-    for a in 1:A
-        if actions_mask[a] == 1
-            cr = cum_regrets[a]
-            r = cr > 0 ? cr : 0
-            st[a] = r
-            norm += r
+    for i in 1:N
+        cr = cum_regrets[i]
+        r = cr > 0 ? cr : 0
+        st[i] = r
     end
 
     return st
@@ -53,13 +51,15 @@ function innersolve(
     #node... h.utils we could also store ev in h, to avoid using
     # too much memory... this should be safe since we only use the previous history...
 
-    #use a vector to avoid heap allocations
-    utils = @MVector zeros(T, N * A)
-
     if pl == ps.player
+        n_actions = sum(actions_mask)
+        
         for a in actions
-            if actions_mask[a.id] == 1
-                ha = history(h, a.id)
+            #todo: create multiple threads
+            i = a.id
+
+            if actions_mask[i] == 1
+                ha = history(h, i)
 
                 game_state = ha.game_state
 
@@ -67,38 +67,39 @@ function innersolve(
 
                 perform!(a, game_state, game_state.player)
 
-                i = 1
+                utils = innersolve(solver, gs, g, data, h, pl, opp_probs)
 
-                for u in innersolve(solver, gs, g, data, h, pl, opp_probs)
-                    utils[i] = u
-                    i += 1
+                #update strategy for all hands for one action
+                
+                cum_regrets = info_set.cum_regrets
+
+                cr_vector = view(cum_regrets, :, i)
+
+                for j in 1:N
+                    #this could be cached...
+                    #but could use too much memory... trade-off
+                    #shoulndn't take too long since we don't have a lot of actions
+
+                    norm = sum(view(cum_regrets, j, :))
+
+                    cr = cr_vector[j]
+                    r = cr > 0 ? cr : 0
+                    u = utils[j]
+                    
+                    ev[i] += norm > 0 ? r/norm * u : 1/n_actions
+                    
+                    cr += u
+                    cr_vector[j] = max(cr, 0)
                 end
-            end
 
-        end
-
-        for i in 1:N
-            stg = updatestrategy!(info_set.cum_regrets[i], actions_mask)
-            
-            for a in actions
-                idx = a.id
-                ev[i] += stg[idx] * utils[(i-1) * A + idx] * actions_mask[idx]
-            end
-        end
-
-        cum_regrets = info_set.cum_regets
-
-        for a in actions
-            idx = a.id
-            am = actions_mask[idx]
-            
-            for i in 1:N
-                cr = cum_regrets[i][idx]
-                cr += am * utils[(idx-1) * N + i]
-                cum_regrets[i][idx] = maximum(cr, 0)
             end
         end
     else
+        cum_strategy = info_set.cum_strategy
+
+        for a in actions
+            
+        end
 
     end
 
