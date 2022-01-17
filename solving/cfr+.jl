@@ -96,7 +96,7 @@ function innersolve(
                 cs_vector = view(cum_strategy, :, i)
 
                 #total reach probability
-                ps = Float32(0)
+                ps = T(0)
 
                 for j in 1:N
                     p = opp_probs[j]
