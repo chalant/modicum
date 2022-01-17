@@ -57,17 +57,18 @@ end
 
 @inline function weightedsample!(
     strategy::Vector{T},
-    action_mask::Vector{T})
+    action_mask::Vector{T},
+    rn::T) where T <: AbstractFloat
 
     n = length(wv)
     i = 1
     
-    cw = Float32(0)
+    cw = T(0)
 
     while i < n
         @inbounds cw += strategy[i] * action_mask[i]
 
-        if t < cw
+        if rn < cw
             break
         end
 
@@ -88,7 +89,7 @@ end
     t = rand(Float32)
 
     if t >= epsilon
-        return weightedsample!(strategy, action_mask)
+        return weightedsample!(strategy, action_mask, t)
     else
         return randomsample!(action_mask)
     end

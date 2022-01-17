@@ -6,22 +6,16 @@ export History
 export infoset
 export history
 
-abstract type AbstractInfoset end
-
 struct Node{T<:AbstractArray}
     cum_strategy::T # cumulative strategy
     cum_regret::T #cumulative regret
 end
 
-struct History{T<:GameState, U<:AbstractInfoSet}
-    infosets::Dict{UInt64, Node}
-    histories::Dict{UInt8, History}
+struct History{T<:GameState, U<:Node}
+    infosets::Dict{UInt64, U}
+    histories::Dict{UInt8, History{T, U}}
     game_state::T # history keeps a reference to a game state data
 end
-
-History(gs::T) where T<:GameState = History(
-    Dict{UInt64, Node}(), 
-    Dict{Int64, History}(), gs)
 
 function infoset(::Type{T}, h::History, key::UInt64) where T<:AbstractArray
     info = h.infosets
@@ -52,24 +46,18 @@ function createinfoset(::MMatrix{N, M, T}) where {N, M, T<:AbstractFloat}
     return Node{MMatrix{N, M, T}}(@MMatrix zeros(T, N, M), @MMatrix zeros(T, N, M), @MMatrix zeros(T, N, M))
 end
 
-function history(h::History, action::UInt8, num_actions::Int)
-    return history(h, action, num_actions)
-end
-
 function history(
-    h::History{T}, 
-    action_idx::UInt8, 
-    num_actions::UInt8) where T <: GameState
+    h::History{T, Node{U}}, 
+    action_idx::UInt8) where {T <: GameState, U <: AbstractArray}
     
     hist = h.histories
     
     if haskey(hist, action_idx)
         return hist[action_idx]
     else
-        hst = History{T}(
-            Dict{UInt64, Node}(), 
-            Dict{UInt8, History{T}}(), 
-            num_actions,
+        hst = History{T, Node{U}}(
+            Dict{UInt64, Node{U}}(), 
+            Dict{UInt8, History{T, Node{U}}}(), 
             T())
 
         hist[action_idx] = hst

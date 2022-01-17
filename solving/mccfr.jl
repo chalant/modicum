@@ -10,7 +10,7 @@ using playing
 using players
 using iterationstyles
 
-struct MCCFR{N, T<:AbstractFloat} <: Solver
+struct MCCFR{T<:AbstractFloat} <: Solver
     epsilon::T 
 end
 
@@ -41,16 +41,20 @@ end
             cr = cum_regrets[i]
             r = cr > 0 ? cr : 0
             st[i] = r
+        end
     end
 
     return st
 end
 
 @inline function solveforaction!(
+    a::Action,
     h::History, 
     action_idx::UInt8,
-    utils::MVector{A, T},
-    node_utils::MVector{A, T}) where {T<:AbstractFloat, A, P}              
+    utils::SizedVector{A, T},
+    node_utils::SizedVector{A, T},
+    cum_regrets::SizedVector{A, T},
+    norm::T) where {T<:AbstractFloat, A, P}              
     
     ha = history(h, action_idx)
 
@@ -62,18 +66,22 @@ end
     #perform action and update state of copy
     perform!(a, game_state, game_state.player)
 
-    stgi = stg[action_idx]
+    cr = cum_regrets[action_idx]
+
+    stg = cr > 0 ? cr/norm : 0
+
+    cr += p1 * (utils[i] - util)
 
     ut = innersolve(
         solver, 
         game_state,
         g, data, 
         ha, pl, 
-        p0*stgi,
+        p0*stg,
         p1)
 
     utils[action_idx] = ut
-    node_utils[action_idx] = stgi * ut
+    node_utils[action_idx] = stg * ut
 
 end
 
@@ -95,7 +103,7 @@ function innersolve(
         return showdown!(gs)[players.id(pl)]
     end
 
-    util = Float32(0)
+    util = T(0)
 
     info = infoset(
         h,
@@ -104,14 +112,17 @@ function innersolve(
     )
 
     action_mask = actionsmask!(gs)
+    n_actions = T(sum(action_mask))
 
-    stg = updatestrategy!(
-        info, 
-        action_mask)
+    cum_regrets = info.cum_regrets
     
-    # use static array to avoid heap allocations
-    utils = @MVector zeros(T, A)
-    node_utils = @MVector zeros(T, A)
+    norm = T(0)
+
+    for cr in cum_regrets
+        norm += cr > 0 ? cr : 0
+    end
+
+    norm = norm > 0 ? norm : n_actions
 
     ply = gs.player
 
@@ -119,40 +130,76 @@ function innersolve(
     actions = actions!(g)
 
     if pl == ply
+        # use static array to avoid heap allocations
+        utils = @MVector zeros(T, A)
+        node_utils = @MVector zeros(T, A)
+        
         #solve in different threads 
         #(note: this will recursively spawn threads 
         #until there are no more threads...)
         
-        @sync for a in actions
-            idx = a.id
-            
-            if action_mask[idx] == 1
+        @sync for (i, (a, am)) in enumerate(zip(actions, action_mask))
+            if am == 1
                 Threads.@spawn solveforaction!(
+                    a,
                     h, 
-                    idx, 
+                    i,
                     utils, 
-                    node_utils)
+                    node_utils,
+                    cum_regrets,
+                    norm)
             end
         end
-
         # update regrets
         util = sum(node_utils)
 
-        for i in 1:A
-            info.cum_regret[i] += action_mask[i] * p1 * (utils[i] - util)
+        for (i, am) in enumerate(action_mask)
+            cum_regrets[i] += am * p1 * (utils[i] - util)
         end
 
         return util
+    
+    cum_stg = info.cum_strategy
+    
+    rn = rand()
+    cw = T(0)
+    idx = UInt8(1)
+    j = UInt8(1)
 
-    #sample opponent action...
-    idx = epsilongreedysample!(
-        stg, 
-        action_mask, 
-        solver.epsilon)
+    sampled = false
+    s = T(0)
+
+    e = solver.epsilon
+
+    # update cumulative strategy and sample random action
+
+    for (i, am) in enumerate(action_mask)
+        cr = cum_regrets[i]
+        stg = cr > 0 ? cr/norm : 0
+
+        cum_stg[i] += p1 * stg * am
+
+        if sampled == false
+            if rn < e
+                cw += nr * stg * am
+            else
+                cw += am / n_actions
+            end
+
+            if rn < cw
+                idx = j
+                s = stg
+                sampled = true
+            end
+
+            j += 1
+        end
+
+    end
     
     a = actions[idx]
 
-    ha = history(h, a.id, n)
+    ha = history(h, a.id)
 
     game_state = ha.game_state
 
@@ -160,17 +207,13 @@ function innersolve(
 
     perform!(a, game_state, gs.player)
     
-    #todo: why are we updating the strategy when it is the opponent?
-    strategysum!(stg, action_mask, 1)
-    
-    #todo reach probabilities!! we need 2!!!
     return innersolve(
         solver,
         game_state,
         g, data, 
         ha, pl,
         p0, 
-        p1 * stg[idx])
+        p1 * s)
 end
 
 end
@@ -185,12 +228,12 @@ function solving.solve(
     n = g.num_actions
 
     #todo: one util per player?
-    util = Float32(0)
+    util = T(0)
     
     #todo: maybe use an internal SVector instead of MVector
 
     #initial history
-    h = History(n, gs, zeros(Float32, n))
+    h = History(n, gs, zeros(T, n))
     
     for _ in itr
         #sample public and private cards
