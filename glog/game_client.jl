@@ -110,9 +110,17 @@ end
     
     response, future = PokerClients.GetBoardCards(stp.client, request)
 
+    i = 1
+    board = data.public_cards
+    mask = data.pbl_cards_mask
+
     for card in fromcardsdata(response)
-        push!(data.public_cards, card)
+        board[i] = card
+        mask[i] = 1
+
         data.deck_cursor -= 1
+
+        i += 1
     end
 
     println("Public Cards:", pretty_print_cards(data.public_cards))

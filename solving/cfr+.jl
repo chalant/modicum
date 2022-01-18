@@ -31,6 +31,7 @@ function innersolve(
 
         #showdown against each possible combination of opponent private cards
 
+        #todo: get opponent private cards combinations
         for (i, opp_pc) in enumerate(combination())
             ev[i] = showdown!(gs, g, pl, mpc_rank, opp_pc)
         end
@@ -41,7 +42,8 @@ function innersolve(
         MMatrix{N, A, T},
         h, 
         key(privatecards(pl, data)), 
-        data.public_cards)
+        data.public_cards,
+        data.pbl_cards_mask)
     
     actions = actions!(g)
     actions_mask = actionsmask!(gs)

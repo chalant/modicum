@@ -507,11 +507,28 @@ end
 
 @inline function setpubliccards!(gs::GameState, g::Game{T}) where {T <: GameSetup}
     data = shared(g)
+    
+    deck = data.deck
+    board = data.public_cards
+    burned = data.burned
+    mask = data.pbl_cards_mask
+
+    cursor = data.deck_cursor
+
+    
+    #burn card
+    push!(burned, pop!(deck))
 
     for i in 1:g.cards_per_round[gs.round]
-        push!(data.public_cards, pop!(data.deck))
-        data.deck_cursor -= 1
+        board[i] = pop!(data.deck)
+        mask[i] = 1 #mark public card as visible
+        
+        push!(data.public_card, pop!(data.deck))
+        
+        cursor -= 1
     end
+
+    data.deck_cursor = cursor
 
     return data
 
@@ -746,7 +763,16 @@ function putbackcards!(
     end
 
     append!(data.deck, data.public_cards)
-    empty!(data.public_cards)
+    append!(data.deck, data.burned)
+    
+    mask = data.pbl_cards_mask
+
+    #hide public cards
+    for i in eachindex(mask)
+        mask[i] = 0
+    end
+    
+    empty!(data.burned)
 end
 
 @inline function _start!(

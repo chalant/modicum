@@ -97,19 +97,20 @@ const ENDED = State(ENDED_ID)
 const TERM = State(TERM_ID)
 
 #mutable shared data
-mutable struct SharedData
+mutable struct SharedData{P, C, B}
 
     sb::Float32
     bb::Float32
 
     #updated once per round
     deck::Vector{UInt64}
-    public_cards::Vector{UInt64}
-    private_cards::Vector{Vector{UInt64}}
+    burned::Vector{UInt64}
+    public_cards::MVector{B, UInt64}
+    pbl_cards_mask::MVector{B, Bool}
+    private_cards::SizedVector{P, MVector{C, UInt64}}
 
     deck_cursor::UInt8 # tracks position on deck
 #     g::Game{T,U}# tracks root game
-    updates::Vector{Bool}
 
     SharedData()= new()
 

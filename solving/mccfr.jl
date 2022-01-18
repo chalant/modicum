@@ -106,9 +106,11 @@ function innersolve(
     util = T(0)
 
     info = infoset(
+        MVector{A, T},
         h,
         key(privatecards(pl, data), 
-        data.public_cards)
+        data.public_cards,
+        data.pbl_cards_mask)
     )
 
     action_mask = actionsmask!(gs)

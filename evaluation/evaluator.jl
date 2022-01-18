@@ -8,6 +8,7 @@ include("combinations.jl")
 
 # using IterTools
 using Reexport
+using StaticArrays
 
 using cards
 
@@ -23,7 +24,7 @@ const CONCAT = Dict{Int64, Vector{UInt64}}(
     7 => Vector{UInt64}(undef, 7)
 )
 #pre-allocate combinations
-const COMBOS = subsets(UInt64, 5)
+const COMBOS = subsets(Val(5), UInt64, MVector{5, UInt64})
 
 function five(
     hand::Vector{UInt64},
@@ -87,6 +88,80 @@ end
         # return minimum
         return minimum
     end
+end
+
+
+
+@inline function evaluate(
+    private_cards::StaticVector{2, T},
+    public_cards::StaticVector{5, T})
+
+    conc = @MVector zeros(UInt64, 7) 
+    
+    minimum = lookup.MAX_HIGH_CARD
+    # j = 0
+    for i in 1:length(COMBOS, 7)
+        #concatenate in place
+        concatenate!(conc, private_cards, public_cards)
+        
+        score = five(nextcombo!(conc, COMBOS), flush_lookup, unsuited_lookup)
+        
+        minimum = (score < minimum && i != 21) * score + (score >= minimum) * minimum
+        
+        # if score < minimum
+        #     # j = i
+        #     if i != 21
+        #         minimum = score
+        #     end
+        # end
+    end
+
+    reset!(COMBOS)
+
+    # if j != 21
+    #     return minimum
+    # else
+    #     #if the best hand does not include the private cards,
+    #     #the highest hand wins
+    #     return highest_card_score(private_cards)
+    # end
+    # return minimum
+    return minimum
+
+end
+
+@inline function evaluate(
+    private_cards::StaticVector{2, T},
+    public_cards::StaticVector{5, T},
+    mask::StaticVector{5, T}) where T <: Unsigned
+
+    l = sum(mask)
+
+    conc = @MVector zeros(T, l) 
+    
+    minimum = lookup.MAX_HIGH_CARD
+    # j = 0
+    for i in 1:length(COMBOS, l)
+        #concatenate in place
+        concatenate!(conc, private_cards, public_cards)
+        
+        score = five(nextcombo!(conc, COMBOS, mask), flush_lookup, unsuited_lookup)
+        
+        minimum = (score < minimum && i != 21) * score + (score >= minimum) * minimum
+    end
+
+    reset!(COMBOS)
+
+    # if j != 21
+    #     return minimum
+    # else
+    #     #if the best hand does not include the private cards,
+    #     #the highest hand wins
+    #     return highest_card_score(private_cards)
+    # end
+    # return minimum
+    return minimum
+
 end
 
 function evaluate(

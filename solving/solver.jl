@@ -2,6 +2,7 @@ module
 
 export epsilongreedysample!
 export limit!
+export key
 export DepthLimitedSolving
 export FullSolving
 
@@ -10,6 +11,8 @@ abstract type Solving end
 
 using playing
 using games
+using filtering
+using evaluator
 
 # todo add compression data to resources folder
 # filter for private cards
@@ -17,14 +20,25 @@ const PreFlopFilter = Filter(indexdata(
     IndexData, 
     "/resources/lossless/pre_flop"))
 
-@inline function key(pr::Vector{UInt64}, cc::Vector{UInt64})
+@inline function key(pr::MVector{P, UInt64}, pc::MVector{B, UInt64}) where {B, P}
     #returns a unique key for a combination of private and public hands
-    if length(cc) == 0
+
+    #if no public cards
+    if length(pc) == 0
         # return equivalent index (after compression)
         return filterindex(PreFlopFilter, pr)
     end
 
-    return evaluate(pr, cc)
+    return evaluate(pr, pc)
+end
+
+@inline function key(pr::MVector{P, UInt64}, pc::MVector{B, UInt64}, mask::MVector{B, Bool}) where {B, P}
+    if sum(mask) == 0
+        return filterindex(PreFlopFilter, pr)
+    end
+
+    return evaluate(pr, pc, mask)
+
 end
 
 @inline function randomsample!(wv::Vector{Bool})

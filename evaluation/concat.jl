@@ -2,11 +2,11 @@ module concat
 
 export concatenate!
 
-function concatenate!(
-    dest::Vector{UInt64},
-    l::Vector{UInt64},
-    r::Vector{UInt64},
-)
+@inline function concatenate!(
+    dest::StaticVector{N, T},
+    l::StaticVector{L, T},
+    r::StaticVector{R, T}) where T <: Any
+    
     i = 1
     for c in l
         dest[i] = c
