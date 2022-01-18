@@ -25,6 +25,16 @@ function innersolve(
         #with the utilities with respect to the main player.
         #if the main player wins the entry is positive, if the player
         # loses, the entry is negative, if it is a draw, it is null.
+        mpc = data.private_cards[players.id(pl)]
+
+        mpc_rank = evaluate(mpc, data.public_cards)
+
+        #showdown against each possible combination of opponent private cards
+
+        for (i, opp_pc) in enumerate(combination())
+            ev[i] = showdown!(gs, g, pl, mpc_rank, opp_pc)
+        end
+
     end
 
     info_set = infoset(
@@ -161,8 +171,13 @@ function solve(
         #then do a summation at the end of the loop.
         #problem: data is shared.
 
-        for p in stp.players
-            util += solve(solver, h, g, p)
+        for pl in stp.players
+            util += innersolve(
+                solver, 
+                gs, g, 
+                data, 
+                h, pl, 
+                opp_probs)
         end
     
     end

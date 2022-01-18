@@ -148,12 +148,9 @@ end
 
     for opp in pst
         bt = opp.total_bet
+        
+        pot += (amt < bt) * amt + (amt >= bt) * bt
 
-        if amt <= bt
-            pot += amt
-        else
-            pot += bt
-        end
     end
 
     ps.pot = pot
@@ -226,13 +223,32 @@ function _notlastround!(gs::GameState{A, P, Game{T}}) where {A, P, T<:GameSetup}
 
 end
 
-@inline function updateprivatecards!(gs::GameState, g::Game)
-    #this function is used to 
-    return shared(g)
+@inline function _lastround!(
+    gs::GameState{A, 2, Game{T}}, 
+    data::ShareData,
+    mp::PlayerState, 
+    mpc_rank::UInt64, 
+    opp_pc::SizedArray{2, UInt64}) where {A, T<:GameSetup}
+    
+    opp_rank = evaluate(opp_pc, data.public_cards)
+    best_rank = min(mpc_rank, opp_rank)
+
+    has_best_rk = mpc_rank == best_rank
+    
+    earnings = _computepotentialearning!(gs.players_states, mp)
+
+    return ((-(mpc_rank > best_rk)) + has_best_rk) * ((earnings >= gs.pot_size) * (earnings ^ 2) / (gs.pot_size * (1 + has_best_rk && opp_rank == best_rank))) + (earnings < gs.pot_size) * earnings
+    
 end
 
-@inline function updatepubliccards!(gs::GameState, g::Game)
-    return shared(g)
+@inline function _nlastround!(
+    gs::GameState{A, 2, Game{T}}, 
+    data::ShareData, 
+    mpc_rank::UInt64, 
+    opp_pc::SizedArray{2, UInt64})
+
+
+
 end
 
 @inline function _lastround!(gs::GameState{A, P, Game{T}}) where {A, P, T<:GameSetup}
@@ -251,27 +267,20 @@ end
     #evaluate players hand ranks
     for ps in states
         i += 1
-        
+
         if ps.active == true
             rank = evaluate(data.private_cards[players.id(ps)], data.public_cards)
+            
             ranks[i] = rank 
-            if rank < best_rk
-                best_rk = rank
-            end
+            best_rk = (rank < best_rk) * rank + (rank >= best_rk) * best_rk
         end
     end
 
 
     w = 0 # total winners
 
-    i = 1
-
-    for _ in 1:P
-        i += 1
-        if ranks[i] == best_rk
-            w += 1
-        end
-
+    for i in 1:P
+        w += ranks[i] == best_rk
     end
 
     #todo: if there are two winners, select the player with the highest second private card
@@ -287,42 +296,27 @@ end
         rank = ranks[i]
 
         earnings = _computepotentialearning!(states, ps)
+
+        amt = ((earnings >= gs.pot_size) * (earnings ^ 2) / (gs.pot_size * w)) + (earnings < gs.pot_size) * earnings
+
+        amt = ((-(rank > best_rk) && ps.active == true) + ((rank == best_rk) && ps.active == true)) * amt + (-1 * ps.active == false) * ps.total_bet
+
+        #player receives the amount proportional to the potential gains he might make
+
+        claimed_amt += amt
+        ps.chips += amt
+
+        ps.pot = !(ps.active == true && rank == best_rk) * ps.pot
+        ps.total_bet = 0
+
+        results[players.id(ps)] = amt
         
-        if earnings >= gs.pot_size
-            amt = (earnings ^ 2) / (gs.pot_size * w)
-        else
-            amt = earnings
-        end
-
-        if ps.active == true && rank == best_rk
-
-            if rank == best_rk
-                #player receives the amount proportional to the potential gains he might make
-                println("Earnings ", earnings)
-                println("Pot ", gs.pot_size)
-
-                claimed_amt += amt
-                ps.chips += amt
-
-                ps.pot = 0
-                ps.total_bet = 0
-
-                results[players.id(ps)] = amt
-                
-                println(
-                    "Winner: ", players.id(ps),
-                    " Amount: ", amt,
-                    " Total Chips: ", ps.chips,
-                    " Cards: ", pretty_print_cards(data.private_cards[players.id(ps)]),
-                    " ", pretty_print_cards(data.public_cards))
-            
-            elseif rank > best_rk
-                results[players.id(ps)] = -1 * amt
-            end
-
-        else ps.active == false
-            results[players.id(ps)] = -1 * ps.total_bet
-        end
+        println(
+            "Winner: ", players.id(ps),
+            " Amount: ", amt,
+            " Total Chips: ", ps.chips,
+            " Cards: ", pretty_print_cards(data.private_cards[players.id(ps)]),
+            " ", pretty_print_cards(data.public_cards))
 
         ps.bet = 0
 
@@ -355,12 +349,6 @@ end
         end
     end
 
-    #reset total bets
-    for ps in states
-        ps.total_bet = 0
-    end
-
-
     if n > 1
         gs.state = ENDED_ID
         gs.active_players = n
@@ -377,7 +365,27 @@ end
 
 end
 
+@inline function updateprivatecards!(gs::GameState, g::Game)
+    #this function is used to 
+    return shared(g)
+end
+
+@inline function updatepubliccards!(gs::GameState, g::Game)
+    return shared(g)
+end
+
 @inline function showdown!(gs::GameState, g::Game)
+    if gs.round >= numrounds!(g)
+        # game has reached the last round
+        return _lastround!(gs)
+    else
+        # all players except one have folded
+        return _notlastround!(gs)
+    end
+end
+
+@inline function showdown!(gs::GameState{A, 2, Game{T}}, g::Game{T}, mp::PlayerState, mpc_rank::UInt64, opp_pc::SizedArray{2, UInt64}) where T <: GameMode
+
     if gs.round >= numrounds!(g)
         # game has reached the last round
         return _lastround!(gs)
