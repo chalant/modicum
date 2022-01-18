@@ -9,13 +9,13 @@ struct CFRPlus{N, P, T<:AbstractFloat} <: Solver
 end
 
 function innersolve(
-    solver::CFRPlus{N, True, T}, 
+    solver::CFRPlus{N, true, T}, 
     gs::GameState{A, 2, Game{U}}, 
     g::Game{U}, 
     data::ShareData, 
     h::History{T},
     pl::PlayerState, 
-    opp_probs::MVector{N, T}) where {T<:AbstractFloat, U<:GameMode, N, P}
+    opp_probs::MVector{N, T}) where {T<:AbstractFloat, U<:GameMode, N}
 
     ev = @MVector zeros(T, N)
 
@@ -87,6 +87,7 @@ function innersolve(
             end
         end
     else
+
         cum_strategy = actions.cum_strategy
 
         for (i, (a, am)) in enumerate(zip(actions, actions_mask))
@@ -125,10 +126,6 @@ function innersolve(
                     
                     for j in 1:N
                         ev[j] += utils[j]
-                    end
-                else
-                    for j in 1:N
-                        ev[j] += 0
                     end
                 end
 
