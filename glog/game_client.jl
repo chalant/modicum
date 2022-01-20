@@ -191,12 +191,12 @@ function start(
 
     client = PokerServiceBlockingClient(server_url)
 
-    game = Game{N, LiveGame}()
+    game = Game{LiveGame, N, 3}()
     game_setup = LiveGame(client, 0, 0, 0)
     
     game.game_setup = game_setup
 
-    shared_data = SharedData()
+    shared_data = SharedData{N}()
 
     #todo: action set should also be provided when we launch the game (note should
     # correspond to the one we trained with)
@@ -217,7 +217,7 @@ function start(
     game.num_rounds = 4
     game.chips = chips
 
-    game.cards_per_round = Vector{UInt8}([UInt8(3), UInt8(1), UInt8(1)])
+    game.cards_per_round = @SVector [UInt8(3), UInt8(1), UInt8(1)]
 
     #todo: need an action set (which should be the same as the blueprint model)
     # otherwise the performance would probably not be the same.
@@ -239,8 +239,7 @@ function start(
         Action(BET_ID, 0, 1),
         Action(BET_ID, 0.5, 2),
         Action(BET_ID, 0.75, 3),
-        Action(BET_ID, 1, 4)]
-    )
+        Action(BET_ID, 1, 4)])
 
     lgs = GameState{A, N, Game{LiveGame}}()
 
@@ -255,9 +254,9 @@ function start(
 
     num_players = gm.num_players
 
-    players_vec = Vector{Player}(undef, num_players)
+    players_vec = SizedVector{N, Player}(undef)
     players_states = SizedVector{N, PlayerState}(undef)
-    private_cards = Vector{Vector{UInt64}}(undef, num_players)
+    private_cards = SizedVector{N}(Vector{UInt64}(undef, num_players))
     public_cards = Vector{UInt64}()
 
     active_players = 0

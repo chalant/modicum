@@ -13,11 +13,13 @@ function innersolve(
     gs::GameState{A, 2, Game{U}}, 
     g::Game{U}, 
     data::ShareData, 
-    h::History{T},
+    h::AbstractHistory{GameState{A, 2, Game{U}}, V, T, N},
     pl::PlayerState, 
-    opp_probs::MVector{N, T}) where {T<:AbstractFloat, U<:GameMode, N}
+    opp_probs::MVector{N, T}) where {N, T<:AbstractFloat, U<:GameMode, V <: StaticMatrix{N, A, T}}
 
-    ev = @MVector zeros(T, N)
+    #todo: problem N might be too big (>1000 elements), so we might need a cache
+    # so that we do not increment each time... cache the util vector in history...
+    ev = getutils(h)
 
     if gs.state == ENDED_ID
         #todo: loop over all possible opponent private cards
@@ -27,7 +29,7 @@ function innersolve(
         # loses, the entry is negative, if it is a draw, it is null.
         mpc = data.private_cards[players.id(pl)]
 
-        mpc_rank = evaluate(mpc, data.public_cards)
+        mpc_rank = evaluateterminal(mpc, data.public_cards)
 
         #showdown against each possible combination of opponent private cards
 
@@ -39,7 +41,7 @@ function innersolve(
     end
 
     info_set = infoset(
-        MMatrix{N, A, T},
+        V,
         h, 
         key(privatecards(pl, data)), 
         data.public_cards,
@@ -174,15 +176,17 @@ function solve(
         #problem: data is shared.
 
         for pl in stp.players
+            distributecards!(gs, g, data)
+            
             util += innersolve(
                 solver, 
                 gs, g, 
                 data, 
                 h, pl, 
                 opp_probs)
+            
+            putbackcards!(root, stp, data)
         end
-    
-    end
 
-    putbackcards!(root, stp, data)
+    end
 end

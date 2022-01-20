@@ -511,7 +511,6 @@ end
     deck = data.deck
     board = data.public_cards
     burned = data.burned
-    mask = data.pbl_cards_mask
 
     cursor = data.deck_cursor
 
@@ -519,11 +518,8 @@ end
     #burn card
     push!(burned, pop!(deck))
 
-    for i in 1:g.cards_per_round[gs.round]
-        board[i] = pop!(data.deck)
-        mask[i] = 1 #mark public card as visible
-        
-        push!(data.public_card, pop!(data.deck))
+    for _ in 1:g.cards_per_round[gs.round]        
+        push!(board, pop!(data.deck))
         
         cursor -= 1
     end
@@ -715,7 +711,7 @@ function distributecards!(
     end
 end
 
-function distributecards!(
+@inline function distributecards!(
     gs::GameState,
     g::Game,
     data::SharedData)
@@ -731,7 +727,7 @@ function distributecards!(
     end
 end
 
-function putbackcards!(
+@inline function putbackcards!(
     gs::GameState,
     g::Game{LiveSimulation},
     data::SharedData)
@@ -764,13 +760,6 @@ function putbackcards!(
 
     append!(data.deck, data.public_cards)
     append!(data.deck, data.burned)
-    
-    mask = data.pbl_cards_mask
-
-    #hide public cards
-    for i in eachindex(mask)
-        mask[i] = 0
-    end
     
     empty!(data.burned)
 end
@@ -913,11 +902,16 @@ end
 end
 
 @inline function _activateabstractbet(amt::Float32, ps::PlayerState)
-    if amt > ps.chips || amt == 0
-        return 0
-    end
+    # if amt > ps.chips || amt == 0
+    #     return 0
+    # end
 
-    return 1
+    # return 1
+
+    cond = amt > ps.chips || amt == 0
+
+    return cond * 0 + !cond * 1
+
 end
 
 @inline function _activatesmallblind(gs::GameState, ps::PlayerState)
@@ -929,19 +923,29 @@ end
 end
 
 @inline function _activateallin(gs::GameState, ps::PlayerState)
-    if ps.chips != 0
-        return 1
-    end
+    # if ps.chips != 0
+    #     return 1
+    # end
 
-    return 0
+    # return 0
+
+    cond = ps.chips != 0
+
+    return cond * 1 + !cond * 0
+
 end
 
 @inline function _activatecheck(gs::GameState, ps::PlayerState)
-    if ps.bet >= gs.last_bet
-        return 1
-    end
+    # if ps.bet >= gs.last_bet
+    #     return 1
+    # end
 
-    return 0
+    # return 0
+
+    cond = ps.bet >= gs.last_bet
+
+    return cond * 1 + !cond * 0
+
 end
 
 @inline function _activateaction(gs::GameState, ps::PlayerState)
@@ -950,27 +954,33 @@ end
 
 @inline function _activatefold(gs::GameState, ps::PlayerState)
     #the player can't fold if he's all-in
-    if ps.bet > 0 && ps.chips == 0
-        return 0
-    end
+    cond = ps.bet > 0 && ps.chips == 0
 
-    return 1
+    return cond * 0 + !cond * 1
+    
+    # if ps.bet > 0 && ps.chips == 0
+    #     return 0
+    # end
+
+    # return 1
 end
 
 @inline function _activatecall(gs::GameState, ps::PlayerState)
     # in case it is equal, then it will be an all-in
-    if ps.chips <= gs.last_bet
-        return 0
-    elseif ps.bet == gs.last_bet
-        return 0
-    end
+    cond = ps.chips <= gs.last_bet || ps.bet == gs.last_bet
+
+    # if ps.chips <= gs.last_bet || ps.bet == gs.last_bet
+    #     return 0
+    # end
+
+    return cond * 0 + !cond * 1
 
     return 1
 end
 
 @inline function _update!(
     acts::ActionSet,
-    ids::SVector{UInt8},
+    ids::Vector{UInt8},
     gs::GameState,
     ps::PlayerState)
 
@@ -1011,28 +1021,69 @@ end
     #update last element
     a = acts[ia]
 
-    if ids[l] == a.id
-        actions_mask[ia] = _activateaction!(a, gs, ps)
+    la = actions_mask[ia]
+    cd = ids[l] == a.id
+
+    actions_mask[ia] = cd * _activateaction!(a, gs, ps) + !cd*la
 #         c += 1
-    end
+
+    # if ids[l] == a.id
+    #     actions_mask[ia] = _activateaction!(a, gs, ps)
+    # #         c += 1
+    # end
 
 #     return c
 end
 
-@inline function update!(action::Action, gs::GameState, ps::PlayerState)
+@inline function update!(action::Action, gs::GameState{A, P, Game{T}}, ps::PlayerState) where {A, P, T <: GameSetup}
     id = action.id
+    
+    actions_mask = gs.actions_mask
 
-    if id == BET_ID || id == RAISE_ID || id == BB_ID
-        _update!(actions!(gs), ACTION_SET1, gs, ps)
-    elseif id == CALL_ID || id == FOLD_ID
-        _update!(actions!(gs), AFTER_CALL, gs, ps)
-    elseif id == CHECK_ID || id == CHANCE_ID
-        _update!(actions!(gs), ACTION_SET2, gs, ps)
-    elseif id == ALL_ID
-        _update!(actions!(gs), AFTER_ALL, gs, ps)
-    elseif id == SB_ID
-        _update!(actions!(gs), AFTER_SB, gs, ps)
+    #todo: maybe we should use a lookup table...
+
+    #todo: maybe pass a mask array where some elements are deactivated
+    # the mask is the size of the action set...
+
+    call_cond = id == BET_ID || id == RAISE_ID || id == BB_ID || id == CALL_ID || id == FOLD_ID || id == ALL_ID
+    check_cond = id == CHECK_ID || id == CHANCE_ID || id == CALL_ID || id == ALL_ID
+    fold_cond = call_cond || id == CHECK_ID
+    bet_cond = id == CHECK_ID || id == CHANCE_ID
+    raise_cond = id == BET_ID || id == CALL_ID || id == FOLD_ID
+    bb_cond = id == SB_ID
+
+    acts == actions!(gs)
+
+    for i in 1:A
+        a = acts[i]
+        id = a.id
+
+        actions_mask[ia] = (call_cond * id == CALL_ID + 
+            check_cond * id == CHECK_ID +
+            fold_cond * id == FOLD_ID +
+            bet_cond * id == BET_ID +
+            raise_cond * id == RAISE_ID +
+            fold_cond * id == ALL_ID +
+            bb_cond * id == BB_ID +
+            0 * id == SB_ID) * _activateaction!(acts[i], gs, ps)
+
     end
+
+    # if id == BET_ID || id == RAISE_ID || id == BB_ID
+    #     _update!(actions!(gs), ACTION_SET1, gs, ps)
+    # elseif id == CALL_ID || id == FOLD_ID
+    #     _update!(actions!(gs), AFTER_CALL, gs, ps)
+    # elseif id == CHECK_ID || id == CHANCE_ID
+    #     _update!(actions!(gs), ACTION_SET2, gs, ps)
+    # elseif id == ALL_ID
+    #     _update!(actions!(gs), AFTER_ALL, gs, ps)
+    # elseif id == SB_ID
+    #     _update!(actions!(gs), AFTER_SB, gs, ps)
+    # end
+
+    # for i in 1:A
+    #     actions_mask[ia] = mask[i] * _activateaction!(acts[i], gs, ps)
+    # end
 
     return gs.state
 end
@@ -1040,21 +1091,30 @@ end
 @inline function _activateaction!(a::Action, gs::GameState, ps::PlayerState)
     ai = a.id
 
-    if ai == CALL_ID
-        return _activatecall(gs, ps)
-    elseif ai == FOLD_ID
-        return _activatefold(gs, ps)
-    elseif ai == ALL_ID
-        return _activateallin(gs, ps)
-    elseif ai == RAISE_ID || ai == BET_ID
-        return _activateabstractbet(betamount(a, gs, ps), ps)
-    elseif ai == SB_ID
-        return _activateabstractbet(smallblindamount(gs, ps), ps)
-    elseif ai == BB_ID
-        return _activateabstractbet(bigblindamount(gs, ps), ps)
-    elseif ai == CHECK_ID
-        return _activatecheck(gs, ps)
-    end
+    return ((ai == CALL_ID) * _activatecall(gs, ps)) + 
+    ((ai == FOLD_ID) * _activatefold(gs, ps)) + 
+    ((ai == ALL_ID) * _activateallin(gs, ps)) +
+    ((ai == RAISE_ID || ai == BET_ID)) * _activateabstractbet(betamount(a, gs, ps), ps) +
+    ((ai == SB_ID) * _activateabstractbet(smallblindamount(gs, ps), ps)) +
+    ((ai == BB_ID) * _activateabstractbet(bigblindamount(gs, ps), ps)) +
+    ((ai == CHECK_ID)) * _activatecheck(gs, ps)
+    
+
+    # if ai == CALL_ID
+    #     return _activatecall(gs, ps)
+    # elseif ai == FOLD_ID
+    #     return _activatefold(gs, ps)
+    # elseif ai == ALL_ID
+    #     return _activateallin(gs, ps)
+    # elseif ai == RAISE_ID || ai == BET_ID
+    #     return _activateabstractbet(betamount(a, gs, ps), ps)
+    # elseif ai == SB_ID
+    #     return _activateabstractbet(smallblindamount(gs, ps), ps)
+    # elseif ai == BB_ID
+    #     return _activateabstractbet(bigblindamount(gs, ps), ps)
+    # elseif ai == CHECK_ID
+    #     return _activatecheck(gs, ps)
+    # end
 
 end
 

@@ -97,7 +97,7 @@ const ENDED = State(ENDED_ID)
 const TERM = State(TERM_ID)
 
 #mutable shared data
-mutable struct SharedData{P, C, B}
+mutable struct SharedData{P}
 
     sb::Float32
     bb::Float32
@@ -105,9 +105,8 @@ mutable struct SharedData{P, C, B}
     #updated once per round
     deck::Vector{UInt64}
     burned::Vector{UInt64}
-    public_cards::MVector{B, UInt64}
-    pbl_cards_mask::MVector{B, Bool}
-    private_cards::SizedVector{P, MVector{C, UInt64}}
+    public_cards::Vector{UInt64}
+    private_cards::SizedVector{P, Vector{UInt64}}
 
     deck_cursor::UInt8 # tracks position on deck
 #     g::Game{T,U}# tracks root game
@@ -121,24 +120,24 @@ abstract type AbstractGameState end
 
 # todo: small blind and big blinds can change throughout a game
 # move them to the game
-mutable struct Game{T<:GameSetup} <: AbstractGame
-    players::Vector{Player} #mapping of players
+mutable struct Game{T<:GameSetup, N, R} <: AbstractGame
+    players::SizedVector{N, Player} #mapping of players
     main_player::Player
 
     game_setup::T
     
     shared_state::SharedData
 
-    num_rounds::UInt8
+    num_rounds::R
     num_private_cards::UInt8
     num_public_cards::UInt8
     chips::Float32
 
     actions::ActionSet
 
-    cards_per_round::Vector{UInt8}
+    cards_per_round::SVector{R, UInt8}
 
-    Game{T, U}() where {T<:GameSetup, U <: GameMode} = new()
+    Game{T, N, R}() where {T<:GameSetup, N, R} = new()
 end
 
 #tracks game state.

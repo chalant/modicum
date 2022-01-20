@@ -29,16 +29,7 @@ const PreFlopFilter = Filter(indexdata(
         return filterindex(PreFlopFilter, pr)
     end
 
-    return evaluate(pr, pc)
-end
-
-@inline function key(pr::MVector{P, UInt64}, pc::MVector{B, UInt64}, mask::MVector{B, Bool}) where {B, P}
-    if sum(mask) == 0
-        return filterindex(PreFlopFilter, pr)
-    end
-
-    return evaluate(pr, pc, mask)
-
+    return evaluate(binomial(length(pr) + length(pc), 2), pr, pc)
 end
 
 @inline function randomsample!(wv::Vector{Bool})
@@ -114,12 +105,12 @@ end
     return setup(gs).limit
 end
 
-struct DepthLimited <: GameSetup
+struct DepthLimited{Solver} <: GameSetup
     strategy_index::SVector{UInt8} # oppenent will randomly chose a strategy to play at the depth
     limit::UInt8
 end
 
-struct FullTraining <: GameSetup
+struct FullTraining{T<:Solver} <: GameSetup
 
 end
 
