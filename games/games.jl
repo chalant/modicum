@@ -121,7 +121,7 @@ abstract type AbstractGameState end
 # todo: small blind and big blinds can change throughout a game
 # move them to the game
 mutable struct Game{T<:GameSetup, N, R} <: AbstractGame
-    players::SizedVector{N, Player} #mapping of players
+    players::SVector{N, Player} #mapping of players
     main_player::Player
 
     game_setup::T
@@ -151,7 +151,7 @@ mutable struct GameState{A, P, T<:AbstractGame} <: AbstractGameState
     prev_player::PlayerState
     bet_player::PlayerState
 
-    players_states::SizedArray{P, PlayerState}
+    players_states::SVector{P, PlayerState}
     actions_mask::MVector{A, Bool}
 
     active_players::UInt8 # players that have not folded

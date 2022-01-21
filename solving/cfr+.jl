@@ -32,10 +32,23 @@ function innersolve(
         mpc_rank = evaluateterminal(mpc, data.public_cards)
 
         #showdown against each possible combination of opponent private cards
+        
+        deck = g.deck
+        k = g.num_private_cards
+        opp_pc = @MVector zeros(UInt64, 2) 
+        
+        l = 0
 
-        #todo: get opponent private cards combinations
-        for (i, opp_pc) in enumerate(combination())
-            ev[i] = showdown!(gs, g, pl, mpc_rank, opp_pc)
+        for i in 1:N-k+1
+            opp_pc[1] = deck[i]
+
+            for j in i+k-1:N
+                l += 1
+                opp_pc[2] = deck[j]
+                
+                ev[l] = showdown!(gs, g, pl, mpc_rank, opp_pc)
+            end
+
         end
 
     end
@@ -135,6 +148,7 @@ function innersolve(
 
                 perform!(a, game_state, game_state.player)
 
+                #whether we prune or not
                 if ps > 0
                     utils = innersolve(solver, gs, g, data, h, pl, opp_probs)
                     
@@ -159,9 +173,10 @@ function solve(
 
     stp = setup(g) # game setup
     data = shared(g)
+    deck = data.deck
     n = length(stp.actions)
     # root history
-    h = History(n, gs, zeros(T, n))
+    h = History{}(n, gs, zeros(T, n))
     #=println("Dealer ", last(states).id)
     println("Players Order ", [p.id for p in states])=#
 
@@ -171,12 +186,13 @@ function solve(
         # need average strategy here
         # need average regret here
 
-        #we could parallelize at this level calculate util for each player
-        #then do a summation at the end of the loop.
-        #problem: data is shared.
-
         for pl in stp.players
-            distributecards!(gs, g, data)
+            shuffle!(deck)
+            
+            #distribute private cards only to main player
+
+            for i in 1:g.num_private_cards
+                data.privatecards[pl.id][i] = pop!(deck) 
             
             util += innersolve(
                 solver, 

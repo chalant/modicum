@@ -35,14 +35,21 @@ const CONCAT = Dict{Int64, Vector{UInt64}}(
     unsuited_lookup::Dict{UInt64, UInt64})
     #if flush
 
-    if hand[1] & hand[2] & hand[3] & hand[4] & hand[5] & 0xF000 != 0
-        handOR = (hand[1] | hand[2] | hand[3] | hand[4] | hand[5]) >> 16
-        prime = prime_product_from_rankbits(handOR)
-        return flush_lookup[prime]
-    else
-        prime = prime_product_from_hand(hand)
-        return unsuited_lookup[prime]
-    end
+    # if hand[1] & hand[2] & hand[3] & hand[4] & hand[5] & 0xF000 != 0
+    #     handOR = (hand[1] | hand[2] | hand[3] | hand[4] | hand[5]) >> 16
+    #     prime = prime_product_from_rankbits(handOR)
+    #     return flush_lookup[prime]
+    # else
+    #     prime = prime_product_from_hand(hand)
+    #     return unsuited_lookup[prime]
+    # end
+
+    cond = (hand[1] & hand[2] & hand[3] & hand[4] & hand[5] & 0xF000 != 0)
+
+    return cond * flush_lookup[prime_product_from_rankbits((hand[1] | hand[2] | hand[3] | hand[4] | hand[5]) >> 16)] +
+    !cond * unsuited_lookup[prime_product_from_hand(hand)]
+
+
 end
 
 @inline function evaluate(

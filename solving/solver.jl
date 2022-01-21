@@ -2,6 +2,7 @@ module
 
 export epsilongreedysample!
 export limit!
+export showdown!
 export key
 export DepthLimitedSolving
 export FullSolving
@@ -113,5 +114,43 @@ end
 struct FullTraining{T<:Solver} <: GameSetup
 
 end
+
+@inline function showdown!(gs::GameState{A, 2, Game{T}}, g::Game{T}, mp::PlayerState, mpc_rank::UInt64, opp_pc::SVector{2, UInt64}) where T <: GameMode
+    #returns utils of the main player
+
+    cond = gs.round >= numround!(g)
+    earnings = _computepotentialearning!(gs.players_states, mp)
+    
+    return cond * _lastround!(gs, g, mpc_rank, opp_pc, earnings) + !cond * mp.active == true * earnings
+
+    # if gs.round >= numrounds!(g)
+    #     # game has reached the last round
+    #     return _lastround!(gs, g, mp, mpc_rank, opp_pc)
+    # else
+    #     # all players except one have folded
+    #     return _notlastround!(gs, g, mp, mpc_rank, opp_pc)
+    # end
+end
+
+@inline function _lastround!(
+    gs::GameState{A, 2, Game{T}}, 
+    data::ShareData,
+    mpc_rank::UInt64, 
+    opp_pc::SizedArray{2, UInt64},
+    earnings::U) where {A, U<:AbstractFloat, T<:GameSetup}
+    
+    opp_rank = evaluate(opp_pc, data.public_cards)
+    best_rank = min(mpc_rank, opp_rank)
+
+    has_best_rk = mpc_rank == best_rank
+
+    return ((-(mpc_rank > best_rk)) + has_best_rk) * ((earnings >= gs.pot_size) * (earnings ^ 2) / (gs.pot_size * (1 + has_best_rk && opp_rank == best_rank))) + (earnings < gs.pot_size) * earnings
+    
+end
+
+@inline function _nlastround!(mp::PlayerState, earnings::U) where U <: AbstractFloat
+    return mp.active == true * earnings
+end
+
 
 end

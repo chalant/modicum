@@ -1,5 +1,7 @@
 module cards
 
+using StaticArrays
+
 export PRIMES,
     prime_product_from_hand,
     prime_product_from_rankbits,
@@ -7,29 +9,33 @@ export PRIMES,
     new_card,
     pretty_print_cards
 
-const PRIMES = Vector{UInt64}([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41])
-const STRRANKS = Vector{String}(["2","3","4","5","6","7","8","9","T","J","Q","K","A"])
-const SUITS = Vector{String}(["s", "h", "d", "c"])
+const PRIMES = @SVector UInt64[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41]
+const STRRANKS = @SVector ["2","3","4","5","6","7","8","9","T","J","Q","K","A"]
+const SUITS = @SVector ["s", "h", "d", "c"]
 
 const RCHARTOINT = Dict{String, UInt64}(zip(STRRANKS, [i for i in 0:12]))
 const SCHARTOINT = Dict{String, UInt64}(zip(SUITS, [1, 2, 4, 8]))
 
 @inline function prime_product_from_rankbits(rankbits::UInt64)
     product::UInt64 = 1
+    
     for i in 0:12
         if rankbits & (1 << i) != 0
             product *= PRIMES[i + 1]
         end
     end
+    
     return product
 end
 
 
 @inline function prime_product_from_hand(card_ints::Vector{UInt64})
     product::UInt64 = 1
+    
     for c in card_ints
         product *= (c & 0xFF)
     end
+    
     return product
 end
 

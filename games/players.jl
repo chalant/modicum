@@ -24,11 +24,11 @@ struct Player <: ID
     Player(id, position) = new(id, position)
 end
 
-mutable struct PlayerState <: ID
-    chips::Float32
-    bet::Float32 # player current round bet
-    total_bet::Float32 # player game total bet
-    pot::Float32 # player potential gain in case of a win
+mutable struct PlayerState{T} <: ID
+    chips::T
+    bet::T # player current round bet
+    total_bet::T # player game total bet
+    pot::T # player potential gain in case of a win
     active::Bool
     action::UInt8
 

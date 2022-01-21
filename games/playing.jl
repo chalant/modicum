@@ -12,6 +12,7 @@ export betamount
 export update!
 export postblinds!
 export _postblinds!
+export _computepotentialearning!
 
 export callamount
 
@@ -142,7 +143,7 @@ end
     end
 end
 
-@inline function _computepotentialearning!(pst::Vector{PlayerState} , ps::PlayerState)
+@inline function _computepotentialearning!(pst::SVector{N, PlayerState} , ps::PlayerState) where N
     amt = ps.total_bet
     pot = ps.pot
 
@@ -223,33 +224,7 @@ function _notlastround!(gs::GameState{A, P, Game{T}}) where {A, P, T<:GameSetup}
 
 end
 
-@inline function _lastround!(
-    gs::GameState{A, 2, Game{T}}, 
-    data::ShareData,
-    mp::PlayerState, 
-    mpc_rank::UInt64, 
-    opp_pc::SizedArray{2, UInt64}) where {A, T<:GameSetup}
-    
-    opp_rank = evaluate(opp_pc, data.public_cards)
-    best_rank = min(mpc_rank, opp_rank)
 
-    has_best_rk = mpc_rank == best_rank
-    
-    earnings = _computepotentialearning!(gs.players_states, mp)
-
-    return ((-(mpc_rank > best_rk)) + has_best_rk) * ((earnings >= gs.pot_size) * (earnings ^ 2) / (gs.pot_size * (1 + has_best_rk && opp_rank == best_rank))) + (earnings < gs.pot_size) * earnings
-    
-end
-
-@inline function _nlastround!(
-    gs::GameState{A, 2, Game{T}}, 
-    data::ShareData, 
-    mpc_rank::UInt64, 
-    opp_pc::SizedArray{2, UInt64})
-
-
-
-end
 
 @inline function _lastround!(gs::GameState{A, P, Game{T}}) where {A, P, T<:GameSetup}
     #called when the game has reached the last round
@@ -375,17 +350,6 @@ end
 end
 
 @inline function showdown!(gs::GameState, g::Game)
-    if gs.round >= numrounds!(g)
-        # game has reached the last round
-        return _lastround!(gs)
-    else
-        # all players except one have folded
-        return _notlastround!(gs)
-    end
-end
-
-@inline function showdown!(gs::GameState{A, 2, Game{T}}, g::Game{T}, mp::PlayerState, mpc_rank::UInt64, opp_pc::SizedArray{2, UInt64}) where T <: GameMode
-
     if gs.round >= numrounds!(g)
         # game has reached the last round
         return _lastround!(gs)
