@@ -7,20 +7,20 @@ export infoset
 export history
 export getutils
 
-abstract type AbstractHistory{T, U, V, N} end
+abstract type AbstractHistory{T, U, V} end
 
 struct Node{T<:AbstractArray}
     cum_strategy::T # cumulative strategy
     cum_regret::T #cumulative regret
 end
 
-struct History{T<:GameState, U<:AbstractArray, V<:AbstractFloat, N} <: AbstractHistory{T, U, V, N}
+struct History{T<:GameState, U<:AbstractArray, V<:AbstractFloat} <: AbstractHistory{T, U, V}
     infosets::Dict{UInt64, Node{U}}
     histories::Dict{UInt8, History{T, Node{U}}}
     game_state::T # history keeps a reference to a game state data
 end
 
-struct CachingHistory{T<:GameState, U<:AbstractArray, V<:AbstractFloat, N} <: AbstractHistory{T, U, V, N}
+struct CachingHistory{T<:GameState, U<:AbstractArray, V<:AbstractFloat, N} <: AbstractHistory{T, U, V}
     infosets::Dict{UInt64, Node{U}}
     histories::Dict{UInt8, History{T, Node{U}}}
     game_state::T # history keeps a reference to a game state data
@@ -56,17 +56,17 @@ end
 end
 
 @inline function history(
-    h::History{T, U, V, N}, 
-    action_idx::UInt8) where {T <: GameState, U <: AbstractArray, V <: AbstractFloat, N}
+    h::History{T, U, V}, 
+    action_idx::UInt8) where {T <: GameState, U <: AbstractArray, V <: AbstractFloat}
     
     hist = h.histories
     
     if haskey(hist, action_idx)
         return hist[action_idx]
     else
-        hst = History{T, U, V, N}(
+        hst = History{T, U, V}(
             Dict{UInt64, Node{U}}(), 
-            Dict{UInt8, History{T, U, V, N}}(), 
+            Dict{UInt8, History{T, U, V}}(), 
             T())
 
         hist[action_idx] = hst
@@ -88,12 +88,12 @@ end
 end
 
 @inline function history(
-    ::Type{History{T, U, V, N}}, 
-    gs::T) where {T <: AbstractGameState, U <: AbstractArray, V <: AbstractFloat, N}
+    ::Type{History{T, U, V}}, 
+    gs::T) where {T <: AbstractGameState, U <: AbstractArray, V <: AbstractFloat}
     
-    return History{T, U, V, N}(
+    return History{T, U, V}(
         Dict{UInt64, Node{U}}(), 
-        Dict{UInt8, History{T, U, V, N}}(), 
+        Dict{UInt8, History{T, U, V}}(), 
         gs)
 end
 

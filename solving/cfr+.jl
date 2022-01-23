@@ -39,8 +39,8 @@ function innersolve(
 
             for j in i+k-1:N
                 l += 1
-                opp_pc[2] = deck[j]
                 
+                opp_pc[2] = deck[j]
                 ev[l] = showdown!(gs, g, pl, mpc_rank, opp_pc)
             end
 
@@ -107,9 +107,11 @@ function innersolve(
 
                 e = ev[j]
                 
-                #note: instead using 0, we could 
-                # compare to a very small value (1*10^-x) 
-                e += norm > 0 ? (cr * u)/norm : u/n_actions 
+                norm = (norm > 0) * norm + (norm <= 0) * n_actions 
+
+                #norm is always equal to n_actions or strictly bigger than zero
+                
+                e += (norm != n_actions) * (cr * u)/norm + (norm == n_actions) * u/norm
                 
                 cr += u - e
 

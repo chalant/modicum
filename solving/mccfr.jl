@@ -82,10 +82,10 @@ end
 
 function innersolve(
     solver::MCCFR{T}, 
-    gs::GameState{A, 2, R, FullSolving}, 
+    gs::GameState{A, 2, FullSolving, T}, 
     g::Game{FullSolving},
     data::SharedData{2},
-    h::AbsractHistory{GameState{A, 2, R, FullSolving}, V, T, N}, 
+    h::AbsractHistory{GameState{A, 2, R, FullSolving}, V, T, 1}, 
     pl::PlayerState{T},
     p0::T,
     p1::T) where {T<:AbstractFloat, A, R, V <: StaticVector{A, T}}
@@ -118,8 +118,8 @@ function innersolve(
     for cr in cum_regrets
         norm += (cr > 0) * cr
     end
-
-    norm = norm > 0 ? norm : n_actions
+    
+    norm = (norm > 0) * norm + n_actions * (norm <= 0)
 
     ply = gs.player
 
@@ -134,18 +134,18 @@ function innersolve(
         #solve in different threads 
         #(note: this will recursively spawn threads 
         #until there are no more threads...)
+
+        lgs = legalactions!(action_mask)
         
-        @sync for (i, (a, am)) in enumerate(zip(actions, action_mask))
-            if am == 1
-                Threads.@spawn solveforaction!(
-                    a,
-                    h, 
-                    i,
-                    utils, 
-                    node_utils,
-                    cum_regrets,
-                    norm)
-            end
+        @sync for i in 1:n_actions
+            Threads.@spawn solveforaction!(
+                actions[lgs[i]],
+                h, 
+                i,
+                utils, 
+                node_utils,
+                cum_regrets,
+                norm)
         end
         # update regrets
         util = sum(node_utils)
@@ -156,11 +156,13 @@ function innersolve(
 
         return util
     
+    # update cumulative strategy and sample random action
+
     cum_stg = info.cum_strategy
     
     rn = rand()
     cw = T(0)
-    idx = UInt8(1)
+    idx = UInt8(0)
     j = UInt8(1)
 
     sampled = false
@@ -168,38 +170,50 @@ function innersolve(
 
     e = solver.epsilon
 
-    # update cumulative strategy and sample random action
-
     for i in eachindex(action_mask)
         am = action_mask[i]
 
         cr = cum_regrets[i]
         
-        stg = cr > 0 ? cr/norm : 0
+        #fixme: shouldn'
+        stg = (cr > 0) * cr/norm
 
         cum_stg[i] += p1 * stg * am
 
-        if sampled == false
-            if rn < e
-                cw += nr * stg * am
-            else
-                cw += am / n_actions
-            end
+        # if sampled == false
+        #     if rn < e
+        #         cw += nr * stg * am
+        #     else
+        #         cw += am / n_actions
+        #     end
 
-            if rn < cw
-                idx = j
-                s = stg
-                sampled = true
-            end
+        #     if rn < cw
+        #         idx = j
+        #         s = stg
+        #         sampled = true
+        #     end
 
-            j += 1
-        end
+        #     j += 1
+        # end
+
+        cond = rn < e
+
+        cw += (nr * stg * am) * cond + (am / n_actions) * !cond  
+        
+        cond = (rn < cw)
+
+        sampled = cond * true + false
+
+        idx = cond * j * !sampled + sampled * idx * !cond
+        s = cond * stg * !sampled + sampled * s * !cond
+
+        j += 1
 
     end
     
     a = actions[idx]
 
-    ha = history(h, a.id)
+    ha = history(h, idx)
 
     game_state = ha.game_state
 
@@ -225,7 +239,6 @@ function solving.solve(
     itr::IterationStyle) where {A, R, T<:AbstractFloat}
 
     data = shared(g)
-    n = g.num_actions
 
     #todo: one util per player?
     util = T(0)
@@ -233,7 +246,7 @@ function solving.solve(
     #todo: maybe use an internal SVector instead of MVector
 
     #initial history
-    h = History(n, gs, zeros(T, n))
+    h = history(History{typeof(gs), MArray{A, T}, T}, gs)()
     
     for _ in itr
         #sample public and private cards
@@ -249,7 +262,8 @@ function solving.solve(
                 gs, g, 
                 data, 
                 h, pl, 
-                T(1), T(1))
+                T(1), 
+                T(1))
         
 
             putbackcards!(root, g, data)

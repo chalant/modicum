@@ -78,7 +78,7 @@ struct Action
 end
 
 mutable struct ActionSet{N}
-    actions::SizedVector{N, Action}
+    actions::SVector{N, Action}
     mapping::Dict{Action, Action}
     ActionSet{N}(actions) where N = new(sort!(actions), _createmapping(actions))
 
@@ -143,6 +143,8 @@ end
     # sorts actions such that the active ones are at the top 
 
     idx = StaticArrays.sacollect(MVector{A, T}, 1:A)
+    
+    #todo we might not need to copy the mask, since it gets overwritten anyway
     
     mask = copy(mask)
     i = 1
