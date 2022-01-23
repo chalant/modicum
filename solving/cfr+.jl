@@ -4,29 +4,24 @@ using IterTools
 
 #todo: need a vectorized version 
 
-struct CFRPlus{N, P, T<:AbstractFloat} <: Solver
-    weight::T
-end
-
 function innersolve(
     solver::CFRPlus{N, true, T}, 
-    gs::GameState{A, 2, Game{U}}, 
-    g::Game{U}, 
-    data::ShareData, 
-    h::AbstractHistory{GameState{A, 2, Game{U}}, V, T, N},
-    pl::PlayerState, 
-    opp_probs::MVector{N, T}) where {N, T<:AbstractFloat, U<:GameMode, V <: StaticMatrix{N, A, T}}
+    gs::GameState{A, 2, FullSolving, T}, 
+    h::AbstractHistory{GameState{A, 2, FullSolving, T}, V, T, N},
+    pl::PlayerState{T}, 
+    opp_probs::MVector{N, T}) where {N, A, T<:AbstractFloat, V <: StaticMatrix{N, A, T}}
 
     #todo: problem N might be too big (>1000 elements), so we might need a cache
     # so that we do not increment each time... cache the util vector in history...
     ev = getutils(h)
+    g = game!(gs)
+    data = shared(gs)
 
     if gs.state == ENDED_ID
-        #todo: loop over all possible opponent private cards
-        #and evaluate against main player. We then return a vector
-        #with the utilities with respect to the main player.
-        #if the main player wins the entry is positive, if the player
-        # loses, the entry is negative, if it is a draw, it is null.
+        
+        #todo: abstract this part away, since we do not know which game we are playing could be kuhn
+        # etc.
+
         mpc = data.private_cards[players.id(pl)]
 
         mpc_rank = evaluateterminal(mpc, data.public_cards)
@@ -34,7 +29,7 @@ function innersolve(
         #showdown against each possible combination of opponent private cards
         
         deck = g.deck
-        k = g.num_private_cards
+        k = 2
         opp_pc = @MVector zeros(UInt64, 2) 
         
         l = 0
@@ -51,12 +46,14 @@ function innersolve(
 
         end
 
+        return ev
+
     end
 
     info_set = infoset(
         V,
         h, 
-        key(privatecards(pl, data)), 
+        key(privatecards(pl, data), data.public_cards), 
         data.public_cards,
         data.pbl_cards_mask)
     
@@ -72,111 +69,121 @@ function innersolve(
 
     if pl == ps.player
         n_actions = sum(actions_mask)
-        
-        for (i, (a, am)) in enumerate(zip(actions, actions_mask))
+
+        #todo: we could sort actions such that all the active actions are
+        #at the top, then would would just iterate until we hit n_actions
+        # we do some permutations following the mask... we would then avoid branching
+        lga = legalactions!(actions_mask, n_actions)
+
+        for i in 1:n_actions
             #todo: create multiple threads
+            idx = lga[i]
 
-            if am == 1
-                ha = history(h, a.id)
+            a = actions[idx]
 
-                game_state = ha.game_state
+            ha = history(h, idx)
 
-                copy!(game_state, gs)
+            game_state = ha.game_state
 
-                perform!(a, game_state, game_state.player)
+            copy!(game_state, gs)
 
-                utils = innersolve(solver, gs, g, data, h, pl, opp_probs)
+            perform!(a, game_state, game_state.player)
 
-                #update strategy for all hands for one action
+            utils = innersolve(solver, gs, h, pl, opp_probs)
 
-                cr_vector = view(cum_regrets, :, i)
+            #update strategy for all hands for one action
 
-                for j in 1:N
-                    #this could be cached...
-                    #but could use too much memory... trade-off
-                    #shouldn't take too long since we don't have a lot of actions
+            cr_vector = view(cum_regrets, :, i)
 
-                    norm = sum(view(cum_regrets, j, :))
+            for j in 1:N
+                #this could be cached...
+                #but could use too much memory... trade-off
+                #shouldn't take too long since we don't have a lot of actions
 
-                    cr = cr_vector[j]
-                    u = utils[j]
+                norm = sum(view(cum_regrets, j, :))
 
-                    e = ev[j]
-                    
-                    e += norm > 0 ? (cr * u)/norm : u/n_actions 
-                    
-                    cr += u - e
+                cr = cr_vector[j]
+                u = utils[j]
 
-                    ev[j] = e
-                    cr_vector[j] = max(cr, 0)
-                end
+                e = ev[j]
+                
+                #note: instead using 0, we could 
+                # compare to a very small value (1*10^-x) 
+                e += norm > 0 ? (cr * u)/norm : u/n_actions 
+                
+                cr += u - e
 
+                ev[j] = e
+                cr_vector[j] = (cr > 0) * cr
             end
         end
     else
-
         cum_strategy = actions.cum_strategy
 
-        for (i, (a, am)) in enumerate(zip(actions, actions_mask))
+        lga = legalactions!(actions_mask, n_actions)
 
-            if am == 1
-                cr_vector = view(cum_regrets, :, i)
-                cs_vector = view(cum_strategy, :, i)
+        for i in 1:n_actions
+            idx  = lga[i]
 
-                #total reach probability
-                ps = T(0)
+            cr_vector = view(cum_regrets, :, i)
+            cs_vector = view(cum_strategy, :, i)
 
+            #total reach probability
+            ps = T(0)
+
+            for j in 1:N
+                p = opp_probs[j]
+
+                norm = sum(view(cum_regrets, j, :))
+
+                cr = cr_vector[j]
+                
+                np = norm > 0 ? (cr * p)/norm : p/n_actions
+                
+                opp_probs[j] = np
+                cs_vector[j] += np
+                
+                ps += np
+            end
+
+            ha = history(h, idx)
+            game_state = ha.game_state
+
+            copy!(game_state, gs)
+
+            perform!(
+                actions[idx], 
+                game_state, 
+                game_state.player)
+
+            #whether we prune or not
+            if ps > 0
+                utils = innersolve(solver, gs, h, pl, opp_probs)
+                
                 for j in 1:N
-                    p = opp_probs[j]
-  
-                    norm = sum(view(cum_regrets, j, :))
-
-                    cr = cr_vector[j]
-                    
-                    np = norm > 0 ? (cr * p)/norm : p/n_actions
-                    
-                    opp_probs[j] = np
-                    cs_vector[j] += np
-                    
-                    ps += np
+                    ev[j] += utils[j]
                 end
-
-                ha = history(h, a.id)
-                game_state = ha.game_state
-
-                copy!(game_state, gs)
-
-                perform!(a, game_state, game_state.player)
-
-                #whether we prune or not
-                if ps > 0
-                    utils = innersolve(solver, gs, g, data, h, pl, opp_probs)
-                    
-                    for j in 1:N
-                        ev[j] += utils[j]
-                    end
-                end
-
             end
         end
     end
-
+    
     return ev
-
 end
 
 function solve(
     solver::CFRPlus{N, T}, 
-    gs::GameState{A, 2, Game{U}},
-    g::Game{FullSolving},
-    itr::IterationStyle) where {A, N, U <: GameMode}
+    gs::GameState{A, 2, FullSolving, T},
+    itr::IterationStyle) where {A, N, T<:AbstractFloat}
 
+    g = game!(gs)
     stp = setup(g) # game setup
     data = shared(g)
     deck = data.deck
-    n = length(stp.actions)
+    
     # root history
-    h = History{}(n, gs, zeros(T, n))
+    
+    h = history(History{typeof(gs), SizedMatrix{N, A, T}, T, N}, gs)()
+    
     #=println("Dealer ", last(states).id)
     println("Players Order ", [p.id for p in states])=#
 
@@ -196,9 +203,9 @@ function solve(
             
             util += innersolve(
                 solver, 
-                gs, g, 
-                data, 
-                h, pl, 
+                gs,
+                h, 
+                pl, 
                 opp_probs)
             
             putbackcards!(root, stp, data)

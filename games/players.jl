@@ -24,17 +24,17 @@ struct Player <: ID
     Player(id, position) = new(id, position)
 end
 
-mutable struct PlayerState{T} <: ID
+mutable struct PlayerState{T<:AbstractFloat} <: ID
     chips::T
     bet::T # player current round bet
     total_bet::T # player game total bet
     pot::T # player potential gain in case of a win
     active::Bool
     action::UInt8
+    
+    player::Player
 
-    player:: Player
-
-    PlayerState() = new()
+    PlayerState{T} where T <: AbstractFloat = new()
 end
 
 @inline function Base.position(ps::PlayerState)
@@ -83,7 +83,7 @@ end
     return ps.position
 end
 
-@inline function Base.copy!(p::PlayerState, s::PlayerState)
+@inline function Base.copy!(p::PlayerState{T}, s::PlayerState{T}) where T <: AbstractFloat
     p.player = s.player
     p.chips = s.chips
     p.bet = s.bet
@@ -91,32 +91,32 @@ end
     p.pot = s.pot
     p.active = s.active
     p.rank = s.rank
-    p.actions_mask = copy(s.actions_mask)
     p.action = s.action
     return p
 end
 
-@inline function Base.copy(s::PlayerState)
-    p = PlayerState()
+@inline function Base.copy(s::PlayerState{T}) where T <: AbstractFloat
+    p = PlayerState{T}()
     copy!(p, s)
     return p
 end
 
-@inline function Base.copy!(p::Vector{PlayerState}, s::Vector{PlayerState})
-    for i in 1:length(p)
+@inline function Base.copy!(p::SizedVector{N, PlayerState}, s::SizedVector{N, PlayerState}) where N
+    for i in 1:N
         copy!(p[i], s[i])
     end
 end
 
-@inline function Base.copy(s::Vector{PlayerState})
-    l = length(s)
-    v = Vector{PlayerState}(undef, l)
+@inline function Base.copy(s::SizedVector{N, PlayerState}) where N
+    v = SizedVector{N, PlayerState}(undef)
 
     i = 1
+    
     for state in s
         v[i] = copy(state)
         i += 1
     end
+    
     return v
 end
 
@@ -125,22 +125,22 @@ end
 end
 
 @inline function id(pl::PlayerState)
-    return id(pl.player)
+    return id(pl)
 end
 
-@inline function Base.sort!(s::Vector{Player})
+@inline function Base.sort!(s::SizedVector{N, Player})
     return sort!(s, by=id)
 end
 
-@inline function Base.sort!(s::Vector{PlayerState})
+@inline function Base.sort!(s::SizedVector{N, PlayerState})
     return sort!(s, by=id)
 end
 
-@inline function state(player::Player, states::Vector{PlayerState})
+@inline function state(player::Player, states::SizedVector{PlayerState})
     return states[searchsortedfirst(states, player)]
 end
 
-function player(state::PlayerState)
+@inline function player(state::PlayerState)
     return state.player
 end
 

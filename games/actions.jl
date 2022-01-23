@@ -39,6 +39,7 @@ export bigblingamount
 export smallblindamount
 export raiseamount
 export betamount
+export legalactions!
 
 using StaticArrays
 
@@ -79,11 +80,11 @@ end
 mutable struct ActionSet{N}
     actions::SizedVector{N, Action}
     mapping::Dict{Action, Action}
-    ActionSet(actions) = new(sort!(actions), _createmapping(actions))
+    ActionSet{N}(actions) where N = new(sort!(actions), _createmapping(actions))
 
 end
 
-@inline function _createmapping(action_list::Vector{Action})
+@inline function _createmapping(action_list::SizedVector{A, Action}) where A
     mapping = Dict{Action, Action}()
     
     for action in action_list
@@ -136,6 +137,41 @@ end
 
 @inline function Base.:(<)(p1::Action, p2::Action)
     return isless(p1, p2)
+end
+
+@inline function legalactions!(mask::MVector{A, Bool}, n_actions::T) where {A, T <: Integer}
+    # sorts actions such that the active ones are at the top 
+
+    idx = StaticArrays.sacollect(MVector{A, T}, 1:A)
+    
+    mask = copy(mask)
+    i = 1
+
+    while i < n_actions + 1
+        if mask[i] == 0
+            j = i + 1
+            
+            while j < A + 1
+                if mask[j] == 1
+                    #permute index
+                    k = idx[i]
+                    idx[i] = idx[j]
+                    idx[j] = k
+                    mask[i] = 1
+                    mask[j] = 0
+                    break
+                end
+
+                j += 1
+
+            end
+        end
+
+        i += 1
+    end
+
+    return idx
+
 end
 
 @inline function Base.sort!(s::ActionSet)

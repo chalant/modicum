@@ -1,4 +1,4 @@
-module
+module Solvers
 
 export epsilongreedysample!
 export limit!
@@ -14,6 +14,13 @@ using playing
 using games
 using filtering
 using evaluator
+
+struct MCCFR{T<:AbstractFloat} <: Solver
+    epsilon::T 
+end
+
+struct CFRPlus{N, P, T<:AbstractFloat} <: Solver
+end
 
 # todo add compression data to resources folder
 # filter for private cards
@@ -86,9 +93,9 @@ end
 end
 
 @inline function epsilongreedysample!(
-    strategy::Vector{T},
-    action_mask::Vector{Bool}, 
-    epsilon::T) where T <: AbstractFloat
+    strategy::MVector{A, T},
+    action_mask::MVector{A, Bool}, 
+    epsilon::T) where {T <: AbstractFloat, A}
     
     #sample action using strategy or select random action
 
@@ -101,7 +108,7 @@ end
     end
 end
 
-@inline function games.limit!(gs::GameState{Game{DepthLimited, T}}) where T <: GameMode
+@inline function games.limit!(gs::GameState{A, P, Game{DepthLimited, P}}) where {A, P}
     #override numrounds! functions for depth-limited game setups
     return setup(gs).limit
 end
@@ -133,7 +140,7 @@ end
 end
 
 @inline function _lastround!(
-    gs::GameState{A, 2, Game{T}}, 
+    gs::GameState{A, 2, Game{T, 2}}, 
     data::ShareData,
     mpc_rank::UInt64, 
     opp_pc::SizedArray{2, UInt64},

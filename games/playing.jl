@@ -113,7 +113,7 @@ end
     return performchance!(gs, ps)
 end
 
-@inline function nextround!(gs::GameState{N, 2, Game{T}}, ps::PlayerState) where T <: GameSetup 
+@inline function nextround!(gs::GameState{A, 2, T}, ps::PlayerState) where {T <: GameSetup, A} 
 
     state_id = performchance!(gs, ps)
     #reset position and current player 
@@ -159,7 +159,7 @@ end
     return pot
 end
 
-function _notlastround!(gs::GameState{A, P, Game{T}}) where {A, P, T<:GameSetup}
+function _notlastround!(gs::GameState{A, P, T}) where {A, P, T<:GameSetup}
     # game did not go to the last round => all except one player
     # have folded
     
@@ -226,7 +226,7 @@ end
 
 
 
-@inline function _lastround!(gs::GameState{A, P, Game{T}}) where {A, P, T<:GameSetup}
+@inline function _lastround!(gs::GameState{A, P, T}) where {A, P, T<:GameSetup}
     #called when the game has reached the last round
     
     results = @MVector zeros(Float32, P)
@@ -793,18 +793,18 @@ end
 
 end
 
-@inline function _postblinds!(gs::GameState{N, P, Game{T}}, g::Game{T}) where T <: GameSetup
-    if numplayers!(g) > 2
-        println("SmallBlind ", players.id(gs.player))
+@inline function _postblinds!(gs::GameState{A, P, T}, g::Game) where {T <: GameSetup, A, P}
+    if P > 2
+        # println("SmallBlind ", players.id(gs.player))
         performsmallblind!(gs)
-        println("Big Blind ", players.id(gs.player))
+        # println("Big Blind ", players.id(gs.player))
         performbigblind!(gs)
     else
         _headsupblinds!(gs)
     end
 end
 
-@inline function _postblinds!(gs::GameState{N, 2, Game{T}}, g::Game{T}) where T <: GameSetup
+@inline function _postblinds!(gs::GameState{A, 2, T}, g::Game) where {T <: GameSetup, A}
     _headsupblinds!(gs)
 end
 
@@ -999,7 +999,7 @@ end
 #     return c
 end
 
-@inline function update!(action::Action, gs::GameState{A, P, Game{T}}, ps::PlayerState) where {A, P, T <: GameSetup}
+@inline function update!(action::Action, gs::GameState{A, 2, T}, ps::PlayerState) where {A, T <: GameSetup}
     id = action.id
     
     actions_mask = gs.actions_mask

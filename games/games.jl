@@ -1,14 +1,10 @@
 module games
 
-export AbstractGame
 export Game
+export AbstractGameState
 export GameState
 export SharedData
 export GameSetup
-export GameMode
-export GameLength
-export Full
-export DepthLimited
 export Simulation
 export LiveSimulation
 export Estimation
@@ -51,29 +47,7 @@ using StaticArrays
 using players
 using actions
 
-abstract type GameLength end
-abstract type RunMode end
-abstract type Estimation end
-abstract type GameMode  end
-
-struct Full <: GameLength
-end
-
-
 abstract type GameSetup end
-
-struct HeadsUp <: GameMode
-    num_players::UInt8
-
-    HeadsUp() = new(UInt8(2))
-end
-
-struct Normal <: GameMode
-    num_players::UInt8
-
-    Normal(num_players) = num_players == 2 ? HeadsUp() : new(num_players)
-
-end
 
 struct Simulation <: GameSetup
 end
@@ -97,52 +71,51 @@ const ENDED = State(ENDED_ID)
 const TERM = State(TERM_ID)
 
 #mutable shared data
-mutable struct SharedData{P}
+mutable struct SharedData{P, T<:AbstractFloat}
 
-    sb::Float32
-    bb::Float32
+    sb::T
+    bb::T
 
     #updated once per round
     deck::Vector{UInt64}
     burned::Vector{UInt64}
     public_cards::Vector{UInt64}
-    private_cards::SizedVector{P, Vector{UInt64}}
+    private_cards::SizedVector{P, MVector{2, UInt64}}
 
     deck_cursor::UInt8 # tracks position on deck
 #     g::Game{T,U}# tracks root game
 
-    SharedData()= new()
+    SharedData{P, T}() where {P, T<:AbstractFloat} = new()
 
 end
 
-abstract type AbstractGame end
-abstract type AbstractGameState end
+abstract type AbstractGameState{A, S, P} end
 
 # todo: small blind and big blinds can change throughout a game
 # move them to the game
-mutable struct Game{T<:GameSetup, N, R} <: AbstractGame
+struct Game{T<:GameSetup, N, A, U<:AbstractFloat}
     players::SVector{N, Player} #mapping of players
     main_player::Player
 
     game_setup::T
     
-    shared_state::SharedData
+    shared_state::SharedData{N, U}
 
-    num_rounds::R
+    num_rounds::UInt8
     num_private_cards::UInt8
     num_public_cards::UInt8
-    chips::Float32
+    chips::U
 
-    actions::ActionSet
+    actions::ActionSet{A}
 
-    cards_per_round::SVector{R, UInt8}
+    cards_per_round::SVector{3, UInt8}
 
-    Game{T, N, R}() where {T<:GameSetup, N, R} = new()
+    Game{T, N, A, U}() where {T<:GameSetup, N, A, U} = new()
 end
 
 #tracks game state.
 
-mutable struct GameState{A, P, T<:AbstractGame} <: AbstractGameState
+mutable struct GameState{A, P, S<:GameSetup, T<:AbstractFloat} <: AbstractGameState{A, P, S}
     state::UInt8
 
     action::Action
@@ -151,7 +124,7 @@ mutable struct GameState{A, P, T<:AbstractGame} <: AbstractGameState
     prev_player::PlayerState
     bet_player::PlayerState
 
-    players_states::SVector{P, PlayerState}
+    players_states::SizedVector{P, PlayerState}
     actions_mask::MVector{A, Bool}
 
     active_players::UInt8 # players that have not folded
@@ -160,14 +133,14 @@ mutable struct GameState{A, P, T<:AbstractGame} <: AbstractGameState
     all_in::UInt8 # players that went all-in
 #     turn::Bool # flags if the small blind has played
 
-    pot_size::Float32 #
-    last_bet::Float32 # tracks last bet
-    last_raise::Float32
-    total_bet::Float32
+    pot_size::T #
+    last_bet::T # tracks last bet
+    last_raise::T
+    total_bet::T
 
-    game::T
+    game::Game{S, P, A, T}
 
-    GameState{N, T}() where T <: AbstractGame = new()
+    GameState{A, P, S, T}() where {A, P, S<:GameSetup, T} = new()
 end
 
 @inline function stateid(st::State)
@@ -193,7 +166,7 @@ end
 @inline _privatecards(player::Player, data::SharedData) = data.private_cards[player.id]
 @inline _privatecards(ps::PlayerState, data::SharedData) = data.private_cards[players.id(ps)]
 
-@inline function privatecards(player::Player, g::Game{T, U}) where {T <: GameSetup, U <: GameMode}
+@inline function privatecards(player::Player, g::Game)
     return _privatecards(player, shared(g))
 end
 

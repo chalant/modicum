@@ -10,16 +10,12 @@ using playing
 using players
 using iterationstyles
 
-struct MCCFR{T<:AbstractFloat} <: Solver
-    epsilon::T 
-end
-
 @inline function stategysum!(
     strategy::MVector{A, T}, 
     actions_mask::MVector{A, Bool}, 
     w::T) where {T <: AbstractFloat, A}
     
-    num_actions = sum(actions_mask)
+    num_actions = sum(actions_mask) 
 
     for i in 1:A
         if actions_mask[i] == 1
@@ -39,8 +35,7 @@ end
     for i in 1:A
         if actions_mask[i] == 1
             cr = cum_regrets[i]
-            r = cr > 0 ? cr : 0
-            st[i] = r
+            st[i] = (cr > 0) * cr
         end
     end
 
@@ -86,14 +81,14 @@ end
 end
 
 function innersolve(
-    solver::MCCFR{A, T}, 
-    gs::GameState{A, 2, Game{FullTraining}}, 
-    g::Game{FullTraining},
-    data::SharedData,
-    h::History{T}, 
-    pl::PlayerState,
+    solver::MCCFR{T}, 
+    gs::GameState{A, 2, R, FullSolving}, 
+    g::Game{FullSolving},
+    data::SharedData{2},
+    h::AbsractHistory{GameState{A, 2, R, FullSolving}, V, T, N}, 
+    pl::PlayerState{T},
     p0::T,
-    p1::T) where {T<:AbstractFloat, A}
+    p1::T) where {T<:AbstractFloat, A, R, V <: StaticVector{A, T}}
 
     #todo: handle ended and terminated states!
     # get utility on ended state
@@ -121,7 +116,7 @@ function innersolve(
     norm = T(0)
 
     for cr in cum_regrets
-        norm += cr > 0 ? cr : 0
+        norm += (cr > 0) * cr
     end
 
     norm = norm > 0 ? norm : n_actions
@@ -175,8 +170,11 @@ function innersolve(
 
     # update cumulative strategy and sample random action
 
-    for (i, am) in enumerate(action_mask)
+    for i in eachindex(action_mask)
+        am = action_mask[i]
+
         cr = cum_regrets[i]
+        
         stg = cr > 0 ? cr/norm : 0
 
         cum_stg[i] += p1 * stg * am
@@ -222,9 +220,9 @@ end
 
 function solving.solve(
     solver::MCCFR{T}, 
-    gs::GameState{A, 2, Game{U}}, 
+    gs::GameState{A, 2, R, FullSolving}, 
     g::Game{FullSolving}, 
-    itr::IterationStyle) where {T<:AbstractFloat, U <: GameMode, A}
+    itr::IterationStyle) where {A, R, T<:AbstractFloat}
 
     data = shared(g)
     n = g.num_actions

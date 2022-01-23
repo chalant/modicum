@@ -176,7 +176,7 @@ end
         idx += 1
     end
 
-    for i in 1:length(pls) - idx
+    for _ in 1:length(pls) - idx
         pushfirst!(pls, pop!(pls))
     end
 
@@ -241,7 +241,7 @@ function start(
         Action(BET_ID, 0.75, 3),
         Action(BET_ID, 1, 4)])
 
-    lgs = GameState{A, N, Game{LiveGame}}()
+    lgs = GameState{A, N, 3, LiveGame}()
 
     lgs.actions_mask = @MVector ones(Bool, A)
     
@@ -256,13 +256,13 @@ function start(
 
     players_vec = SizedVector{N, Player}(undef)
     players_states = SizedVector{N, PlayerState}(undef)
-    private_cards = SizedVector{N}(Vector{UInt64}(undef, num_players))
+    private_cards = MVector{N}(MVector{2, UInt64}(undef))
     public_cards = Vector{UInt64}()
 
     active_players = 0
 
     #keep a reference to the main player
-    local main_player::PlayerState
+    local main_player::PlayerState{Float32}
 
     out_channel, status_future = PokerClients.GetPlayers(
         client, 

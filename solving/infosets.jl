@@ -40,7 +40,7 @@ end
 end
 
 @inline function createinfoset(::SizedMatrix{N, M, T}) where {T<:AbstractFloat, N, M}
-    return SizedMatrix{N, M, T}(zeros(N,M))
+    return SizedMatrix{N, M, T}(zeros(T,N,M))
 end
 
 @inline function createinfoset(::SizedVector{N, T}) where {T<:AbstractFloat, N}
@@ -56,17 +56,17 @@ end
 end
 
 @inline function history(
-    h::History{T, Node{U}, N}, 
-    action_idx::UInt8) where {T <: GameState, U <: AbstractArray, N}
+    h::History{T, U, V, N}, 
+    action_idx::UInt8) where {T <: GameState, U <: AbstractArray, V <: AbstractFloat, N}
     
     hist = h.histories
     
     if haskey(hist, action_idx)
         return hist[action_idx]
     else
-        hst = History{T, Node{U}, N}(
+        hst = History{T, U, V, N}(
             Dict{UInt64, Node{U}}(), 
-            Dict{UInt8, History{T, Node{U}}}(), 
+            Dict{UInt8, History{T, U, V, N}}(), 
             T())
 
         hist[action_idx] = hst
@@ -77,17 +77,38 @@ end
 end
 
 @inline function history(
-    h::CachingHistory{T, Node{U}, V, N}, 
-    action_idx::UInt8) where {T<:GameState, U<:AbstractArray, V, N}
+    ::Type{CachingHistory{T, U, V, N}}, 
+    gs::T) where {T <: AbstractGameState, U <: AbstractArray, V <: AbstractFloat, N}
+    
+    return CachingHistory{T, U, V, N}(
+        Dict{UInt64, Node{U}}(), 
+        Dict{UInt8, CachingHistory{T, U, V, N}}(), 
+        gs, 
+        SizedArray(N, V)(zeros(V, N)))
+end
+
+@inline function history(
+    ::Type{History{T, U, V, N}}, 
+    gs::T) where {T <: AbstractGameState, U <: AbstractArray, V <: AbstractFloat, N}
+    
+    return History{T, U, V, N}(
+        Dict{UInt64, Node{U}}(), 
+        Dict{UInt8, History{T, U, V, N}}(), 
+        gs)
+end
+
+@inline function history(
+    h::CachingHistory{T, U, V, N}, 
+    action_idx::UInt8) where {T <: AbstractGameState, U <: AbstractArray, V <: AbstractFloat, N}
     
     hist = h.histories
     
     if haskey(hist, action_idx)
         return hist[action_idx]
     else
-        hst = CachingHistory{T, Node{U}, V, N}(
+        hst = CachingHistory{T, U, V, N}(
             Dict{UInt64, Node{U}}(), 
-            Dict{UInt8, History{T, Node{U}}}(), 
+            Dict{UInt8, CachingHistory{T, U, V, N}}(), 
             T(), 
             SizedArray(N, V)(zeros(V, N)))
 
