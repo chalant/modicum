@@ -85,6 +85,7 @@ end
     return i
 end
 
+
 function start()
 
     game = KUHNGame()
@@ -92,13 +93,11 @@ function start()
     stp = Test(10)
     gs = KUHNGameState{Test}(game)
 
-    mp = gs.players_states[1]
+    mp = gs.players[1]
 
-    shuffle!(gs.players_states)
+    shuffle!(gs.players)
 
-    gs.player = gs.players_states[1]
-
-    println("Players States ", gs.players_states)
+    gs.player = gs.players[1]
     
     acts = actions!(game)
 
@@ -107,73 +106,70 @@ function start()
     shuffle!(deck)
     
     cards = @MVector zeros(UInt8, 2)
-
-    sample!(deck, cards)
     
     private_cards = @MVector zeros(UInt8, 2)
 
+    sample!(deck, cards)
+
     i = 1
     
-    for ps in gs.players_states
-        private_cards[ps.id] = cards[i]
+    for ps in gs.players
+        private_cards[ps] = cards[i]
         
         i += 1
     end
 
+    println("Cards: ", private_cards[1], " ", private_cards[2])
+    
+    state = initialstate()
+
     while true
-        cp = gs.player
-        println("Current Player ", Int(cp.id))
-        
-        if cp == mp
-            a = chooseaction!(gs)
-        else
-            a = acts[sampleaction!(gs.actions_mask)]
-        end
+        if terminal!(state) == true
 
-        println("Performed ", message(a))
-
-        perform!(a, gs, cp)
-
-        if terminal!(gs) == true
+            states = gs.players_states
 
             c1 = private_cards[1]
             c2 = private_cards[2]
 
-            if c1 > c2
-                println("You Won! ", gs.pot)
-            elseif c1 < c2
-                println(("You Lost! ", mp.bet))
-            else
+            if states[1] == true && states[2] == false || c1 > c2
+                println("You Won! ", Int(gs.pot))
+            elseif states[1] == false && states[2] == true || c1 < c2
+                println("You Lost! ", Int(gs.bets[1]))
+            elseif c1 == c2
                 println("Draw! ", gs.pot/2)
             end
             
             rotateplayers!(gs)
 
             sample!(deck, cards)
+
+            reset!(gs)
     
             i = 1
             
-            for ps in gs.players_states
-                private_cards[ps.id] = cards[i]
+            for ps in gs.players
+                private_cards[ps] = cards[i]
                 
                 i += 1
             end
 
-            gs.state = STARTED_ID
-            gs.pot = 0
-            mp.bet = 0
-
-            gs.player = gs.players_states[1]
-            gs.action = NULL_ID
-            
-            gs.actions_mask[1] = 1
-            gs.actions_mask[2] = 0
-            gs.actions_mask[3] = 1
-            gs.actions_mask[4] = 0
-            
-            gs.position = UInt8(1)
+            println("Cards: ", private_cards[1], " ", private_cards[2])
 
         end
+
+        cp = gs.player
+        
+        println("Current Player ", Int(cp))
+        
+        if cp == mp
+            a = chooseaction!(gs)
+        else
+            a = acts[sampleaction!(mask)]
+        end
+
+        println("Performed ", message(a))
+
+        state = perform!(a, gs, cp)
 
     end
     

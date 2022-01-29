@@ -16,10 +16,6 @@ export STARTED_ID
 export ENDED_ID
 export TERM_ID
 
-export INIT
-export STARTED
-export ENDED
-export TERMINATED
 
 const INIT_ID = UInt8(0)
 const STARTED_ID = UInt8(1)
@@ -29,14 +25,7 @@ const CHANCE_ID = UInt8(4)
 
 using hermes_exceptions
 
-struct State
-    id::UInt8
-end
-
-const INIT = State(INIT_ID)
-const STARTED = State(STARTED_ID)
-const ENDED = State(ENDED_ID)
-const TERM = State(TERM_ID)
+abstract type State end
 
 abstract type GameSetup end
 abstract type AbstractGameState{A, S, P} end
@@ -59,7 +48,7 @@ end
     throw(NotImplementedError())
 end
 
-@inline function terminal!(gs::AbstractGameState)
+@inline function terminal!(state::State)
     throw(NotImplementedError())
 end
 

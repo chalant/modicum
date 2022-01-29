@@ -662,7 +662,6 @@ end
 
     elseif id == ENDED_ID
         return _start!(gs, shared(gs))
-
     elseif id == INIT_ID
         error("Cannot start an un-initialized game!")
     elseif id == STARTED_ID
