@@ -4,50 +4,30 @@ using IterTools
 
 #todo: need a vectorized version 
 
+function bestresponse!(
+    h::AbstractHistory{GameState{A, 2, FullSolving, T}, U, V, N}, 
+    gs::AbstracGameState{A, 2, FullSolving, T}, 
+    pl::PlayerState{T},
+    opp_probs::W) where {N, A, T<:AbstractFloat, V, U<:StaticMatrix{N, A, T}, W<:StaticVector{N, T}}
+
+
+    
+return
+
 function innersolve(
     solver::CFRPlus{N, true, T}, 
-    gs::GameState{A, 2, FullSolving, T}, 
+    gs::AbstractGameState{A, 2, FullSolving, T}, 
     h::AbstractHistory{GameState{A, 2, FullSolving, T}, V, T, N},
     pl::PlayerState{T}, 
-    opp_probs::MVector{N, T}) where {N, A, T<:AbstractFloat, V <: StaticMatrix{N, A, T}}
+    opp_probs::U) where {N, A, T<:AbstractFloat, V<:StaticMatrix{N, A, T}, U<:StaticVector{N, T}}
 
-    #todo: problem N might be too big (>1000 elements), so we might need a cache
-    # so that we do not increment each time... cache the util vector in history...
+    
     ev = getutils(h)
     g = game!(gs)
     data = shared(gs)
 
-    if gs.state == ENDED_ID
-        
-        #todo: abstract this part away, since we do not know which game we are playing could be kuhn
-        # etc.
-
-        mpc = data.private_cards[players.id(pl)]
-
-        mpc_rank = evaluateterminal(mpc, data.public_cards)
-
-        #showdown against each possible combination of opponent private cards
-        
-        deck = g.deck
-        k = 2
-        opp_pc = @MVector zeros(UInt64, 2) 
-        
-        l = 0
-
-        for i in 1:N-k+1
-            opp_pc[1] = deck[i]
-
-            for j in i+k-1:N
-                l += 1
-                
-                opp_pc[2] = deck[j]
-                ev[l] = showdown!(gs, g, pl, mpc_rank, opp_pc)
-            end
-
-        end
-
-        return ev
-
+    if terminal!(gs) == true
+        return computeutility!(gs, pl, ev)
     end
 
     info_set = infoset(
@@ -93,14 +73,14 @@ function innersolve(
 
             #update strategy for all hands for one action
 
-            cr_vector = view(cum_regrets, :, i)
+            cr_vector = @view cum_regrets[:, i]
 
             for j in 1:N
                 #this could be cached...
                 #but could use too much memory... trade-off
                 #shouldn't take too long since we don't have a lot of actions
 
-                norm = sum(view(cum_regrets, j, :))
+                norm = sum(@view cum_regrets[j, :])
 
                 cr = cr_vector[j]
                 u = utils[j]
@@ -120,15 +100,15 @@ function innersolve(
             end
         end
     else
-        cum_strategy = actions.cum_strategy
+        cum_strategy = info_set.cum_strategy
 
         lga = legalactions!(actions_mask, n_actions)
 
         for i in 1:n_actions
             idx  = lga[i]
 
-            cr_vector = view(cum_regrets, :, i)
-            cs_vector = view(cum_strategy, :, i)
+            cr_vector = @view cum_regrets[:, i]
+            cs_vector = @view cum_strategy[:, i]
 
             #total reach probability
             ps = T(0)
@@ -136,11 +116,13 @@ function innersolve(
             for j in 1:N
                 p = opp_probs[j]
 
-                norm = sum(view(cum_regrets, j, :))
+                norm = sum(@view cum_regrets[j, :])
 
                 cr = cr_vector[j]
+
+                norm = (norm > 0) * norm + (norm <= 0) * n_actions
                 
-                np = norm > 0 ? (cr * p)/norm : p/n_actions
+                np = (norm != n_actions) * (cr * p)/norm +  (norm == n_actions) * p/n_actions
                 
                 opp_probs[j] = np
                 cs_vector[j] += np
@@ -174,20 +156,18 @@ end
 
 function solve(
     solver::CFRPlus{N, T}, 
-    gs::GameState{A, 2, FullSolving, T},
+    gs::AbstractGameState{A, 2, FullSolving, T},
     itr::IterationStyle) where {A, N, T<:AbstractFloat}
 
     g = game!(gs)
     stp = setup(g) # game setup
     data = shared(g)
     deck = data.deck
+    players = players!(gs)
     
     # root history
     
     h = history(History{typeof(gs), SizedMatrix{N, A, T}, T, N}, gs)()
-    
-    #=println("Dealer ", last(states).id)
-    println("Players Order ", [p.id for p in states])=#
 
     opp_probs = @MVector ones(T, N)
 
@@ -195,7 +175,7 @@ function solve(
         # need average strategy here
         # need average regret here
 
-        for pl in stp.players
+        for pl in players
             shuffle!(deck)
             
             #distribute private cards only to main player

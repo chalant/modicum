@@ -5,11 +5,12 @@ using Random
 using ArgParse
 using StaticArrays
 
-using games
 using cards
-using playing
-using players
-using actions
+
+using THGames
+using THPlaying
+using THPlayers
+using THActions
 
 using PokerClients
 using data_conversion
@@ -26,7 +27,7 @@ mutable struct LiveGame <: GameSetup
     last_bet::Float32
 end
 
-@inline function message(action::Action, gs::GameState)
+@inline function message(action::THAction{T}, gs::THGameState{T}) where T <: AbstractFloat
     id = action.id
 
     if id == CHECK_ID
@@ -44,21 +45,21 @@ end
     end
 end
 
-@inline function playing.onbetactionperformed!(gs::GameState{Game{LiveGame, T}}) where T <: GameMode
-    stp = setup(gs.game)
+@inline function playing.onbetactionperformed!(gs::NLTHGameState{A, P, LiveGame, T}) where {A, P, T<:AbstractFloat}
+    stp = setup(gs)
     
     stp.pot = gs.total_bet
     stp.last_bet = stp.last_bet
 end
 
-@inline function playing.beforechancereset!(gs::GameState, gm::Game{LiveGame, T}) where T <: GameMode
-    stp = setup(gm)
+@inline function playing.beforechancereset!(gs::NLTHGameState{A, P, LiveGame, T}) where {A, P, T<:AbstractFloat}
+    stp = setup(gs)
     
     stp.pot = gs.total_bet
     stp.last_bet = 0
 end
 
-@inline function getplayeraction(stp::LiveGame, gs::GameState, player::PlayerState, new_hand::Bool)
+@inline function getplayeraction(stp::LiveGame, gs::NLTHGameState, player::PlayerState, new_hand::Bool)
     return fromactiondata(PokerClients.GetPlayerAction(
                     stp.client,
                     PokerClients.PlayerActionRequest(
@@ -88,9 +89,9 @@ end
 
 end
 
-@inline function playing.setpubliccards!(gs::GameState, g::Game{LiveGame, T}) where T <: GameMode
-    data = shared(g)
-    stp = setup(g)
+@inline function playing.setpubliccards!(gs::GameState{A, P, LiveGame, T}, g::Game{LiveGame}) where {A, P, T<:AbstractFloat}
+    data = shared(gs)
+    stp = setup(gs)
     #todo fetch board cards, remove them from internal deck (so that when we simulate, 
     # we don't take those cards into account)
     local request::PokerClients.BoardCardsRequest
@@ -140,10 +141,10 @@ end
             player=PokerClients.PlayerData(position=UInt32(player_id))))[1])
 end
 
-@inline function playing.postblinds!(gs::GameState, g::Game{LiveGame, T}) where T <: GameMode
-    client = getclient!(setup(g))
+@inline function playing.postblinds!(gs::GameState{A, P, LiveGame, T}, g::Game) where {A, P, T<:AbstractFloat}
+    client = getclient!(setup(gs))
 
-    data = shared(g)
+    data = shared(gs)
 
     #update blinds
 

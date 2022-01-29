@@ -70,7 +70,6 @@ end
     ut = innersolve(
         solver, 
         game_state,
-        g, data, 
         ha, pl, 
         p0*stg,
         p1)
@@ -82,20 +81,20 @@ end
 
 function innersolve(
     solver::MCCFR{T}, 
-    gs::GameState{A, 2, FullSolving, T}, 
-    g::Game{FullSolving},
-    data::SharedData{2},
+    gs::AbstractGameState{A, 2, FullSolving, T}, 
     h::AbsractHistory{GameState{A, 2, R, FullSolving}, V, T, 1}, 
     pl::PlayerState{T},
     p0::T,
     p1::T) where {T<:AbstractFloat, A, R, V <: StaticVector{A, T}}
 
+    data = shared(gs)
+
     #todo: handle ended and terminated states!
     # get utility on ended state
 
-    if gs.state == ENDED_ID        
+    if terminal(gs) == true       
         #get the utilty of the main player
-        return showdown!(gs)[players.id(pl)]
+        return computeutility!(gs, pl)
     end
 
     util = T(0)
@@ -124,7 +123,7 @@ function innersolve(
     ply = gs.player
 
     action_mask = actionsmask!(gs)
-    actions = actions!(g)
+    actions = actions!(gs)
 
     if pl == ply
         # use static array to avoid heap allocations
@@ -224,7 +223,6 @@ function innersolve(
     return innersolve(
         solver,
         game_state,
-        g, data, 
         ha, pl,
         p0, 
         p1 * s)

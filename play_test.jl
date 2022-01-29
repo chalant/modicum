@@ -4,27 +4,21 @@ push!(LOAD_PATH, join([pwd(), "evaluation"], "/"))
 
 using Random
 
-using playing
-using players
+using NLTHPlaying
+using THplayers
+using NLTHGame
+using THActions
+
 using cards
-using games
-using actions
 
-@inline function createplayerstate(player::Player, chips::Float32)
-    ps = PlayerState()
 
-    ps.chips = chips
-    ps.bet = 0
-    ps.active = true
-    ps.player = player
-    ps.total_bet = 0
-
-    return ps
+@inline function createplayerstate(player::NLTHPlayer, chips::Float32)
+    return PlayerState(chips, player)
 end
 
-function creategamestate(stp::T) where T <: AbstractGame
+function creategamestate(stp::Game{T}) where T <: AbstractFloat
 
-    g = GameState{T}()
+    g = NLTHGameState{T}()
     g.state = INIT
     g.started = STARTED
     g.ended = ENDED
@@ -35,9 +29,9 @@ end
 
 @inline function initialize(
     shared::SharedData,
-    stp::Game{T, U},
+    stp::Game{T},
     cards_deck::Vector{UInt64},
-    action_set::ActionSet) where {T <: GameSetup, U <: GameMode}
+    action_set::ActionSet) where {T <: GameSetup}
 
     gs = creategamestate(stp)
     stp.actions = action_set
