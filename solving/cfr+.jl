@@ -7,7 +7,7 @@ using IterTools
 function bestresponse!(
     h::AbstractHistory{GameState{A, 2, FullSolving, T}, U, V, N}, 
     gs::AbstracGameState{A, 2, FullSolving, T}, 
-    pl::PlayerState{T},
+    pl::Integer,
     opp_probs::W) where {N, A, T<:AbstractFloat, V, U<:StaticMatrix{N, A, T}, W<:StaticVector{N, T}}
 
 
@@ -17,27 +17,21 @@ return
 function innersolve(
     solver::CFRPlus{N, true, T}, 
     gs::AbstractGameState{A, 2, FullSolving, T}, 
-    h::AbstractHistory{GameState{A, 2, FullSolving, T}, V, T, N},
-    pl::PlayerState{T}, 
+    h::AbstractHistory{AbstractGameState{A, 2, FullSolving, T}, V, T, N},
+    pl::Integer,
+    state::Integer, 
     opp_probs::U) where {N, A, T<:AbstractFloat, V<:StaticMatrix{N, A, T}, U<:StaticVector{N, T}}
 
     
     ev = getutils(h)
-    g = game!(gs)
-    data = shared(gs)
 
-    if terminal!(gs) == true
+    if terminal!(state) == true
         return computeutility!(gs, pl, ev)
     end
 
-    info_set = infoset(
-        V,
-        h, 
-        key(privatecards(pl, data), data.public_cards), 
-        data.public_cards,
-        data.pbl_cards_mask)
+    info_set = infoset(V, h, infosetkey(gs))
     
-    actions = actions!(g)
+    actions = actions!(gs)
     actions_mask = actionsmask!(gs)
 
     #alternatively, we could cache this array in the history
@@ -67,9 +61,14 @@ function innersolve(
 
             copy!(game_state, gs)
 
-            perform!(a, game_state, game_state.player)
+            state = perform!(a, game_state, game_state.player)
 
-            utils = innersolve(solver, gs, h, pl, opp_probs)
+            utils = innersolve(
+                solver, 
+                game_state, 
+                h, pl, 
+                state, 
+                opp_probs)
 
             #update strategy for all hands for one action
 
@@ -135,14 +134,18 @@ function innersolve(
 
             copy!(game_state, gs)
 
-            perform!(
-                actions[idx], 
-                game_state, 
-                game_state.player)
-
             #whether we prune or not
             if ps > 0
-                utils = innersolve(solver, gs, h, pl, opp_probs)
+                state = perform!(
+                    actions[idx],
+                    game_state, 
+                    game_state.player)
+
+                utils = innersolve(
+                    solver, 
+                    gs, h, pl, 
+                    state,
+                    opp_probs)
                 
                 for j in 1:N
                     ev[j] += utils[j]
@@ -153,6 +156,9 @@ function innersolve(
     
     return ev
 end
+
+# todo: implement function for a specific game... and specific solver
+# ex: texas holdem, kuhn, leduc ...
 
 function solve(
     solver::CFRPlus{N, T}, 
@@ -187,7 +193,8 @@ function solve(
                 solver, 
                 gs,
                 h, 
-                pl, 
+                pl,
+                initialstate(), 
                 opp_probs)
             
             putbackcards!(root, stp, data)

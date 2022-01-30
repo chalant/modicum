@@ -93,7 +93,7 @@ function start()
     stp = Test(10)
     gs = KUHNGameState{Test}(game)
 
-    mp = gs.players[1]
+    mp = game.players[1]
 
     shuffle!(gs.players)
 
@@ -101,13 +101,13 @@ function start()
     
     acts = actions!(game)
 
-    deck = getdeck()
+    deck = game.deck
 
     shuffle!(deck)
     
     cards = @MVector zeros(UInt8, 2)
     
-    private_cards = @MVector zeros(UInt8, 2)
+    private_cards = game.private_cards
 
     sample!(deck, cards)
 

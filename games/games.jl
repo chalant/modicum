@@ -40,6 +40,10 @@ abstract type AbstractGameState{A, S, P} end
 # @inline limit!(g::Game) = g.num_rounds
 # @inline limit!(gs::GameState) = limit!(gs.game)
 
+@inline function initialstate()
+    throw(NotImplementedError())
+end
+
 @inline function actions!(gs::AbstractGameState)
     throw(NotImplementedError()) 
 end
@@ -48,7 +52,7 @@ end
     throw(NotImplementedError())
 end
 
-@inline function terminal!(state::State)
+@inline function terminal!(state::Integer)
     throw(NotImplementedError())
 end
 

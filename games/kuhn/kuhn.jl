@@ -5,6 +5,7 @@ using StaticArrays
 using games
 using playing
 using actions
+using infosets
 
 export getdeck
 export perform!
@@ -28,21 +29,19 @@ const CALL_ID = UInt8(2)
 const CHECK_ID = UInt8(3)
 const FOLD_ID = UInt8(4)
 
-struct KUHNState <: State
-    id::UInt8
-    mask::MVector{4, Bool}
+@inline function infosets.infosetkey(gs::KUHNGameState, pl::Integer)
+    return privatecards!(gs)[pl]
 end
 
 @inline function initialstate()
-    mask = @MVector Bool[1,0,1,0]
-
-    return KUHNState(INIT_ID, mask)
+    return KUHNState(INIT_ID)
 end
 
 @inline function getdeck()
     res = SizedVector{52, UInt8}(zeros(UInt8, 52))
     
     i = 1
+    
     for c in 1:13
         for _ in 1:4
             res[i] = c
@@ -74,26 +73,36 @@ Base.hash(a::KUHNAction, h::UInt) = hash(a.id, hash(:KUHNAction, h))
 
 mutable struct KUHNGame
     action_set::ActionSet{4}
+
+    players::MVector{2, UInt8}
     
     deck::Vector{UInt64}
     private_cards::MVector{2, UInt64}
-    
-    KUHNGame() = new(ActionSet{4, KUHNAction}(MVector{4, KUHNAction}([
+end
+
+@inline function _creategame()
+    action_set = ActionSet{4, KUHNAction}(MVector{4, KUHNAction}([
         KUHNAction(CALL_ID), 
         KUHNAction(BET_ID),
         KUHNAction(FOLD_ID),
-        KUHNAction(CHECK_ID)])))
+        KUHNAction(CHECK_ID)]))
+    
+    players = @MVector UInt8[1, 2]
+    private_cards = @MVector zeros(UInt8, 2)
+    
+    return KUHNGame(action_set, players, get_deck(), private_cards)
+
 end
+
+KUHNGame() = _creategame()
 
 mutable struct KUHNGameState{S<:GameSetup} <: AbstractGameState{4, 2, S}
     action::UInt8
-    actions_mask::MVector{4, Bool}
     state::UInt8
 
     position::UInt8
     pot::UInt8
     
-    players::MVector{2, UInt8}
     players_states::MVector{2, Bool}
     bets::MVector{2, UInt8}
     
@@ -106,24 +115,51 @@ end
 KUHNGameState{S}(game) where S <: GameSetup = _creategamestate(S, game)
 
 @inline function _creategamestate(::Type{S}, game) where S <: GameSetup
-    players = @MVector [UInt8(1), UInt8(2)]
     states = @MVector [true, true]
     bets = @MVector zeros(UInt8, 2)
     
-    mask = @MVector Bool[1, 0, 1, 0]
-    
     return KUHNGameState{S}(
         NULL_ID,
-        mask, 
         INIT_ID,
         UInt8(1),
         UInt8(0),
-        players,
         states,
         bets,
-        players[1],
+        players!(game)[1],
         game)
 end
+
+@inline function actionsmask!(gs::KUHNGameState)
+    mask = @MVector zeros(Bool, 4)
+
+    action = gs.action
+
+    bet_cond = action == CHECK_ID
+    call_cond = action == BET_ID
+
+    action_set = actions!(gs)
+
+    for i in 1:4
+        aid = action_set[i].id
+
+        is_bet = aid == BET_ID
+        is_check = aid == CHECK_ID
+        
+        mask[i] = bet_cond * (is_bet + is_check) +
+            call_cond * ((aid == CALL_ID) + (aid == FOLD_ID))
+            # * ((is_bet && pa == CALL_ID) +
+            # (is_bet && p_is_bet) +
+            # (is_bet && pa == FOLD_ID) +
+            # (is_check && p_is_check) +
+            # (is_check && p_is_bet))
+    end
+
+    return mask
+
+end
+
+@inline players!(g::KUHNGame) = g.players 
+@inline players!(gs::KUHNGameState) = players!(gs.game)
 
 @inline function nextplayer!(gs::KUHNGameState)
     n = gs.position 
@@ -132,12 +168,12 @@ end
 
     gs.position = n
 
-    return gs.players[n]
+    return players!(gs)[n]
 
 end
 
-@inline function rotateplayers!(gs::KUHNGameState)
-    players = gs.players
+@inline function rotateplayers!(game::KUHNGame)
+    players = game.players
 
     ps = players[1]
     players[1] = players[2]
@@ -194,6 +230,8 @@ end
     a::KUHNAction, 
     gs::KUHNGameState{S}, 
     p::UInt8) where {S<:GameSetup}
+
+    #perform move and update gamestate
     
     id_ = a.id
     pa = gs.action
@@ -212,44 +250,14 @@ end
     gs.pot += bet
     gs.bets[p] += bet
 
-    end_cond = (p_is_bet && (id_ == BET_ID || id_ == FOLD_ID || id_ == folded || is_call)) || (p_is_check && id_ == CHECK_ID)
-
-    state = end_cond * ENDED_ID + !end_cond * STARTED_ID 
-
-    mask = @MVector zeros(Bool, 4)
-
-    if state == ENDED_ID
-        return KUHNState(id, mask)
-    end
-
     #update action mask
-
-
-    bet_cond = id_ == CHECK_ID
-    call_cond = id_ == BET_ID
-
-    action_set = actions!(gs)
-
-    for i in 1:4
-        aid = action_set[i].id
-
-        is_bet = aid == BET_ID
-        is_check = aid == CHECK_ID
-        
-        mask[i] = bet_cond * (is_bet + is_check) +
-            call_cond * ((aid == CALL_ID) + (aid == FOLD_ID))
-            # * ((is_bet && pa == CALL_ID) +
-            # (is_bet && p_is_bet) +
-            # (is_bet && pa == FOLD_ID) +
-            # (is_check && p_is_check) +
-            # (is_check && p_is_bet))
-            
-    end
 
     gs.player = nextplayer!(gs)
     gs.action = id_
 
-    return KUHNState(state, mask)
+    end_cond = (p_is_bet && (id_ == BET_ID || id_ == FOLD_ID || id_ == folded || is_call)) || (p_is_check && id_ == CHECK_ID)
+
+    return end_cond * ENDED_ID + !end_cond * STARTED_ID 
 
 end
 

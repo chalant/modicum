@@ -174,7 +174,7 @@ function innersolve(
 
         cr = cum_regrets[i]
         
-        #fixme: shouldn'
+        #this is set to zero when cr is negative
         stg = (cr > 0) * cr/norm
 
         cum_stg[i] += p1 * stg * am

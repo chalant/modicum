@@ -2,30 +2,38 @@ module tree
 
 using StaticArrays
 
+using games
+
 export History
 export infoset
 export history
 export getutils
 
-abstract type AbstractHistory{T, U, V} end
+export infosetkey
+
+abstract type AbstractHistory{T, U, V, N} end
 
 struct Node{T<:AbstractArray}
     cum_strategy::T # cumulative strategy
     cum_regret::T #cumulative regret
 end
 
-struct History{T<:GameState, U<:AbstractArray, V<:AbstractFloat} <: AbstractHistory{T, U, V}
+struct History{T<:GameState, U<:AbstractArray, V<:AbstractFloat} <: AbstractHistory{T, U, V, N}
     infosets::Dict{UInt64, Node{U}}
     histories::Dict{UInt8, History{T, Node{U}}}
     game_state::T # history keeps a reference to a game state data
 end
 
-struct CachingHistory{T<:GameState, U<:AbstractArray, V<:AbstractFloat, N} <: AbstractHistory{T, U, V}
+struct CachingHistory{T<:GameState, U<:AbstractArray, V<:AbstractFloat, N} <: AbstractHistory{T, U, V, 1}
     infosets::Dict{UInt64, Node{U}}
     histories::Dict{UInt8, History{T, Node{U}}}
     game_state::T # history keeps a reference to a game state data
     cache::SizedVector{N, V}
 end
+
+@inline function infosetkey(gs::AbstractGameState)
+    throw(NotImplementedErrorr())
+return
 
 @inline function infoset(::Type{T}, h::AbstractHistory, key::UInt64) where T<:StaticArray
     info = h.infosets
