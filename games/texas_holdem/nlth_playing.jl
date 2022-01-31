@@ -1014,7 +1014,7 @@ end
 #     return c
 end
 
-@inline function update!(action::THAction{T}, gs::NLTHGameState{A, 2, S, T}, ps::THPlayerState) where {A, S<:GameSetup, T<:AbstractFloat}
+@inline function update!(action::THAction{T}, gs::NLTHGameState{A, P, S, T}, ps::THPlayerState) where {A, P, S<:GameSetup, T<:AbstractFloat}
     id = action.id
     
     actions_mask = gs.actions_mask
@@ -1064,6 +1064,61 @@ end
     # end
 
     return gs.state
+end
+
+@inline function games.actionsmask!(gs::NLTHGameState{A, P, S, T}) where {A, P, S<:GameSetup, T<:AbstractFloat}
+    action = gs.action
+    
+    id = action.id
+    
+    mask = @MVector zeros(Bool, A)
+
+    #todo: maybe we should use a lookup table...
+
+    #todo: maybe pass a mask array where some elements are deactivated
+    # the mask is the size of the action set...
+
+    call_cond = id == BET_ID || id == RAISE_ID || id == BB_ID || id == CALL_ID || id == FOLD_ID || id == ALL_ID
+    check_cond = id == CHECK_ID || id == CHANCE_ID || id == CALL_ID || id == ALL_ID
+    fold_cond = call_cond || id == CHECK_ID
+    bet_cond = id == CHECK_ID || id == CHANCE_ID
+    raise_cond = id == BET_ID || id == CALL_ID || id == FOLD_ID
+    bb_cond = id == SB_ID
+
+    acts == actions!(gs)
+
+    for i in 1:A
+        id = acts[i].id
+
+        mask[ia] = (call_cond * (id == CALL_ID) + 
+            check_cond * (id == CHECK_ID) +
+            fold_cond * (id == FOLD_ID) +
+            bet_cond * (id == BET_ID) +
+            raise_cond * (id == RAISE_ID) +
+            fold_cond * (id == ALL_ID) +
+            bb_cond * (id == BB_ID) +
+            0 * (id == SB_ID)) * _activateaction!(acts[i], gs, gs.player)
+
+    end
+
+    # if id == BET_ID || id == RAISE_ID || id == BB_ID
+    #     _update!(actions!(gs), ACTION_SET1, gs, ps)
+    # elseif id == CALL_ID || id == FOLD_ID
+    #     _update!(actions!(gs), AFTER_CALL, gs, ps)
+    # elseif id == CHECK_ID || id == CHANCE_ID
+    #     _update!(actions!(gs), ACTION_SET2, gs, ps)
+    # elseif id == ALL_ID
+    #     _update!(actions!(gs), AFTER_ALL, gs, ps)
+    # elseif id == SB_ID
+    #     _update!(actions!(gs), AFTER_SB, gs, ps)
+    # end
+
+    # for i in 1:A
+    #     actions_mask[ia] = mask[i] * _activateaction!(acts[i], gs, ps)
+    # end
+
+    return mask
+
 end
 
 @inline function _activateaction!(a::THAction, gs::NLTHGameState, ps::THPlayerState)

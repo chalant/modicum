@@ -41,7 +41,7 @@ function innersolve(
 
     cum_regrets = info_set.cum_regrets
 
-    if pl == ps.player
+    if pl == gs.player
         n_actions = sum(actions_mask)
 
         #todo: we could sort actions such that all the active actions are
