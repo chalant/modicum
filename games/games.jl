@@ -10,6 +10,8 @@ export terminal!
 export actionsmask!
 export evaluateterminal!
 export limit!
+export initialactionsmask
+export initialstate
 
 export INIT_ID
 export STARTED_ID
@@ -48,11 +50,15 @@ end
     throw(NotImplementedError()) 
 end
 
+@inline function initialactionsmask()
+    throw(NotImplementedError())
+end
+
 @inline function actionsmask!(gs::AbstractGameState)
     throw(NotImplementedError())
 end
 
-@inline function terminal!(state::Integer)
+@inline function terminal!(state::T) where T <: Integer
     throw(NotImplementedError())
 end
 

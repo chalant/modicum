@@ -13,7 +13,7 @@ using iterationstyles
 @inline function stategysum!(
     strategy::MVector{A, T}, 
     actions_mask::MVector{A, Bool}, 
-    w::T) where {T <: AbstractFloat, A}
+    w::T) where {T<:AbstractFloat, A}
     
     num_actions = sum(actions_mask) 
 
@@ -59,7 +59,7 @@ end
     copy!(game_state, gs)
 
     #perform action and update state of copy
-    perform!(a, game_state, game_state.player)
+    state = perform!(a, game_state, game_state.player)
 
     cr = cum_regrets[action_idx]
 
@@ -70,7 +70,8 @@ end
     ut = innersolve(
         solver, 
         game_state,
-        ha, pl, 
+        ha, pl,
+        state, 
         p0*stg,
         p1)
 
@@ -83,7 +84,8 @@ function innersolve(
     solver::MCCFR{T}, 
     gs::AbstractGameState{A, 2, FullSolving, T}, 
     h::AbsractHistory{GameState{A, 2, R, FullSolving}, V, T, 1}, 
-    pl::PlayerState{T},
+    pl::Integer,
+    state::Integer,
     p0::T,
     p1::T) where {T<:AbstractFloat, A, R, V <: StaticVector{A, T}}
 
@@ -92,7 +94,7 @@ function innersolve(
     #todo: handle ended and terminated states!
     # get utility on ended state
 
-    if terminal(gs) == true       
+    if terminal!(state) == true       
         #get the utilty of the main player
         return computeutility!(gs, pl)
     end
@@ -218,12 +220,13 @@ function innersolve(
 
     copy!(game_state, gs)
 
-    perform!(a, game_state, gs.player)
+    state = perform!(a, game_state, gs.player)
     
     return innersolve(
         solver,
         game_state,
         ha, pl,
+        state,
         p0, 
         p1 * s)
 end
@@ -257,7 +260,7 @@ function solving.solve(
             
             util += innersolve(
                 solver, 
-                gs, g, 
+                gs, g,
                 data, 
                 h, pl, 
                 T(1), 

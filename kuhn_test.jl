@@ -2,6 +2,7 @@ push!(LOAD_PATH, join([pwd(), "utils"], "/"))
 # push!(LOAD_PATH, pwd())
 push!(LOAD_PATH, join([pwd(), "games"], "/"))
 push!(LOAD_PATH, join([pwd(), "games/kuhn"], "/"))
+push!(LOAD_PATH, join([pwd(), "solving"], "/"))
 
 using kuhn
 using games
@@ -29,15 +30,15 @@ end
     end
 end
 
-@inline function chooseaction!(gs::KUHNGameState{Test})
+@inline function chooseaction!(gs::KUHNGameState{Test}, mask::MVector{4, Bool})
     # todo provide a function for displaying actions names
     println("Choose action ")
     acts = actions!(gs)
 
-    println(gs.actions_mask)
+    println(mask)
 
     #display available actions
-    for (i, (act, j)) in enumerate(zip(acts, gs.actions_mask))
+    for (i, (act, j)) in enumerate(zip(acts, mask))
         if j == 1
             println("Press ", i, " to ", message(act))
         end
@@ -47,13 +48,13 @@ end
         i = parse(Int, readline())
         if i > 4 || i < 1
             println("Invalid input ")
-            return chooseaction!(gs)
+            return chooseaction!(gs, mask)
         else
             return acts[i]
         end
     catch
         println("Invalid input")
-        return chooseaction!(gs)
+        return chooseaction!(gs, mask)
     end
 end
 
@@ -95,9 +96,9 @@ function start()
 
     mp = game.players[1]
 
-    shuffle!(gs.players)
+    shuffle!(game.players)
 
-    gs.player = gs.players[1]
+    gs.player = game.players[1]
     
     acts = actions!(game)
 
@@ -113,7 +114,7 @@ function start()
 
     i = 1
     
-    for ps in gs.players
+    for ps in game.players
         private_cards[ps] = cards[i]
         
         i += 1
@@ -122,8 +123,24 @@ function start()
     println("Cards: ", private_cards[1], " ", private_cards[2])
     
     state = initialstate()
+    mask = initialactionsmask()
 
     while true
+
+        cp = gs.player
+        
+        println("Current Player ", Int(cp))
+
+        if cp == mp
+            a = chooseaction!(gs, mask)
+        else
+            a = acts[sampleaction!(mask)]
+        end
+
+        println("Performed ", message(a))
+
+        state = perform!(a, gs, cp)
+
         if terminal!(state) == true
 
             states = gs.players_states
@@ -139,7 +156,7 @@ function start()
                 println("Draw! ", gs.pot/2)
             end
             
-            rotateplayers!(gs)
+            rotateplayers!(game)
 
             sample!(deck, cards)
 
@@ -147,29 +164,17 @@ function start()
     
             i = 1
             
-            for ps in gs.players
+            for ps in game.players
                 private_cards[ps] = cards[i]
                 
                 i += 1
             end
 
-            println("Cards: ", private_cards[1], " ", private_cards[2])
-
+            println("Cards: ", private_cards[1], " ", private_cards[2]) 
         end
 
-        cp = gs.player
+        mask = actionsmask!(gs)
         
-        println("Current Player ", Int(cp))
-        
-        if cp == mp
-            a = chooseaction!(gs)
-        else
-            a = acts[sampleaction!(mask)]
-        end
-
-        println("Performed ", message(a))
-
-        state = perform!(a, gs, cp)
 
     end
     

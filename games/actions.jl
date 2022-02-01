@@ -55,7 +55,6 @@ end
     
     #todo we might not need to copy the mask, since it gets overwritten anyway
     
-    mask = copy(mask)
     i = 1
 
     while i < n_actions + 1
