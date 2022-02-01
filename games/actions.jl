@@ -104,7 +104,7 @@ end
 # end
 
 @inline function Base.iterate(a::ActionSet{N, T}) where {N, T<:Action}
-    return iterate(a, (SOneTo(N), 0))
+    return iterate(a.actions, (SOneTo(N), 0))
 end
 
 @inline function viewactions(a::ActionSet{N, T}) where {N, T<:Action}
