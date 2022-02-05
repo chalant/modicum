@@ -12,6 +12,7 @@ export id
 export legalactions!
 
 abstract type Action end
+abstract type ChanceAction{T} end
 
 mutable struct ActionSet{N, T<:Action}
     actions::MVector{N, T}
@@ -89,10 +90,7 @@ end
 end
 
 @inline function Base.sort!(s::ActionSet{N, T}) where {N, T<:Action}
-    if s.sorted != true
-        sort!(s.actions)
-        s.sorted = false
-    end
+    sort!(s.actions)
 end
 
 @inline function Base.iterate(a::ActionSet{N, T}, i::Tuple) where {N, T<:Action}

@@ -70,4 +70,20 @@ end
     throw(NotImplementedError())
 end
 
+@inline function performchance!(a::ChanceAction, gs::AbstractGameState, pl::U) where {U<:Integer}
+    throw(NotImplementedError())
+end
+
+@inline function chanceactions!(gs::AbstractGameState, idx::T) where T<:Integer
+    throw(NotImplementedError())
+end
+
+@inline function chance!(state::T) where T<:Integer
+    throw(NotImplementedError())
+end
+
+@inline function initialchanceaction(gs::AbstractGameState)
+    throw(NotImplementedError())
+end
+
 end

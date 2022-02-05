@@ -7,6 +7,7 @@ using playing
 using actions
 
 export getdeck
+export getcompresseddeck
 export perform!
 export rotateplayers!
 export reset!
@@ -28,6 +29,9 @@ const CALL_ID = UInt8(2)
 const CHECK_ID = UInt8(3)
 const FOLD_ID = UInt8(4)
 
+struct KUHNChanceAction <: ChanceAction{0}
+end
+
 @inline function games.initialstate()
     return INIT_ID
 end
@@ -36,8 +40,8 @@ end
     return @MVector Bool[1, 0, 1, 0]
 end
 
-@inline function getdeck()
-    res = SizedVector{52, UInt8}(zeros(UInt8, 52))
+@inline function getdeck(::Type{T}) where {U<:Integer, T<:AbstractVector{U}}
+    res = zeros(U, 52)
     
     i = 1
     
@@ -50,6 +54,16 @@ end
 
     return res
 
+end
+
+@inline function getcompresseddeck(::Type{T}) where {U<:Integer, T<:AbstractVector{U}}
+    res = zeros(U, 13)
+    
+    for c in 1:13
+        res[c] = c
+    end
+
+    return res
 end
 
 struct KUHNAction <: Action
@@ -70,16 +84,16 @@ end
 
 Base.hash(a::KUHNAction, h::UInt) = hash(a.id, hash(:KUHNAction, h))
 
-mutable struct KUHNGame
+mutable struct KUHNGame{T<:AbstractVector}
     action_set::ActionSet{4}
 
     players::MVector{2, UInt8}
     
-    deck::Vector{UInt64}
+    deck::T
     private_cards::MVector{2, UInt64}
 end
 
-@inline function _creategame()
+@inline function _creategame(deck::T) where {U<:Integer, T<:AbtractVector{U}}
     action_set = ActionSet{4, KUHNAction}(MVector{4, KUHNAction}([
         KUHNAction(CALL_ID), 
         KUHNAction(BET_ID),
@@ -89,15 +103,15 @@ end
     players = @MVector UInt8[1, 2]
     private_cards = @MVector zeros(UInt8, 2)
     
-    return KUHNGame(
+    return KUHNGame{T}(
         action_set, 
         players, 
-        getdeck(), 
+        deck, 
         private_cards)
-
 end
 
-KUHNGame() = _creategame()
+KUHNGame{T}() where {U<:Integer, T<:AbstractVector{U}} = _creategame(getdeck(T))
+KUHNGame{T}(deck) where {U<:Integer, T<:AbstractVector{U}} = _creategame(deck)
 
 mutable struct KUHNGameState{S<:GameSetup} <: AbstractGameState{4, 2, S}
     action::UInt8
@@ -160,6 +174,10 @@ end
 
 @inline players!(g::KUHNGame) = g.players 
 @inline players!(gs::KUHNGameState) = players!(gs.game)
+
+@inline games.chanceactions!(gs::KUHNGameState, idx::T) where T<:Integer
+    return ()
+end
 
 @inline function nextplayer!(gs::KUHNGameState)
     n = gs.position 

@@ -123,7 +123,7 @@ function start()
     println("Cards: ", private_cards[1], " ", private_cards[2])
     
     state = initialstate()
-    mask = initialactionsmask()
+    mask = actionsmask!(gs)
 
     while true
 
@@ -169,13 +169,10 @@ function start()
                 
                 i += 1
             end
-
-            println("Cards: ", private_cards[1], " ", private_cards[2]) 
         end
 
         mask = actionsmask!(gs)
-        
-
+    
     end
     
 

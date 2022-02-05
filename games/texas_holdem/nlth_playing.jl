@@ -1084,7 +1084,7 @@ end
     bet_cond = id == CHECK_ID || id == CHANCE_ID
     raise_cond = id == BET_ID || id == CALL_ID || id == FOLD_ID
     bb_cond = id == SB_ID
-
+    
     acts == actions!(gs)
 
     for i in 1:A

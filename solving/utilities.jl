@@ -50,7 +50,7 @@ end
 
 @inline function computeutility!(
     gs::NLTHGameState{A, 2, FullSolving, T},
-    pl::THPlayerState{T}, 
+    pl::THPlayerState{T},
     uv::StaticVector{N}) where {A, N, T<:AbstractFloat}
 
     data = shared(gs)
@@ -110,25 +110,6 @@ end
 
     return opp < mp - (opp > mp)
 
-end
-
-@inline function computeutility!(
-    gs::KUHNGameState{FullSolving, T}, 
-    pl::KUHNPlayerState{T},
-    uv::StaticVector{N}) where {N, T<:AbstractFloat}
-
-    deck = game!(gs).deck
-
-    mp = data.private_cards[Players.id(pl)]
-
-    for i in eachindex(deck)
-        opp = deck[i]
-
-        uv[i] = opp < mp - (opp > mp)
-    end
-
-    return uv
-    
 end
 
 end

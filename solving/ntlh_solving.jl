@@ -8,8 +8,8 @@ using infosets
     return setup(gs).limit
 end
 
-@inline function infosets.infosetkey(gs::NLTHGameState{A, P, S, U}) where {A, P, T<:Solver, U<:AbstractFloat}
-    
+@inline function infosets.infosetkey(gs::NLTHGameState{A, P, S, T}) where {A, P, S<:GameSetup, T<:AbstractFloat}
+    return 
 end
 
 function solve(solver::CFRPlus, itr::IterationStyle)

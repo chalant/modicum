@@ -260,9 +260,8 @@ function solving.solve(
             
             util += innersolve(
                 solver, 
-                gs, g,
-                data, 
-                h, pl, 
+                gs, h, pl,
+                state,
                 T(1), 
                 T(1))
         

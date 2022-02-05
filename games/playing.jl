@@ -26,7 +26,7 @@ using players
 using actions
 
 
-@inline function perform!(a::Action, gs::AbstractGameState, ps::PlayerState)
+@inline function perform!(a::Action, gs::AbstractGameState, pl::T) where T <: Integer
     throw(NotImplementedError())
 end
 

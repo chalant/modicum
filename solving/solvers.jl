@@ -19,9 +19,6 @@ struct MCCFR{T<:AbstractFloat} <: Solver
     epsilon::T 
 end
 
-struct CFRPlus{N, P, T<:AbstractFloat} <: Solver
-end
-
 # todo add compression data to resources folder
 # filter for private cards
 const PreFlopFilter = Filter(indexdata(
@@ -38,12 +35,6 @@ const PreFlopFilter = Filter(indexdata(
     end
 
     return evaluate(binomial(length(pr) + length(pc), 2), pr, pc)
-end
-
-
-@inline function NLTHGames.limit!(gs::NLTHGameState{A, P, DepthLimited{T}, U}) where {A, P, T<:Solver, U<:AbstractFloat}
-    #override numrounds! functions for depth-limited game setups
-    return setup(gs).limit
 end
 
 struct DepthLimited{T<:Solver} <: GameSetup
