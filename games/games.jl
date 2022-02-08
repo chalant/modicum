@@ -12,20 +12,23 @@ export evaluateterminal!
 export limit!
 export initialactionsmask
 export initialstate
+export chance!
+export nextround!
+export performchance!
 
 export INIT_ID
 export STARTED_ID
 export ENDED_ID
 export TERM_ID
 
+using hermes_exceptions
+using actions
 
 const INIT_ID = UInt8(0)
 const STARTED_ID = UInt8(1)
 const ENDED_ID = UInt8(2)
 const TERM_ID = UInt8(3)
 const CHANCE_ID = UInt8(4)
-
-using hermes_exceptions
 
 abstract type State end
 
@@ -42,7 +45,7 @@ abstract type AbstractGameState{A, S, P} end
 # @inline limit!(g::Game) = g.num_rounds
 # @inline limit!(gs::GameState) = limit!(gs.game)
 
-@inline function initialstate()
+@inline function initialstate(gs::AbstractGameState)
     throw(NotImplementedError())
 end
 
@@ -68,6 +71,10 @@ end
 
 @inline function limit!(gs::AbstractGameState)
     throw(NotImplementedError())
+
+end
+
+@inline function nextround!(gs::AbstractGameState, pl::T) where T <: Integer
 end
 
 @inline function performchance!(a::ChanceAction, gs::AbstractGameState, pl::U) where {U<:Integer}

@@ -6,13 +6,14 @@ using actions
 
 export Action
 export ActionSet
+export ChanceAction
 
 export viewactions
 export id
 export legalactions!
 
 abstract type Action end
-abstract type ChanceAction{T} end
+abstract type ChanceAction end
 
 mutable struct ActionSet{N, T<:Action}
     actions::MVector{N, T}

@@ -13,30 +13,30 @@ export getprobs
 
 export infosetkey
 
-abstract type AbstractHistory{T, U, V, N} end
+abstract type AbstractHistory{T, U, V, N, K} end
 
 struct Node{T<:AbstractArray}
     cum_strategy::T # cumulative strategy
     cum_regret::T #cumulative regret
 end
 
-struct History{T<:AbstractGameState, U<:StaticVector, V<:AbstractFloat, N} <: AbstractHistory{T, U, V, N}
+struct History{T<:AbstractGameState, U<:StaticVector, V<:AbstractFloat, N, K<:Unsigned} <: AbstractHistory{T, U, V, N, K}
     infosets::Dict{UInt64, Node{U}}
-    histories::Dict{UInt8, History{T, Node{U}}}
+    histories::Dict{K, History{T, Node{U}}}
     game_state::T # history keeps a reference to a game state data
 end
 
-struct CachingVHistory{T<:AbstractGameState, U<:StaticMatrix, V<:AbstractFloat, N} <: AbstractHistory{T, U, V, N}
+struct CachingVHistory{T<:AbstractGameState, U<:StaticMatrix, V<:AbstractFloat, N, K<:Unsigned} <: AbstractHistory{T, U, V, N}
     infosets::Dict{UInt64, Node{U}}
-    histories::Dict{UInt8, CachingCFRHistory{T, Node{U}}}
+    histories::Dict{K, CachingCFRHistory{T, Node{U}}}
     game_state::T
     opp_probs::SizedVector{N, V}
     utils::SizedVector{N, V}
 end
 
-struct VHistory{T<:AbstractGameState, U<:StaticMatrix, V<:AbstractFloat, N} <: AbstractHistory{T, U, V, N}
+struct VHistory{T<:AbstractGameState, U<:StaticMatrix, V<:AbstractFloat, N, K} <: AbstractHistory{T, U, V, N}
     infosets::Dict{UInt64, Node{U}}
-    histories::Dict{UInt8, VHistory{T, Node{U}}}
+    histories::Dict{K, VHistory{T, Node{U}}}
     game_state::T
 end
 
@@ -58,7 +58,7 @@ end
 
 @inline function history(
     h::History{T, U, V, N}, 
-    action_idx::UInt8) where {T<:AbstractGameState, U<:StaticVector, V<:AbstractFloat, N}
+    action_idx::K) where {T<:AbstractGameState, U<:StaticVector, V<:AbstractFloat, N, K<:Unsigned}
     
     hist = h.histories
     
@@ -78,8 +78,8 @@ end
 end
 
 @inline function history(
-    ::Type{CachingVHistory{T, U, V, N}}, 
-    gs::T) where {N, V<:AbstractFloat, T<:AbstractGameState, U<:StaticMatrix}
+    ::Type{CachingVHistory{T, U, V, N, K}}, 
+    gs::T) where {N, V<:AbstractFloat, T<:AbstractGameState, U<:StaticMatrix, K<:Unsigned}
     
     return CachingVHistory{T, U, V, N}(
         Dict{UInt64, Node{U}}(), 
@@ -90,8 +90,8 @@ end
 end
 
 @inline function history(
-    ::Type{VHistory{T, U, V, N}}, 
-    gs::T) where {T<:AbstractGameState, U<:StaticMatrix, V<:AbstractFloat, N}
+    ::Type{VHistory{T, U, V, N, K}}, 
+    gs::T) where {T<:AbstractGameState, U<:StaticMatrix, V<:AbstractFloat, N, K<:Unsigned}
     
     return VHistory{T, U, V, N}(
         Dict{UInt64, Node{U}}(), 
@@ -100,19 +100,19 @@ end
 end
 
 @inline function history(
-    ::Type{History{T, U, V, N}}, 
-    gs::T) where {T<:AbstractGameState, U<:StaticVector, V<:AbstractFloat, N}
+    ::Type{History{T, U, V, N, K}}, 
+    gs::T) where {T<:AbstractGameState, U<:StaticVector, V<:AbstractFloat, N, K<:Unsigned}
 
-    return History{T, U, V, N}(
+    return History{T, U, V, N, K}(
         Dict{UInt64, Node{U}}(), 
-        Dict{UInt8, History{T, U, V, N}}(), 
+        Dict{UInt8, History{T, U, V, N, K}}(), 
         gs)
 
 end
 
 @inline function history(
-    h::CachingVHistory{T, U, V, N}, 
-    action_idx::UInt8) where {T<:AbstractGameState, U<:StaticMatrix, V<:AbstractFloat, N}
+    h::CachingVHistory{T, U, V, N, K}, 
+    action_idx::K) where {T<:AbstractGameState, U<:StaticMatrix, V<:AbstractFloat, N, K<:Unsigned}
     
     hist = h.histories
     
@@ -132,19 +132,19 @@ end
     end
 end
 
-@inline function getutils(h::CachingVHistory{T, U, V, N}) where {T<:AbstractGameState, U<:AbstractArray, V<:AbstractFloat, N}
+@inline function getutils(h::CachingVHistory{T, U, V, N, K}) where {T<:AbstractGameState, U<:AbstractArray, V<:AbstractFloat, N, K<:Unsigned}
     return h.utils
 end
 
-@inline function getutils(h::VHistory{T, U, V, N}) where {T<:AbstractGameState, U<:AbstractMatrix, V<:AbstractFloat, N}
+@inline function getutils(h::VHistory{T, U, V, N, K}) where {T<:AbstractGameState, U<:AbstractMatrix, V<:AbstractFloat, N, K<:Unsigned}
     return @MVector zeros(V, N)
 end
 
-@inline function getprobs(h::CachingVHistory{T, U, V, N}) where {T<:AbstractGameState, U<:AbstractMatrix, V<:AbstractFloat, N}
+@inline function getprobs(h::CachingVHistory{T, U, V, N, K}) where {T<:AbstractGameState, U<:AbstractMatrix, V<:AbstractFloat, N, K<:Unsigned}
     return h.opp_probs
 end
 
-@inline function getprobs(h::VHistory{T, U, V, N}) where {T<:AbstractGameState, U<:AbstractMatrix, V<:AbstractFloat, N}
+@inline function getprobs(h::VHistory{T, U, V, N, K}) where {T<:AbstractGameState, U<:AbstractMatrix, V<:AbstractFloat, N, K<:Unsigned}
     @MVector zeros(V, N)
 end
 

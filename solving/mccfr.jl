@@ -10,6 +10,10 @@ using playing
 using players
 using iterationstyles
 
+struct MCCFR{T<:AbstractFloat} <: Solver
+    epsilon::T 
+end
+
 @inline function stategysum!(
     strategy::MVector{A, T}, 
     actions_mask::MVector{A, Bool}, 

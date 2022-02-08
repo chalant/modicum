@@ -397,9 +397,7 @@ end
         i = 0
 
         for ps in pls
-            if ps.pot != 0
-                i += 1
-            end
+            i += (ps.pot != 0) * 1
         end
 
         return i
@@ -428,10 +426,7 @@ end
 
 @inline function performcheck!(a::THAction, gs::NLTHGameState, ps::THPlayerState)
     #if the player that checks is the one that bet, move to next round
-    if gs.bet_player == ps
-        return nextround!(gs, ps)
-    elseif ps.action == BB_ID
-        #if players previous action was a bigblind
+    if gs.bet_player == ps || ps.action == BB_ID
         return nextround!(gs, ps)
     end
 
@@ -572,7 +567,7 @@ end
     
 end
 
-@inline function Playing.perform!(a::THAction, gs::NLTHGameState, ps::THPlayerState)
+@inline function playing.perform!(a::THAction, gs::NLTHGameState, ps::THPlayerState)
     id = a.id
 
     if id == ALL_ID

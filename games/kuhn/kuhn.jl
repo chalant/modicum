@@ -29,7 +29,14 @@ const CALL_ID = UInt8(2)
 const CHECK_ID = UInt8(3)
 const FOLD_ID = UInt8(4)
 
-struct KUHNChanceAction <: ChanceAction{0}
+struct KUHNChanceAction{T<:Integer} <: ChanceAction
+    idx::T
+    public_idx::T
+    private_idx::T
+end
+
+@inline function Base.:(+)(a::KUHNChanceAction, b::KUHNChanceAction)
+    return KUHNChanceAction{}(a.idx + b.idx)
 end
 
 @inline function games.initialstate()
@@ -66,8 +73,8 @@ end
     return res
 end
 
-struct KUHNAction <: Action
-    id::UInt8
+struct KUHNAction{T<:Unsigned} <: Action
+    id::T
 end
 
 @inline function Base.isless(a::KUHNAction, b::KUHNAction)
@@ -90,7 +97,7 @@ mutable struct KUHNGame{T<:AbstractVector}
     players::MVector{2, UInt8}
     
     deck::T
-    private_cards::MVector{2, UInt64}
+    private_cards::MVector{2, UInt8}
 end
 
 @inline function _creategame(deck::T) where {U<:Integer, T<:AbtractVector{U}}
@@ -172,12 +179,39 @@ end
 
 end
 
+struct KUHNPublicTree{T<:Integer}
+    n::T
+    chance_action::KUHNChanceAction{T}
+end
+
+@inline function games.performchance!(a::KUHNChanceAction{T}, gs::KUHNGameState, pl::T) where T<:Integer
+
+end
+
+@inline Base.iterate(pt::KUHNPublicTree{T}) = pt.chance_action
+
+@inline function Base.iterate(pt::KUHNPublicTree{T}, a::KUHNChanceAction{T}) where T<:Integer
+    if a.public_idx >= pt.n
+        return nothing
+    end
+    
+    i = a.public_idx + 1
+    
+    #exclude main player private card
+    if a.private_idx != i
+        return KUHNChanceAction{T}(a.idx + 1, i, a.private_idx)
+    else
+        i += 1
+        return KUHNChanceAction{T}(a.idx + 2, i, a.private_idx)
+    end
+end
+
+@inline function game.chanceactions!(gs::KUHNGameState, a::KUHNChanceAction)
+    return KUHNPublicTree(length(game!(gs).deck), a)
+end
+
 @inline players!(g::KUHNGame) = g.players 
 @inline players!(gs::KUHNGameState) = players!(gs.game)
-
-@inline games.chanceactions!(gs::KUHNGameState, idx::T) where T<:Integer
-    return ()
-end
 
 @inline function nextplayer!(gs::KUHNGameState)
     n = gs.position 
@@ -262,7 +296,7 @@ end
     gs.player = nextplayer!(gs)
     gs.action = id_
 
-    end_cond = (p_is_bet && (id_ == BET_ID || id_ == FOLD_ID || id_ == folded || is_call)) || (p_is_check && id_ == CHECK_ID)
+    end_cond = (p_is_bet && (id_ == BET_ID || folded || is_call)) || (p_is_check && id_ == CHECK_ID)
 
     return end_cond * ENDED_ID + !end_cond * STARTED_ID 
 

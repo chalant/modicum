@@ -16,17 +16,22 @@ end
 function solve(
     solver::CFRPlus{true, T}, 
     gs::AbstractGameState{A, 2, FullSolving, T}, 
-    h::AbstractHistory{AbstractGameState{A, 2, FullSolving, T}, V, T, N},
+    h::AbstractHistory{AbstractGameState{A, 2, FullSolving, T}, V, T, N, K},
     pl::Integer,
     state::Integer, 
-    opp_probs::U) where {N, A, T<:AbstractFloat, V<:StaticMatrix{N, A, T}, U<:StaticVector{N, T}}
+    opp_probs::U) where {N, A, T<:AbstractFloat, V<:StaticMatrix{N, A, T}, U<:StaticVector{N, T}, K<:Unsigned}
 
-            #todo: we could sort actions such that all the active actions are
-        #at the top, then would would
+    #todo: we could sort actions such that all the active actions are
+    #at the top, then would would
+    
     ev = getutils(h)
 
     if terminal!(state) == true
         return computeutility!(gs, pl, ev)
+    end
+
+    if chance!(state) == true
+        nextround!(gs, pl)
     end
 
     info_set = infoset(V, h, infosetkey(gs))
@@ -157,25 +162,27 @@ end
 function solve(
     solver::CFRPlus{true, T}, 
     gs::AbstractGameState{A, 2, FullSolving, T}, 
-    h::AbstractHistory{AbstractGameState{A, 2, FullSolving, T}, V, T, N},
+    h::AbstractHistory{AbstractGameState{A, 2, FullSolving, T}, V, T, N, K},
     pl::Integer,
     state::Integer,
-    chance_action::ChanceAction{R, W},
-    opp_probs::U) where {N, A, T<:AbstractFloat, V<:StaticMatrix{N, A, T}, U<:StaticVector{N, T}}
+    chance_action::C,
+    opp_probs::U) where {C<:ChanceAction, N, A, T<:AbstractFloat, V<:StaticMatrix{N, A, T}, U<:StaticVector{N, T}, K<:Unsigned}
 
             #todo: we could sort actions such that all the active actions are
         #at the top, then would would
     ev = getutils(h)
 
     if terminal!(state) == true
-        return computeutility!(gs, pl, ev)
+        return computeutility!(gs, pl, opp_probs, ev)
     end
 
     if chance!(state) == true
-        i = 1
 
         #pass-in an index to the function so that we can track the
         #which card subset to pass.
+
+        #we will compress actions (public data, by combining with main players private data)
+        #that way, we can parallelize without collisions...
 
         for a in chanceactions!(gs, chance_action)
             #todo: create a key with the public cards and the private cards, and use that
@@ -186,9 +193,8 @@ function solve(
             #overwrite game state while it is still being used, so we would need to compress
             #before. Problem: we might update strategies in a spefic infoset only per iteration...
 
-            #note: the key must be different from the other actions id
-
-            ha = history(h, a)
+            #add an offset of A to the action index to avoid conflicts with player actions
+            ha = history(h, a.idx + A)
 
             game_state = ha.game_state
             copy!(game_state, gs)
@@ -197,13 +203,11 @@ function solve(
                 solver, 
                 gs, ha, pl, 
                 performchance!(a, game_state, game_state.player)
-                i, opp_probs)
+                opp_probs, a)
 
             for i in 1:N
                 ev[i] += utils[i]
             end
-
-            i += 1
         end
 
         return ev

@@ -111,19 +111,22 @@ mutable struct Game{T<:GameSetup, N, A, U<:AbstractFloat}
     Game{T, N, A, U}() where {T<:GameSetup, N, A, U} = new()
 end
 
+#todo: we need game state where we also hold public cards
 
 #tracks game state.
 
-mutable struct NLTHGameState{A, P, S<:GameSetup, T<:AbstractFloat} <: AbstractGameState{A, P, S}
+mutable struct NLTHGameState{A, P, S<:GameSetup, T<:AbstractFloat, U<:Integer} <: AbstractGameState{A, P, S}
     state::UInt8
 
     action::Action
 
-    player::PlayerState
-    prev_player::PlayerState
-    bet_player::PlayerState
+    player::U
+    prev_player::U
+    bet_player::U
 
-    players_states::SizedVector{P, PlayerState}
+    players_states::MVector{P, U}
+    bets::MVector{P, T}
+
     actions_mask::MVector{A, Bool}
 
     active_players::UInt8 # players that have not folded
@@ -137,9 +140,9 @@ mutable struct NLTHGameState{A, P, S<:GameSetup, T<:AbstractFloat} <: AbstractGa
     last_raise::T
     total_bet::T
 
-    game_settings::GameSettings{S, P, A, T}
+    game::Game{S, P, A, T}
 
-    GameState{A, P, S, T}() where {A, P, S<:GameSetup, T} = new()
+    GameState{A, P, S, T, U}() where {A, P, S<:GameSetup, T, U} = new()
 end
 
 @inline function terminal!(gs::NLTHGameState)

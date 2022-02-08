@@ -1,3 +1,5 @@
+using StatsBase
+
 using solving
 using cfrplus
 using mccfr
@@ -36,10 +38,10 @@ function solvekuhn(solver::CFRPlus{P, T}, itr::IterationStyle) where {P, T<:Abst
 
     gs = KUHNGameState{FullTraining}(game)
 
-    h = history(VHistory{typeof(gs), MMatrix{13, 4, T}, T, 13}, gs)()
+    h = history(VHistory{typeof(gs), MMatrix{2, 4, T}, T, 13, UInt64}, gs)()
 
-    opp_probs = @MVector ones(T, 13)
-    br_probs = @MVector ones(T, 13)
+    opp_probs = @MVector ones(T, 2)
+    br_probs = @MVector ones(T, 2)
 
     private_cards = game.private_cards
 
@@ -51,23 +53,26 @@ function solvekuhn(solver::CFRPlus{P, T}, itr::IterationStyle) where {P, T<:Abst
 
     n = 0
     initial_state = initialstate()
+    chance_action = KUHNChanceAction{UInt64}()
+
     util = T(0)
 
     for _ in itr
         for pl in players
-            #random chance sampling (external sampling)
-            shuffle!(deck)
+            #sample one card from the deck
+            c1 = sample!(deck, 1)
 
             #todo: pop respecting the main player's position
             # if he's second, deal the second card of the deck,
             # since we distribute clock-wise...
-            
-            # i = findall(x->x==pl, gs.players)
+        
             # c = deck[i]
             
             # deleteat!(deck, i)
             
-            private_cards[pl] = deck[1]
+            private_cards[pl] = c1
+
+            # KUHNChanceAction{UInt64}(0, findall(x->x==c1, deck))
 
             util += sum(solve(
                 solver, 
@@ -97,7 +102,7 @@ function solvekuhn(solver::CFRPlus{P, T}, itr::IterationStyle) where {P, T<:Abst
                 for pl in players
 
                     for i in 1:N
-                        br_probs[i] /= 12
+                        br_probs[i] /= 2
                     end
 
                     private_cards[pl] = deck[i]
