@@ -47,13 +47,14 @@ end
 end
 
 @inline function solveforaction!(
-    a::Action,
-    h::History, 
-    action_idx::UInt8,
-    utils::SizedVector{A, T},
-    node_utils::SizedVector{A, T},
-    cum_regrets::SizedVector{A, T},
-    norm::T) where {T<:AbstractFloat, A, P}              
+    gs::G,
+    a::C,
+    h::H, 
+    action_idx::K,
+    utils::V,
+    node_utils::V,
+    cum_regrets::V,
+    norm::T) where {T<:AbstractFloat, K<:Unsigned, A, V<:StaticVector{A, T}, C<:Action, G<:AbstractGameState{A, 2, FullSolving, T}, H<:AbstractHistory{G, V, T, 1, K}}              
     
     ha = history(h, action_idx)
 
@@ -84,23 +85,27 @@ end
 
 end
 
-function innersolve(
+function solve(
     solver::MCCFR{T}, 
-    gs::AbstractGameState{A, 2, FullSolving, T}, 
-    h::AbsractHistory{GameState{A, 2, R, FullSolving}, V, T, 1}, 
+    gs::G, 
+    h::H, 
     pl::Integer,
     state::Integer,
     p0::T,
-    p1::T) where {T<:AbstractFloat, A, R, V <: StaticVector{A, T}}
+    p1::T) where {T<:AbstractFloat, A, V <: StaticVector{A, T}, K<:Unsigned, G<:AbstractGameState{A, 2, FullSolving, T}, H<:AbstractHistory{G, V, T, 1, K}}
 
     data = shared(gs)
 
     #todo: handle ended and terminated states!
     # get utility on ended state
 
-    if terminal!(state) == true       
+    if terminal!(gs, state) == true       
         #get the utilty of the main player
         return computeutility!(gs, pl)
+    end
+
+    if chance!(gs, state) == true
+        nextround!(gs, pl)
     end
 
     util = T(0)
@@ -144,9 +149,10 @@ function innersolve(
         
         @sync for i in 1:n_actions
             Threads.@spawn solveforaction!(
+                gs,
                 actions[lgs[i]],
                 h, 
-                i,
+                lgs[i],
                 utils, 
                 node_utils,
                 cum_regrets,
@@ -226,7 +232,7 @@ function innersolve(
 
     state = perform!(a, game_state, gs.player)
     
-    return innersolve(
+    return solve(
         solver,
         game_state,
         ha, pl,

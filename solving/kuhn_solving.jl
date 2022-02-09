@@ -5,20 +5,41 @@ using cfrplus
 using mccfr
 using infosets
 
+#todo: compute for the case where the last round was not reached! (one player folded)
+
 @inline function solving.computeutility!(
-    gs::KUHNGameState,
+    gs::KUHNGameState{FullSolving}, 
+    pl::T) where T <: Integer
+    
+    data = game!(gs)
+
+    mp = data.private_cards[pl]
+    opp = data.private_cards[(pl != 1) * 2 + (pl == 1)]
+
+    folded = gs.states[pl] == false
+    bet = gs.bets[mp]
+
+    return !folded * ((opp < mpc) * gs.pot - (opp > mpc) * (gs.pot - bet) + (opp == mpc) * gs.pot/2) + folded * bet
+
+end
+
+@inline function solving.computeutility!(
+    gs::KUHNGameState{FullSolving},
     mp::T,
-    uv::StaticVector{N}) where {N, T<:Integer}
+    uv::V) where {N, T<:Integer, V<:StaticVector{N}}
 
     g = game!(gs)
     
     deck = g.deck
     mpc = g.private_cards[mp]
 
+    folded = gs.states[pl] == false
+    bet = gs.bets[mp]
+
     for i in eachindex(deck)
         opp = deck[i]
 
-        uv[i] = (opp < mpc) * gs.pot - (opp > mpc) * gs.pot + (opp == mpc) * gs.pot/2
+        uv[i] = !folded * ((opp < mpc) * gs.pot - (opp > mpc) * (gs.pot - bet) + (opp == mpc) * gs.pot/2) + folded * bet
     end
 
     return uv
@@ -52,8 +73,7 @@ function solvekuhn(solver::CFRPlus{P, T}, itr::IterationStyle) where {P, T<:Abst
     # of three cards.
 
     n = 0
-    initial_state = initialstate()
-    chance_action = KUHNChanceAction{UInt64}()
+    initial_state = initialstate(gs)
 
     util = T(0)
 
@@ -131,7 +151,7 @@ function solvekuhn(solver::CFRPlus{P, T}, itr::IterationStyle) where {P, T<:Abst
 
 end
 
-function solvekuhn(solver::MCCFR{N, T}, itr::IterationStyle)
+function solvekuhn(solver::MCCFR{T}, itr::IterationStyle)
     deck = getdeck(Vector{UInt8})
 
     game = KUHNGame{Vector{UInt8}}(getcompresseddeck(Vector{UInt8}))

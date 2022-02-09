@@ -15,22 +15,22 @@ end
 
 function solve(
     solver::CFRPlus{true, T}, 
-    gs::AbstractGameState{A, 2, FullSolving, T}, 
-    h::AbstractHistory{AbstractGameState{A, 2, FullSolving, T}, V, T, N, K},
+    gs::G, 
+    h::AbstractHistory{G, V, T, N, K},
     pl::Integer,
     state::Integer, 
-    opp_probs::U) where {N, A, T<:AbstractFloat, V<:StaticMatrix{N, A, T}, U<:StaticVector{N, T}, K<:Unsigned}
+    opp_probs::U) where {N, A, T<:AbstractFloat, V<:StaticMatrix{N, A, T}, U<:StaticVector{N, T}, K<:Unsigned, G<:AbstractGameState{A, 2, FullSolving, T}}
 
     #todo: we could sort actions such that all the active actions are
     #at the top, then would would
     
     ev = getutils(h)
 
-    if terminal!(state) == true
+    if terminal!(gs, state) == true
         return computeutility!(gs, pl, ev)
     end
 
-    if chance!(state) == true
+    if chance!(gs, state) == true
         nextround!(gs, pl)
     end
 
@@ -145,7 +145,8 @@ function solve(
 
                 utils = solve(
                     solver, 
-                    gs, h, pl, 
+                    game_state, 
+                    h, pl, 
                     state,
                     new_probs)
                 
@@ -161,22 +162,23 @@ end
 
 function solve(
     solver::CFRPlus{true, T}, 
-    gs::AbstractGameState{A, 2, FullSolving, T}, 
-    h::AbstractHistory{AbstractGameState{A, 2, FullSolving, T}, V, T, N, K},
+    gs::G, 
+    h::AbstractHistory{G, V, T, N, K},
     pl::Integer,
     state::Integer,
     chance_action::C,
-    opp_probs::U) where {C<:ChanceAction, N, A, T<:AbstractFloat, V<:StaticMatrix{N, A, T}, U<:StaticVector{N, T}, K<:Unsigned}
+    opp_probs::U) where {C<:ChanceAction, N, A, T<:AbstractFloat, V<:StaticMatrix{N, A, T}, U<:StaticVector{N, T}, K<:Unsigned, G<:AbstractGameState{A, 2, FullSolving, T}}
 
-            #todo: we could sort actions such that all the active actions are
-        #at the top, then would would
+    #todo: we could sort actions such that all the active actions are
+    #at the top, then would would
+    
     ev = getutils(h)
 
-    if terminal!(state) == true
+    if terminal!(gs, state) == true
         return computeutility!(gs, pl, opp_probs, ev)
     end
 
-    if chance!(state) == true
+    if chance!(gs, state) == true
 
         #pass-in an index to the function so that we can track the
         #which card subset to pass.
@@ -199,10 +201,13 @@ function solve(
             game_state = ha.game_state
             copy!(game_state, gs)
 
+            state = performchance!(a, game_state, game_state.player)
+
             utils = solve(
                 solver, 
-                gs, ha, pl, 
-                performchance!(a, game_state, game_state.player)
+                game_state, 
+                ha, pl, 
+                state,
                 opp_probs, a)
 
             for i in 1:N

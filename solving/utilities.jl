@@ -50,8 +50,8 @@ end
 
 @inline function computeutility!(
     gs::NLTHGameState{A, 2, FullSolving, T},
-    pl::THPlayerState{T},
-    uv::StaticVector{N}) where {A, N, T<:AbstractFloat}
+    pl::Integer,
+    uv::V) where {A, N, T<:AbstractFloat, V<:StaticVector{N}}
 
     data = shared(gs)
 
@@ -86,7 +86,7 @@ end
 
 @inline function computeutility!(
     gs::NLTHGameState{A, 2, FullSolving, T},
-    pl::THPlayerState{T}) where {A, T<:AbstractFloat}
+    pl::Integer) where {A, T<:AbstractFloat}
 
     pos = THPlayers.id(pl)
 
@@ -95,20 +95,6 @@ end
         pl, 
         evaluateterminal(data.private_cards[pos], data.public_cards), 
         data.private_cards[(pos != 1) * 2 + (pos == 1) * 1])
-
-end
-
-#todo: compute for the case where the last round was not reached! (one player folded)
-
-@inline function computeutility!(gs::KUHNGameState{FullSolving, T}, pl::KUHNPlayerState) where T <: AbstractFloat
-    data = shared(gs)
-
-    pos = Players.id(pl)
-
-    mp = data.private_cards[pos]
-    opp = data.private_cards[(pos != 1) * 2 + (pos == 1)]
-
-    return opp < mp - (opp > mp)
 
 end
 

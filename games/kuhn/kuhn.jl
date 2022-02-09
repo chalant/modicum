@@ -32,18 +32,13 @@ const FOLD_ID = UInt8(4)
 struct KUHNChanceAction{T<:Integer} <: ChanceAction
     idx::T
     public_idx::T
-    private_idx::T
 end
 
-@inline function Base.:(+)(a::KUHNChanceAction, b::KUHNChanceAction)
-    return KUHNChanceAction{}(a.idx + b.idx)
-end
-
-@inline function games.initialstate()
+@inline function games.initialstate(gs::KUHNGameState)
     return INIT_ID
 end
 
-@inline function games.initialactionsmask()
+@inline function games.initialactionsmask(gs::KUHNGameState)
     return @MVector Bool[1, 0, 1, 0]
 end
 
@@ -188,6 +183,10 @@ end
 
 end
 
+@inline function games.chance!(gs::KUHNGameState, state::T) where T <: Integer
+    return state == CHANCE_ID
+end
+
 @inline Base.iterate(pt::KUHNPublicTree{T}) = pt.chance_action
 
 @inline function Base.iterate(pt::KUHNPublicTree{T}, a::KUHNChanceAction{T}) where T<:Integer
@@ -233,7 +232,7 @@ end
 
 end
 
-@inline function games.terminal!(state::T) where T <: Integer
+@inline function games.terminal!(gs::KUHNGameState, state::T) where T <: Integer
     return state == ENDED_ID
 end
 

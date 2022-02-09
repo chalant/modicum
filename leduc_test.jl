@@ -123,13 +123,17 @@ function start()
     state = initialstate(gs)
     mask = actionsmask!(gs)
 
+    gs.pot += 2
+    
+    for i in eachindex(gs.bets)
+        gs.bets[i] += 1
+    end
+
     #todo: must post blinds!
 
     while true
 
         cp = gs.player
-        
-        println("Current Player ", Int(cp))
 
         if cp == mp
             a = chooseaction!(gs, mask)
@@ -137,17 +141,18 @@ function start()
             a = acts[sampleaction!(mask)]
         end
 
-        println("Performed ", message(a, gs))
+        println("Player ", Int(cp), " Performed ", message(a, gs))
 
         state = perform!(a, gs, cp)
 
-        if terminal!(state) == true
-            println("Terminal!")
+        if terminal!(gs, state) == true
             states = gs.players_states
 
             c1 = private_cards[1]
             c2 = private_cards[2]
             public_card = gs.public_card
+
+            println("Board ", public_card)
 
             if c1 == public_card || states[1] == true && states[2] == false || c1 > c2
                 println("You Won! ", Int(gs.pot))
@@ -175,14 +180,18 @@ function start()
                 i += 1
             end
 
+            gs.pot += 2
+            
+            for i in eachindex(gs.bets)
+                gs.bets[i] += 1
+            end
+
         end
 
-        if chance!(state) == true
-            println("CHANCE!!!")
+        if chance!(gs, state) == true
             performchance!(LeDucChanceAction(1, deck_idx[4]), gs, cp)
         end
 
         mask = actionsmask!(gs)
-        println("MASK 2 ", mask)
     end
 end

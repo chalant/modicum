@@ -29,12 +29,6 @@ const CHECK_ID = UInt8(3)
 const RAISE_ID = UInt8(4)
 const FOLD_ID = UInt8(5)
 
-const INIT_ID = UInt8(0)
-const ACTIVE_ID = UInt8(1)
-const ENDED_ID = UInt8(2)
-const CHANCE_ID = UInt8(3)
-
-
 struct LeDucChanceAction{T<:Integer} <: ChanceAction
     idx::T
     public_idx::T
@@ -155,7 +149,7 @@ end
     return LeDucPublicTree(6, privatecards!(gs)[pl], a)
 end
 
-@inline function games.terminal!(state::T) where T <: Integer
+@inline function games.terminal!(gs::LeDucGameState, state::T) where T <: Integer
     return state == ENDED_ID
 end
 
@@ -221,7 +215,7 @@ end
     nextround!(gs, pl)
 end
 
-@inline function games.chance!(state::T) where T <: Integer
+@inline function games.chance!(gs::LeDucGameState, state::T) where T <: Integer
     return state == CHANCE_ID
 end
 
@@ -254,8 +248,6 @@ end
 
     gs.pot += bet
     gs.bets[pl] += bet
-
-    println(gs.pot, " ", gs.bets, " ", not_last_round)
 
     both_checked = (p_is_check && id_ == CHECK_ID)
 

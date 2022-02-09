@@ -20,6 +20,7 @@ export INIT_ID
 export STARTED_ID
 export ENDED_ID
 export TERM_ID
+export CHANCE_ID
 
 using hermes_exceptions
 using actions
@@ -53,7 +54,7 @@ end
     throw(NotImplementedError()) 
 end
 
-@inline function initialactionsmask()
+@inline function initialactionsmask(gs::AbstractGameState)
     throw(NotImplementedError())
 end
 
@@ -61,7 +62,7 @@ end
     throw(NotImplementedError())
 end
 
-@inline function terminal!(state::T) where T <: Integer
+@inline function terminal!(gs::AbstractGameState, state::T) where T <: Integer
     throw(NotImplementedError())
 end
 
@@ -71,7 +72,6 @@ end
 
 @inline function limit!(gs::AbstractGameState)
     throw(NotImplementedError())
-
 end
 
 @inline function nextround!(gs::AbstractGameState, pl::T) where T <: Integer
@@ -85,8 +85,8 @@ end
     throw(NotImplementedError())
 end
 
-@inline function chance!(state::T) where T<:Integer
-    throw(NotImplementedError())
+@inline function chance!(gs::AbstractGameState, state::T) where T<:Integer
+    return false
 end
 
 @inline function initialchanceaction(gs::AbstractGameState)
