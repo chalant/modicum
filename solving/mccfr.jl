@@ -47,6 +47,7 @@ end
 end
 
 @inline function solveforaction!(
+    solver::S,
     gs::G,
     a::C,
     h::H, 
@@ -54,7 +55,7 @@ end
     utils::V,
     node_utils::V,
     cum_regrets::V,
-    norm::T) where {T<:AbstractFloat, K<:Unsigned, A, V<:StaticVector{A, T}, C<:Action, G<:AbstractGameState{A, 2, FullSolving, T}, H<:AbstractHistory{G, V, T, 1, K}}              
+    norm::T) where {T<:AbstractFloat, S<:MCCFR{T}, K<:Unsigned, A, V<:StaticVector{A, T}, C<:Action, G<:AbstractGameState{A, 2, FullSolving, T}, H<:AbstractHistory{G, V, T, 1, K}}              
     
     ha = history(h, action_idx)
 
@@ -68,17 +69,15 @@ end
 
     cr = cum_regrets[action_idx]
 
-    stg = cr > 0 ? cr/norm : 0
+    stg = (cr > 0) * cr/norm
 
-    cr += p1 * (utils[i] - util)
+    # cr += (utils[i] - util)
 
-    ut = innersolve(
+    ut = solve(
         solver, 
         game_state,
         ha, pl,
-        state, 
-        p0*stg,
-        p1)
+        state)
 
     utils[action_idx] = ut
     node_utils[action_idx] = stg * ut
@@ -90,11 +89,7 @@ function solve(
     gs::G, 
     h::H, 
     pl::Integer,
-    state::Integer,
-    p0::T,
-    p1::T) where {T<:AbstractFloat, A, V <: StaticVector{A, T}, K<:Unsigned, G<:AbstractGameState{A, 2, FullSolving, T}, H<:AbstractHistory{G, V, T, 1, K}}
-
-    data = shared(gs)
+    state::Integer) where {T<:AbstractFloat, A, V <: StaticVector{A, T}, K<:Unsigned, G<:AbstractGameState{A, 2, FullSolving, T}, H<:AbstractHistory{G, V, T, 1, K}}
 
     #todo: handle ended and terminated states!
     # get utility on ended state
@@ -102,21 +97,12 @@ function solve(
     if terminal!(gs, state) == true       
         #get the utilty of the main player
         return computeutility!(gs, pl)
-    end
-
-    if chance!(gs, state) == true
+    
+    elseif chance!(gs, state) == true
         nextround!(gs, pl)
     end
-
-    util = T(0)
-
-    info = infoset(
-        MVector{A, T},
-        h,
-        key(privatecards(pl, data), 
-        data.public_cards,
-        data.pbl_cards_mask)
-    )
+    
+    info = infoset(V, h, infosetkey(gs))
 
     action_mask = actionsmask!(gs)
     n_actions = T(sum(action_mask))
@@ -131,12 +117,10 @@ function solve(
     
     norm = (norm > 0) * norm + n_actions * (norm <= 0)
 
-    ply = gs.player
-
     action_mask = actionsmask!(gs)
     actions = actions!(gs)
 
-    if pl == ply
+    if pl == gs.player
         # use static array to avoid heap allocations
         utils = @MVector zeros(T, A)
         node_utils = @MVector zeros(T, A)
@@ -149,6 +133,7 @@ function solve(
         
         @sync for i in 1:n_actions
             Threads.@spawn solveforaction!(
+                solver,
                 gs,
                 actions[lgs[i]],
                 h, 
@@ -162,10 +147,11 @@ function solve(
         util = sum(node_utils)
 
         for (i, am) in enumerate(action_mask)
-            cum_regrets[i] += am * p1 * (utils[i] - util)
+            cum_regrets[i] += am * (utils[i] - util)
         end
 
         return util
+    end
     
     # update cumulative strategy and sample random action
 
@@ -177,9 +163,12 @@ function solve(
     j = UInt8(1)
 
     sampled = false
+
     s = T(0)
 
     e = solver.epsilon
+
+    #sample one action for the opponent
 
     for i in eachindex(action_mask)
         am = action_mask[i]
@@ -189,7 +178,7 @@ function solve(
         #this is set to zero when cr is negative
         stg = (cr > 0) * cr/norm
 
-        cum_stg[i] += p1 * stg * am
+        cum_stg[i] += stg * am
 
         # if sampled == false
         #     if rn < e
@@ -206,23 +195,22 @@ function solve(
 
         #     j += 1
         # end
-
-        cond = rn < e
-
-        cw += (nr * stg * am) * cond + (am / n_actions) * !cond  
+        e_cond = (rn < e)
         
-        cond = (rn < cw)
+        cw += (stg * am) * !e_cond
 
-        sampled = cond * true + false
+        idx = e_cond * j * !sampled + sampled * idx * e_cond
+        
+        cond = (rn < cw || e_cond)
 
         idx = cond * j * !sampled + sampled * idx * !cond
         s = cond * stg * !sampled + sampled * s * !cond
 
+        sampled = cond
+
         j += 1
 
     end
-    
-    a = actions[idx]
 
     ha = history(h, idx)
 
@@ -230,17 +218,13 @@ function solve(
 
     copy!(game_state, gs)
 
-    state = perform!(a, game_state, gs.player)
+    state = perform!(actions[idx], game_state, gs.player)
     
     return solve(
         solver,
         game_state,
         ha, pl,
-        state,
-        p0, 
-        p1 * s)
-end
-
+        state)
 end
 
 function solving.solve(

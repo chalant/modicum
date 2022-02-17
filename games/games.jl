@@ -81,7 +81,7 @@ end
     throw(NotImplementedError())
 end
 
-@inline function chanceactions!(gs::AbstractGameState, idx::T) where T<:Integer
+@inline function chanceactions!(gs::AbstractGameState, ca::ChanceAction) where T<:Integer
     throw(NotImplementedError())
 end
 

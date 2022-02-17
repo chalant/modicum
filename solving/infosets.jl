@@ -14,10 +14,11 @@ export getprobs
 export infosetkey
 
 abstract type AbstractHistory{T, U, V, N, K} end
+abstract type AbstractNode{P, T} end
 
-struct Node{T<:AbstractArray}
+struct Node{T<:StaticArray} <: AbstractNode{1, T}
     cum_strategy::T # cumulative strategy
-    cum_regret::T #cumulative regret
+    cum_regrets::T #cumulative regret
 end
 
 struct History{T<:AbstractGameState, U<:StaticVector, V<:AbstractFloat, N, K<:Unsigned} <: AbstractHistory{T, U, V, N, K}
@@ -124,6 +125,46 @@ end
             Dict{UInt8, CachingHistory{T, U, V, N}}(), 
             T(), 
             SizedArray(N, V)(zeros(V, N)))
+
+        hist[action_idx] = hst
+        
+        return hst
+
+    end
+end
+
+@inline function history(
+    h::H, 
+    action_idx::K) where {A, T<:AbstractFloat, U<:StaticVector{A, T}, K<:Unsigned, H<:History{T, U, V, N, K}}
+    
+    hist = h.histories
+    
+    if haskey(hist, action_idx)
+        return hist[action_idx]
+    else
+        hst = H(
+            Dict{UInt64, Node{U}}(), 
+            Dict{K, H}(), 
+            T())
+
+        hist[action_idx] = hst
+        
+        return hst
+
+    end
+end
+
+@inline function infosets.history(h::H, action_idx::K, infosets::I) where {A, T<:AbstractFloat, U<:StaticVector{A, T}, K<:Unsigned, H<:History{T, U, V, N, K}, I<:Dict{K, Node{U}}}
+    hist = h.histories
+    
+    if haskey(hist, action_idx)
+        return hist[action_idx]
+    else
+        #pass a reference to the infosets
+        hst =  H(
+            infosets, 
+            Dict{K, H}(), 
+            T())
 
         hist[action_idx] = hst
         

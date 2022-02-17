@@ -31,7 +31,8 @@ const FOLD_ID = UInt8(4)
 
 struct KUHNChanceAction{T<:Integer} <: ChanceAction
     idx::T
-    public_idx::T
+    p_idx::T
+    opp_idx::T
 end
 
 @inline function games.initialstate(gs::KUHNGameState)
@@ -133,7 +134,7 @@ end
 KUHNGameState{S}(game) where S <: GameSetup = _creategamestate(S, game)
 
 @inline function _creategamestate(::Type{S}, game) where S <: GameSetup
-    states = @MVector [true, true]
+    states = @MVector Bool[1, 1]
     bets = @MVector zeros(UInt8, 2)
     
     return KUHNGameState{S}(
@@ -146,7 +147,7 @@ KUHNGameState{S}(game) where S <: GameSetup = _creategamestate(S, game)
         game)
 end
 
-@inline function games.actionsmask!(gs::KUHNGameState)
+@inline function games.actionsmask!(gs::KUHNGameState{S}) where S<:GameSetup
     mask = @MVector zeros(Bool, 4)
 
     action = gs.action
@@ -180,33 +181,39 @@ struct KUHNPublicTree{T<:Integer}
 end
 
 @inline function games.performchance!(a::KUHNChanceAction{T}, gs::KUHNGameState, pl::T) where T<:Integer
-
+    
 end
 
 @inline function games.chance!(gs::KUHNGameState, state::T) where T <: Integer
     return state == CHANCE_ID
 end
 
+@inline function games.chanceprobability!(gs::KUHNGameState, ca::KUHNChanceAction)
+    l = length(game!(gs).deck)
+    return binomial(l, 1) * binomial(l-1, 1)
+end
+
 @inline Base.iterate(pt::KUHNPublicTree{T}) = pt.chance_action
 
 @inline function Base.iterate(pt::KUHNPublicTree{T}, a::KUHNChanceAction{T}) where T<:Integer
-    if a.public_idx >= pt.n
+    if a.p_idx >= pt.n
         return nothing
     end
     
-    i = a.public_idx + 1
-    
-    #exclude main player private card
-    if a.private_idx != i
-        return KUHNChanceAction{T}(a.idx + 1, i, a.private_idx)
+    if a.opp_idx >= n
+        i  = a.p_idx + 1
+        j = 1
     else
-        i += 1
-        return KUHNChanceAction{T}(a.idx + 2, i, a.private_idx)
+        i = a.p_idx
+        j = a.opp_idx + 1
+        j = (j == i) * (j + 1) + (j != i) * j
     end
+
+    return KUHNChanceAction{T}(a.idx + 1, i, j)
 end
 
-@inline function game.chanceactions!(gs::KUHNGameState, a::KUHNChanceAction)
-    return KUHNPublicTree(length(game!(gs).deck), a)
+@inline function games.chanceactions!(gs::KUHNGameState, a::KUHNChanceAction{T}) where T<:Integer
+    return KUHNPublicTree{T}(length(game!(gs).deck), a)
 end
 
 @inline players!(g::KUHNGame) = g.players 
