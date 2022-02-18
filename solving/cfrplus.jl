@@ -77,7 +77,7 @@ function solve(
     action_mask = actionsmask!(gs)
     n_actions = T(sum(action_mask))
 
-    cum_regrets = cumulativeregrets!(info, pl)
+    cum_regrets = cumulativeregrets!(info, gs.player)
     
     norm = sum(cum_regrets)
     

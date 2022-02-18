@@ -107,7 +107,7 @@ function solve(
     action_mask = actionsmask!(gs)
     n_actions = T(sum(action_mask))
 
-    cum_regrets = info.cum_regrets
+    cum_regrets = cumulativeregrets!(info, gs.player)
     
     norm = T(0)
 
@@ -155,7 +155,7 @@ function solve(
     
     # update cumulative strategy and sample random action
 
-    cum_stg = info.cum_strategy
+    cum_stg = cumulativestrategy!(info, gs.player)
     
     rn = rand()
     cw = T(0)
