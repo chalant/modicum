@@ -21,7 +21,7 @@ function solve(
     pl::Integer,
     state::Integer,
     reach_probs::P,
-    iteration::Integer) where {A, C<:ChanceAction, T<:AbstractFloat, P<:StaticVector{3, T}, V<:StaticVector{A, T}, K<:Unsigned, G<:AbstractGameState{A, 2, FullSolving, T}, H<:AbstractHistory{G, V, T, 1, K}}
+    iteration::Integer) where {A, C<:ChanceAction, T<:AbstractFloat, P<:StaticVector{3, T}, V<:StaticVector{A, T}, K<:Unsigned, G<:AbstractGameState{A, 2, FullSolving, T}, H<:AbstractHistory}
 
     if terminal!(gs, state) == true       
         #get the utilty of the main player
@@ -72,12 +72,12 @@ function solve(
         return ev
     end
     
-    info = infoset(V, h, infosetkey(gs))
+    info = infoset(h, infosetkey(gs))
 
     action_mask = actionsmask!(gs)
     n_actions = T(sum(action_mask))
 
-    cum_regrets = info.cum_regrets
+    cum_regrets = cumulativeregrets!(info, pl)
     
     norm = sum(cum_regrets)
     
@@ -122,7 +122,7 @@ function solve(
 
     #todo: update cumulative regrets and cumulative strategy
     if pl == gs.player
-        cum_stg = info.cum_strategy
+        cum_stg = cumulativestrategy!(info, pl)
 
         norm = T(0)
 

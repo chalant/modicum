@@ -59,7 +59,8 @@ function solvekuhn(solver::CFRPlus{P, T}, itr::IterationStyle) where {P, T<:Abst
 
     gs = KUHNGameState{FullTraining}(game)
 
-    h = history(VHistory{typeof(gs), MMatrix{2, 4, T}, T, 13, UInt64}, gs)()
+    #create root history
+    root_h = History(SizedVector{2, SizedVector{3, Float32}}, gs)
 
     opp_probs = @MVector ones(T, 2)
     br_probs = @MVector ones(T, 2)
@@ -96,7 +97,7 @@ function solvekuhn(solver::CFRPlus{P, T}, itr::IterationStyle) where {P, T<:Abst
 
             util += sum(solve(
                 solver, 
-                gs, h, pl, 
+                gs, root_h, pl, 
                 initial_state, 
                 opp_probs))
             
@@ -126,7 +127,7 @@ function solvekuhn(solver::CFRPlus{P, T}, itr::IterationStyle) where {P, T<:Abst
                     end
 
                     private_cards[pl] = deck[i]
-                    total_br += sum(bestresponse(h, gs, pl, initial_state, br_probs))
+                    total_br += sum(bestresponse(root_h, gs, pl, initial_state, br_probs))
                 end
 
                 rotateplayers!(game)
@@ -145,7 +146,7 @@ function solvekuhn(solver::CFRPlus{P, T}, itr::IterationStyle) where {P, T<:Abst
     end
 
     #todo: compute best response to track exploitability
-    exploitability = sum(bestresponse(h, gs, pl, initial_state, br_probs))/26 * 1000
+    exploitability = sum(bestresponse(root_h, gs, pl, initial_state, br_probs))/26 * 1000
 
     println("Final Exploitability ", exploitability, " Milli Big Blind")
 
