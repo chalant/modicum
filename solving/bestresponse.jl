@@ -5,26 +5,35 @@ using infosets
 
 export bestresponse!
 
-mutable struct BestResponseHistory{U<:StaticVector, K<:Unsigned}
-    histories::Dict{K, BestResponseHistory{U, K}}
-    strategies::Dict{K, U}
+mutable struct BRHistory{U<:StaticVector, K1<:Integer, K2<:Integer}
+    histories::Dict{K1, BRHistory{U, K}}
+    strategies::Dict{K2, U}
 end
 
-@inline function infosets.infoset!(::Type{U}, h::BestResponseHistory{U, K}, key::K)
-
+@inline function addstrategy(h::H, key::K) where {A, P, K1<:Integer, K2<:Integer, T<:Real, V<:StaticVector{A, T}, U<:StaticVector{P, V}, H<:BRHistory{U, K1, K2}}
+    r = T(1/A)
+    stg = StaticArrays.sacollect(U, StaticArrays.sacollect(V, r for _ in 1:A) for _ in 1:P)
+    h.strategies[key] = stg
+    return stg
 end
 
-@inline function infosets.history(h::H, action_idx::K, infosets::I) where {A, T<:AbstractFloat, U<:StaticVector{A, T}, K<:Unsigned, H<:BestResponseHistory{U, K}, I<:Dict{K, U}}
+@inline function addstrategy(h::H, key::K) where {A, K1<:Integer, K2<:Integer, T<:Real, V<:StaticVector{A, T}, H<:BRHistory{V, K1, K2}}
+    r = T(1/A)
+    stg = StaticArrays.sacollect(V, r for _ in 1:A)
+    h.strategies[key] = stg
+    return stg
+end
+
+@inline function infosets.history(h::H, action_idx::K, strategies::I) where {U<:StaticVector, K1<:Integer, K2<:Integer, H<:BRHistory{U, K1, K2}, I<:Dict{K2, U}}
     hist = h.histories
     
-    if haskey(hist, action_idx)
+    if haskey(hist, action_idx) == true
         return hist[action_idx]
     else
         #pass a reference to the infosets
-        hst =  BestResponseHistory{U, K}(
-            infosets, 
-            Dict{K,  BestResponseHistory{U, K}}(), 
-            T())
+        hst =  BRHistory{U, K}(
+            Dict{K,  BRHistory{U, K}}(),
+            strategies)
 
         hist[action_idx] = hst
         
@@ -33,17 +42,16 @@ end
     end
 end
 
-@inline function infosets.history(h::H, action_idx::K) where {A, T<:AbstractFloat, U<:StaticVector{A, T}, K<:Unsigned, H<:BestResponseHistory{U, K}}
+@inline function infosets.history(h::H, action_idx::K) where {U<:StaticVector, K<:Integer, K2<:Integer, H<:BRHistory{U, K, K2}}
     hist = h.histories
     
-    if haskey(hist, action_idx)
+    if haskey(hist, action_idx) == true
         return hist[action_idx]
     else
         #pass a reference to the infosets
-        hst = BestResponseHistory{U, K}(
-            Dict{K, U}, 
-            Dict{K, BestResponseHistory{U, K}}(), 
-            T())
+        hst =  BRHistory{U, K, K2}(
+            Dict{K,  BRHistory{U, K}}(),
+            Dict{K2, U}())
 
         hist[action_idx] = hst
         
@@ -52,33 +60,62 @@ end
     end
 end
 
-function bestresponseforaction(a::C, action_idx::K, norm::T, vals::V, gs::G, h::History{G, U, V}, pl::Integer, state::Integer, p::T)
-    ha = history(h, action_idx)
+BRHistory(::Type{U}) where {A, K1<:Integer, K2<:Integer, N<:AbstractFloat, U<:StaticVector{A, N}} = BRHistory{U, K1, K2}(Dict{K1, BRHistory{U, K1, K2}}(), Dict{K2, U}())
+BRHistory(::Type{V}) where {A, P, K1<:Integer, K2<:Integer, N<:AbstractFloat, U<:StaticVector{A, N}, V<:StaticVector{P, U}} = BRHistory{V, K1, K2}(Dict{K1, BRHistory{V, K1, K2}}(), Dict{K2, U}())
+BRHistory(::Type{N}) where {P, K1<:Integer, K2<:Integer, N<:AbstractFloat, V<:StaticVector{P, N}} = BRHistory{V, K1, K2}(Dict{K1, BRHistory{V, K1, K2}}(), Dict{K2, N}())
+BRHistory(::Type{N}) where {K1<:Integer, K2<:Integer, N<:AbstractFloat} = BRHistory{N, K1, K2}(Dict{K1, BRHistory{N, K1, K2}}(), Dict{K2, N}())
 
-    game_state = ha.game_state
+BRHistory(h::H, idx::K1) where {A, P, K1<:Integer, K2<:Integer, T<:AbstractFloat, V<:StaticArray{A, T}, U<:StaticArray{P, V}, H<:BRHistory{U, K1, K2}} = history(h, idx)
+BRHistory(h::H, strategies::S, idx::K) where {} = history(h, idx, strategies)
 
-    #copy game state into buffer
-    copy!(game_state, gs)
+@inline function getstrategy(h::H, key::K2, pl::I) where {A, P, K1<:Integer, K2<:Integer, N<:AbstractFloat, U<:StaticVector{A, N}, V<:StaticVector{P, U}, H<:BRHistory{V, K1, K2}}
+    if haskey(h.strategies, key) == true
+        return h.strategies[key][pl]
+    else
+        return addstrategy(h, key)
+    end
+end
 
-    #perform action and update state of copy
-    state = perform!(a, game_state, game_state.player)
+@inline function playerreachprob!(arr::V, pl::I, i::I, p::T) where {V<:StaticVector, I<:Integer, T<:AbstractFloat}
+    arr[pl] * (p * (pl == i) + (pl != i) * 1)
+end
 
-    cr = cum_regrets[action_idx]
+@inline function updatereachprobs!(arr::V, pl::I, p::T) where {N, I<:Integer, T<:AbstractFloat, V<:StaticVector{N, T}}
+    return StaticArrays.sacollect(SVector{N, T}, playerreachprob!(arr, pl, i, p) for i in 1:N)
+end
 
-    stg = (cr > 0) * cr/norm
+@inline function getstrategy!(h::S, key::K, pl::I) where {A, P, I<:Integer, K<:Integer, T<:Real, U<:StaticVector{A, T}, V<:StaticVector{P,U}, S<:BRHistory{V, K1, K2}}
+    return h.strategies[key][pl]
+end
+
+@inline function getstrategy!(h::S, key::K, pl::I) where {A, I<:Integer, K<:Integer, T<:Real, U<:StaticVector{A, T}, S<:BRHistory{U, K1, K2}}
+    return h.strategies[key]
+end
+
+@inline function getstrategy!(h::S, key::K, pl::I) where {P, I<:Integer, K<:Integer, T<:Real, V<:StaticVector{P, T}, S<:BRHistory{V, K1, K2}}
+    return h.strategies[key][pl]
+end
+
+@inline function setstrategy!(key::I1, h::H, pl::I2, max_action::I3) where {A, P, I1<:Integer, I2<:Integer, I3<:Integer, K<:Integer, U<:StaticVector{A, T}, V<:StaticVector{P, U}, H<:BRHistory{V, I1, K}}
+    stg = h.strategies[key][pl]
     
-    vals[action_idx] = bestresponse(gs, ha, pl, state)
+    for i in eachindex(stg)
+        stg[i] = (max_action == i) * 1
+    end
+end
 
+@inline function setstrategy!(key::I1, h::H, pl::I2, max_action::I3) where {P, I1<:Integer, I2<:Integer, I3<:Integer, K<:Integer, T<:Real, V<:StaticVector{P, T}, H<:BRHistory{V, I1, K}}
+    h.strategies[key][pl] = max_action
 end
 
 function bestresponse!(
     gs::G,
     h::History{G, U, V, K},
-    br_h::BestResponseHistory{G, U, K},
+    br_h::BRHistory{U, K1, K2},
     chance_action::C,
     pl::I,
     state::I,
-    reach_probs::P) where {A, V, C<:ChanceAction, K<:Integer, I<:Integer, T<:AbstractFloat, P<:StaticVector{3, T}, U<:StaticVector{A, T}, G<:AbstracGameState{A, 2, FullSolving, T}}
+    reach_probs::P) where {A, V, C<:ChanceAction, K1<:Integer, K2<:Integer, I<:Integer, T<:AbstractFloat, P<:StaticVector{3, T}, U<:StaticVector{A, T}, G<:AbstracGameState{A, 2, FullSolving, T}}
 
     if terminal!(gs, state) == true
         return computeutility!(gs, pl)
@@ -95,18 +132,13 @@ function bestresponse!(
             game_state = ha.game_state
             copy!(game_state, gs)
 
-            new_probs = copy(probs)
-
-            new_probs[3] *= p
-
             state = performchance!(a, game_state, game_state.player)
-            #todo: should we multiply by chance probability?
             
             node_util += bestresponse!(
                 gs, ha, br_ha, 
                 chance_action, 
                 pl, state, 
-                new_probs) * p
+                @SVector [probs[1], probs[2], probs[3] * p]) * p
 
         end
 
@@ -119,18 +151,14 @@ function bestresponse!(
     n_actions = sum(actions_mask)
     actions = actions!(gs)
 
+    #todo: best response uses another type of key
+
     key = infosetkey(gs)
 
-    info = infoset(U, h, key)
+    info = infoset(h, key)
     cum_regrets = info.cum_regrets
-
-    br_strategies = br_h.strategies
-
-    if haskey(br_strategies, key) == false
-        br_strategies[key] = @MVector zeros(T, A)
-    end
     
-    br_strategy = br_strategies[key]
+    br_strategy = getstrategy(br_h, key, pl)
 
     norm = T(0)
 
@@ -149,7 +177,7 @@ function bestresponse!(
         idx = lgs[1]
 
         ha = history(h, idx)
-        br_ha = history(br_h, idx, br_h.infosets)
+        br_ha = history(br_h, idx, br_h.strategies)
 
         copy!(ha.game_state, gs)
 
@@ -187,10 +215,8 @@ function bestresponse!(
 
         end
 
+        setstrategy!(key, br_h, pl, max_action)
         #set the best response strategy
-        for i in eachindex(br_strategy)
-            br_strategy[i] = (max_action == i) * 1
-        end
 
         return val
     end
@@ -208,15 +234,13 @@ function bestresponse!(
         copy!(gamestate, gs)
 
         state = perform!(actions[idx], game_state, game_state.player)
-        
-        new_probs = copy(reach_probs)
-        
 
         stg = cum_strategy[idx]/norm
 
-        new_probs[pl] *= stg
-
-        util += bestresponse!(gs, ha, br_ha, pl, state, new_probs) * stg
+        util += bestresponse!(
+            gs, ha, br_ha, 
+            chance_action, pl, state, 
+            updatereachprobs!(reach_probs, pl, stg)) * stg
     end
 
     return util

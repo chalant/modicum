@@ -62,8 +62,8 @@ function solvekuhn(solver::CFRPlus{P, T}, itr::IterationStyle) where {P, T<:Abst
     #create root history
     root_h = History(SizedVector{2, SizedVector{3, Float32}}, gs)
 
-    opp_probs = @MVector ones(T, 2)
-    br_probs = @MVector ones(T, 2)
+    reach_probs = @SVector ones(T, 3)
+    br_probs = @SVector ones(T, 3)
 
     private_cards = game.private_cards
 

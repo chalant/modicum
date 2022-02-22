@@ -180,8 +180,12 @@ struct KUHNPublicTree{T<:Integer}
     chance_action::KUHNChanceAction{T}
 end
 
+@inline function games.initialchanceaction(gs::KUHNGameState)
+    return KUHNChanceAction(1, 1, 2)
+end
+
 @inline function games.performchance!(a::KUHNChanceAction{T}, gs::KUHNGameState, pl::T) where T<:Integer
-    
+    return STARTED_ID
 end
 
 @inline function games.chance!(gs::KUHNGameState, state::T) where T <: Integer
@@ -189,8 +193,11 @@ end
 end
 
 @inline function games.chanceprobability!(gs::KUHNGameState, ca::KUHNChanceAction)
-    l = length(game!(gs).deck)
-    return binomial(l, 1) * binomial(l-1, 1)
+    return 1/6
+end
+
+@inline function games.chanceprobability!(::Type{T}, gs::KUHNGameState, ca::KUHNChanceAction) where T <: AbstractFloat
+    return T(1/6)
 end
 
 @inline Base.iterate(pt::KUHNPublicTree{T}) = pt.chance_action

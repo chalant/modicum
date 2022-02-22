@@ -56,16 +56,12 @@ function solve(
 
             state = performchance!(a, game_state, game_state.player)
 
-            #update chance player's reach probs
-            new_probs = MVector{A, T}(reach_probs)
-            new_probs[3] *= p
-
             ev += solve(
                 solver, 
                 game_state, 
                 ha, a, pl, 
                 state,
-                new_probs,
+                @SVector [reach_probs[1], reach_probs[2], reach_probs[3] * p],
                 iteration) * p
         end
 
@@ -92,10 +88,35 @@ function solve(
     node_util = T(0)
     utils = getutils!(h)
 
-    for i in 1:n_actions
+    idx = lga[1]
+
+    ha = History(h, idx, gs)
+
+    game_state = ha.game_state
+    copy!(game_state, gs)
+
+    state = perform!(actions[idx], game_state, game_state.player)
+
+    stg = (norm!=n_actions) * cum_regrets[idx]/norm + (norm==n_actions) * 1/n_actions
+
+    new_probs = copy(reach_probs)
+    new_probs[game_state.player] *= stg
+
+    util += solve(
+        solver, 
+        gs, ha, 
+        chance_action, 
+        pl, state, 
+        new_probs, 
+        iteration)
+
+    node_util += util * stg
+    utils[idx] = util
+
+    for i in 2:n_actions
         idx = lga[i]
 
-        ha = history(h, idx)
+        ha = History(h, ha.infosets, idx, gs)
 
         game_state = ha.game_state
         copy!(game_state, gs)

@@ -12,6 +12,7 @@ export evaluateterminal!
 export limit!
 export initialactionsmask
 export initialstate
+export initialchanceaction
 export chance!
 export nextround!
 export performchance!
@@ -81,7 +82,15 @@ end
     throw(NotImplementedError())
 end
 
-@inline function chanceactions!(gs::AbstractGameState, ca::ChanceAction) where T<:Integer
+@inline function chanceactions!(gs::AbstractGameState, ca::ChanceAction)
+    throw(NotImplementedError())
+end
+
+@inline function chanceactions!(::Type{T}, gs::AbstractGameState, ca::ChanceAction)
+    throw(NotImplementedError())
+end
+
+@inline function initialchanceaction(gs::AbstractGameState)
     throw(NotImplementedError())
 end
 

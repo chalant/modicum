@@ -56,10 +56,8 @@ end
     node_utils::V,
     cum_regrets::V,
     norm::T) where {T<:AbstractFloat, S<:MCCFR{T}, K<:Unsigned, A, V<:StaticVector{A, T}, C<:Action, G<:AbstractGameState{A, 2, FullSolving, T}, H<:AbstractHistory{G, V, T, 1, K}}              
-    
-    ha = history(h, action_idx)
 
-    game_state = ha.game_state
+    game_state = h.game_state
 
     #copy game state into buffer
     copy!(game_state, gs)
@@ -102,7 +100,7 @@ function solve(
         nextround!(gs, pl)
     end
     
-    info = infoset(V, h, infosetkey(gs))
+    info = infoset(h, infosetkey(gs))
 
     action_mask = actionsmask!(gs)
     n_actions = T(sum(action_mask))
@@ -130,13 +128,26 @@ function solve(
         #until there are no more threads...)
 
         lgs = legalactions!(action_mask)
+        ha = History(h, lgs[1], gs)
+
+        Threads.@spawn solveforaction!(
+            solver, gs, 
+            actions[lgs[1]],
+            ha,
+            lgs[1],
+            utils,
+            node_utils,
+            cum_regrets,
+            norm)
         
-        @sync for i in 1:n_actions
+        @sync for i in 2:n_actions
+            ha = History(h, ha.infosets, lgs[i], gs)
+            
             Threads.@spawn solveforaction!(
                 solver,
                 gs,
                 actions[lgs[i]],
-                h, 
+                ha, 
                 lgs[i],
                 utils, 
                 node_utils,
