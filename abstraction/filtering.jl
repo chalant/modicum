@@ -112,8 +112,4 @@ function Base.close(flt::Union{Filter{MmapIndexData}, Filter{MmapHandsData}})
     close(flt.filter_data)
 end
 
-
-
-
-
 end

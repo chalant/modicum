@@ -10,26 +10,19 @@ export ChanceAction
 
 export viewactions
 export id
-export legalactions!
 
 abstract type Action end
 abstract type ChanceAction end
 
 mutable struct ActionSet{N, T<:Action}
-    actions::MVector{N, T}
-    mapping::Dict{T, T}
-    ActionSet{N, T}(actions) where {N, T<:Action} = new(sort!(actions), _createmapping(actions))
-
+    actions::SVector{N, T}
+    mapping::Set{T}
 end
 
-@inline function _createmapping(action_list::MVector{A, T}) where {A, T<:Action}
-    mapping = Dict{T, T}()
-    
-    for action in action_list
-        mapping[action] = action
-    end
+ActionSet(actions::V) where {N, T<:Action, V<:SizedVector{N, T}} = ActionSet{N, T}(sortandconvert(actions), Set{T}(actions))  
 
-    return mapping
+@inline function _createmapping(action_list::V) where {T<:Action, V<:AbstractVector{T}}
+    return Set{T}(action_list)
 end
 
 # ActionSet(acts::Vector{Action}) = ActionSet(acts::Vector{Action}, false)
@@ -42,7 +35,7 @@ end
     return in(action, keys(actions.mapping))
 end
 
-@inline function Base.getindex(actions::ActionSet{N, T}, index::Int) where {N, T<:Action}
+@inline function Base.getindex(actions::ActionSet{N, T}, index::I) where {N, I<:Integer, T<:Action}
     return actions.actions[index]
 end
 
@@ -50,44 +43,8 @@ end
     return length(actions.actions)
 end
 
-@inline function legalactions!(mask::MVector{A, Bool}, n_actions::T) where {A, T<:Integer}
-    # sorts actions such that the active ones are at the top 
-
-    idx = StaticArrays.sacollect(MVector{A, T}, 1:A)
-    
-    #todo we might not need to copy the mask, since it gets overwritten anyway
-    
-    i = 1
-
-    while i < n_actions + 1
-        
-        if mask[i] == 0
-            j = i + 1
-            
-            while j < A + 1
-                
-                if mask[j] == 1
-                    #permute index
-                    k = idx[i]
-                    idx[i] = idx[j]
-                    idx[j] = k
-                    mask[i] = 1
-                    mask[j] = 0
-                    
-                    break
-                
-                end
-
-                j += 1
-
-            end
-        end
-
-        i += 1
-    end
-
-    return idx
-
+@inline function sortandconvert(arr::V) where {N, T<:Action, V<:SizedVector{N, T}}
+    return SVector{N, T}(sort!(arr))
 end
 
 @inline function Base.sort!(s::ActionSet{N, T}) where {N, T<:Action}

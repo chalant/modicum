@@ -1,9 +1,19 @@
-using StatsBase
+push!(LOAD_PATH, join([pwd(), "utils"], "/"))
+push!(LOAD_PATH, join([pwd(), "games"], "/"))
+push!(LOAD_PATH, join([pwd(), "solving"], "/"))
+push!(LOAD_PATH, join([pwd(), "games/kuhn"], "/"))
 
+using StatsBase
+using StaticArrays
+
+using kuhn
+using games
 using solving
 using cfrplus
 using mccfr
 using infosets
+using exploitability
+using iterationstyles
 
 #todo: compute for the case where the last round was not reached! (one player folded)
 
@@ -13,36 +23,42 @@ using infosets
     
     data = game!(gs)
 
-    mp = data.private_cards[pl]
-    opp = data.private_cards[(pl != 1) * 2 + (pl == 1)]
+    mpc = data.private_cards[pl]
+    opp = data.private_cards[(pl == 1) * 2 + (pl != 1) * 1]
 
-    folded = gs.states[pl] == false
-    bet = gs.bets[mp]
+    folded = gs.players_states[pl] == false
+    bet = Float32(gs.bets[pl])
 
-    return !folded * ((opp < mpc) * gs.pot - (opp > mpc) * (gs.pot - bet) + (opp == mpc) * gs.pot/2) + folded * bet
+    # return !folded * ((opp < mpc) * gs.pot - (opp > mpc) * (gs.pot - bet) + (opp == mpc) * gs.pot/2) + folded * bet
+
+    util = !folded * ((opp < mpc) * gs.pot - (opp > mpc) * bet + (opp == mpc) * gs.pot/2) - folded * bet
+
+    println("UTIL! ", util, " ", bet, " ", folded, " ", mpc, " ", opp, " ", gs.pot)
+
+    return util
 
 end
 
 @inline function solving.computeutility!(
-    gs::KUHNGameState{FullSolving},
-    mp::T,
-    uv::V) where {N, T<:Integer, V<:StaticVector{N}}
+    gs::KUHNGameState,
+    pl::T,
+    cha::KUHNChanceAction) where T<:Integer
 
-    g = game!(gs)
-    
-    deck = g.deck
-    mpc = g.private_cards[mp]
+    deck = deck!(gs)
 
-    folded = gs.states[pl] == false
-    bet = gs.bets[mp]
+    mpc = deck[cha.p_idx] # main player private card
+    opp = deck[cha.opp_idx] # opponent private card
 
-    for i in eachindex(deck)
-        opp = deck[i]
+    folded = gs.players_states[pl] == false
+    bet = Float32(gs.bets[pl])
 
-        uv[i] = !folded * ((opp < mpc) * gs.pot - (opp > mpc) * (gs.pot - bet) + (opp == mpc) * gs.pot/2) + folded * bet
-    end
+    # return !folded * ((opp < mpc) * gs.pot - (opp > mpc) * (gs.pot - bet) + (opp == mpc) * gs.pot/2) + folded * bet
 
-    return uv
+    # util = !folded * ((opp < mpc) * gs.pot - (opp > mpc) * bet + (opp == mpc) * gs.pot/2) - folded * bet
+
+    # println("UTIL! ", util, " ", bet, " ", folded, " ", mpc, " ", opp, " ", gs.pot)
+
+    return !folded * ((opp < mpc) * gs.pot - (opp > mpc) * bet + (opp == mpc) * gs.pot/2) - folded * bet
 
 end
 
@@ -50,94 +66,53 @@ end
     return privatecards!(gs)[pl]
 end
 
-function solvekuhn(solver::CFRPlus{P, T}, itr::IterationStyle) where {P, T<:AbstractFloat}
-    deck = getcompresseddeck(MVector{UInt8})
+@inline function infosets.infosetkey(gs::KUHNGameState, cha::KUHNChanceAction)
+    return deck!(gs)[cha.p_idx]
+end
 
-    game = KUHNGame{Vector{UInt8}}(getcompresseddeck(SVector{UInt8}))
+function solvekuhn(solver::CFRPlus{true}, itr::IterationStyle)
+    game = KUHNGame{MVector{3, UInt8}}(MVector{3, UInt8}(1, 2, 3))
 
     #todo: we need to remove the distributed private cards from the deck!
 
-    gs = KUHNGameState{FullTraining}(game)
+    gs = KUHNGameState{FullSolving}(game)
 
     #create root history
-    root_h = History(SizedVector{2, SizedVector{3, Float32}}, gs)
-
-    reach_probs = @SVector ones(T, 3)
-    br_probs = @SVector ones(T, 3)
-
-    private_cards = game.private_cards
-
+    root_h = History(History{Node{MVector{2, MVector{3, Float32}}}, UInt64, UInt8})
     #to avoid looping over a changing array
     players = copy(game.players)
 
-    #todo: we might need to start with a smaller kuhn game, where we only have a deck
-    # of three cards.
-
     n = 0
-    initial_state = initialstate(gs)
+    
+    inc = initialchanceaction(UInt8, gs)
+    init_probs = @SVector ones(Float32, 3)
 
-    util = T(0)
+    util = Float32(0)
 
-    for _ in itr
+    for i in itr
         for pl in players
-            #sample one card from the deck
-            c1 = sample!(deck, 1)
 
-            #todo: pop respecting the main player's position
-            # if he's second, deal the second card of the deck,
-            # since we distribute clock-wise...
-        
-            # c = deck[i]
-            
-            # deleteat!(deck, i)
-            
-            private_cards[pl] = c1
-
-            # KUHNChanceAction{UInt64}(0, findall(x->x==c1, deck))
-
-            util += sum(solve(
+            util += solve(
                 solver, 
-                gs, root_h, pl, 
-                initial_state, 
-                opp_probs))
+                gs, 
+                root_h,
+                inc, 
+                pl,
+                init_probs, i)
             
             rotateplayers!(game)
-            
-            # push!(deck, private_cards[pl])
-
-            reset!(gs)
 
         end
 
         n += 1
 
-        #compute and display exploitability each 
+        #compute and display exploitability each 10 iterations
 
-        if n == 1000
-            total_br = 0
-
-            deck = gs.deck
-
-            for i in eachindex(deck)
-
-                for pl in players
-
-                    for i in 1:N
-                        br_probs[i] /= 2
-                    end
-
-                    private_cards[pl] = deck[i]
-                    total_br += sum(bestresponse(root_h, gs, pl, initial_state, br_probs))
-                end
-
-                rotateplayers!(game)
-                reset!(gs)
-
-            end
-
+        if n == 10000
+            println(util)
             println(
                 "Exploitability ", 
-                total_br/26 * 1000, 
+                computeexploitability!(Float32, gs, root_h)/2 * 1000, 
                 " Milli Big Blind")
 
             n = 0
@@ -145,23 +120,24 @@ function solvekuhn(solver::CFRPlus{P, T}, itr::IterationStyle) where {P, T<:Abst
 
     end
 
-    #todo: compute best response to track exploitability
-    exploitability = sum(bestresponse(root_h, gs, pl, initial_state, br_probs))/26 * 1000
-
-    println("Final Exploitability ", exploitability, " Milli Big Blind")
-
-end
-
-function solvekuhn(solver::MCCFR{T}, itr::IterationStyle)
-    deck = getdeck(Vector{UInt8})
-
-    game = KUHNGame{Vector{UInt8}}(getcompresseddeck(Vector{UInt8}))
-
-    #todo: we need to remove the distributed private cards from the deck!
-
-    gs = KUHNGameState{FullTraining}(game)
-
-    h = history(History{typeof(gs), MVector{4, T}, T, 13}, gs)()
-
+    println(
+        "Final Exploitability ", 
+        computeexploitability!(Float32, gs, root_h)/(2 * 1000), 
+        " Milli Big Blind")
+    println(util)
 
 end
+
+# function solvekuhn(solver::MCCFR{T}, itr::IterationStyle)
+#     deck = getdeck(Vector{UInt8})
+
+#     game = KUHNGame{Vector{UInt8}}(getcompresseddeck(Vector{UInt8}))
+
+#     #todo: we need to remove the distributed private cards from the deck!
+
+#     gs = KUHNGameState{FullTraining}(game)
+
+#     h = history(History{typeof(gs), MVector{4, T}, T, 13}, gs)()
+
+
+# end

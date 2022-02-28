@@ -1,14 +1,10 @@
-include("infosets.jl")
-include("../abstraction/filtering.jl")
+module mccfr
 
 using StaticArrays
-using Threads
 
+using games
 using solving
-using solver
-using playing
-using players
-using iterationstyles
+using infosets
 
 struct MCCFR{T<:AbstractFloat} <: Solver
     epsilon::T 
@@ -55,15 +51,7 @@ end
     utils::V,
     node_utils::V,
     cum_regrets::V,
-    norm::T) where {T<:AbstractFloat, S<:MCCFR{T}, K<:Unsigned, A, V<:StaticVector{A, T}, C<:Action, G<:AbstractGameState{A, 2, FullSolving, T}, H<:AbstractHistory{G, V, T, 1, K}}              
-
-    game_state = h.game_state
-
-    #copy game state into buffer
-    copy!(game_state, gs)
-
-    #perform action and update state of copy
-    state = perform!(a, game_state, game_state.player)
+    norm::T) where {T<:AbstractFloat, S<:MCCFR{T}, K<:Unsigned, A, V<:StaticVector{A, T}, C<:games.Action, G<:AbstractGameState{A, FullSolving, 2}, H<:History}              
 
     cr = cum_regrets[action_idx]
 
@@ -73,9 +61,8 @@ end
 
     ut = solve(
         solver, 
-        game_state,
-        ha, pl,
-        state)
+        perform(a, gs, gs.player),
+        h, pl)
 
     utils[action_idx] = ut
     node_utils[action_idx] = stg * ut
@@ -86,17 +73,16 @@ function solve(
     solver::MCCFR{T}, 
     gs::G, 
     h::H, 
-    pl::Integer,
-    state::Integer) where {T<:AbstractFloat, A, V <: StaticVector{A, T}, K<:Unsigned, G<:AbstractGameState{A, 2, FullSolving, T}, H<:AbstractHistory{G, V, T, 1, K}}
+    pl::I) where {A, I<:Integer, T<:AbstractFloat, G<:AbstractGameState{A, FullSolving, 2}, H<:History}
 
     #todo: handle ended and terminated states!
     # get utility on ended state
 
-    if terminal!(gs, state) == true       
+    if terminal!(gs) == true       
         #get the utilty of the main player
         return computeutility!(gs, pl)
     
-    elseif chance!(gs, state) == true
+    elseif chance!(gs) == true
         nextround!(gs, pl)
     end
     
@@ -222,64 +208,10 @@ function solve(
         j += 1
 
     end
-
-    ha = history(h, idx)
-
-    game_state = ha.game_state
-
-    copy!(game_state, gs)
-
-    state = perform!(actions[idx], game_state, gs.player)
     
     return solve(
         solver,
-        game_state,
-        ha, pl,
-        state)
+        perform(actions[idx], gs, gs.player),
+        history(h, idx), pl)
 end
-
-function solving.solve(
-    solver::MCCFR{T}, 
-    gs::GameState{A, 2, R, FullSolving}, 
-    g::Game{FullSolving}, 
-    itr::IterationStyle) where {A, R, T<:AbstractFloat}
-
-    data = shared(g)
-
-    #todo: one util per player?
-    util = T(0)
-    
-    #todo: maybe use an internal SVector instead of MVector
-
-    #initial history
-    h = history(History{typeof(gs), MArray{A, T}, T}, gs)()
-    
-    for _ in itr
-        #sample public and private cards
-
-        shuffle!(data.deck)
-
-        for pl in g.players
-            shuffle!(data.deck)
-            distributecards!(gs, g, data)
-            
-            util += innersolve(
-                solver, 
-                gs, h, pl,
-                state,
-                T(1), 
-                T(1))
-        
-
-            putbackcards!(root, g, data)
-        end
-
-end
-
-function solving.solve(
-    solve::MCCFR{T},
-    gs::GameState,
-    g::Game{DepthLimitedSolving}) where {T<:AbstractFloat}
-    
-
 end

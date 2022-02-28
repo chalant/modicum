@@ -16,18 +16,4 @@ export _computepotentialearning!
 
 export callamount
 
-using Random
-using StaticArrays
-
-using games
-
-using hermes_exceptions
-using players
-using actions
-
-
-@inline function perform!(a::Action, gs::AbstractGameState, pl::T) where T <: Integer
-    throw(NotImplementedError())
-end
-
 end

@@ -138,7 +138,7 @@ function start()
 
         println("Performed ", message(a))
 
-        state = perform!(a, gs, cp)
+        state = perform(a, gs, cp)
 
         if terminal!(state) == true
 
