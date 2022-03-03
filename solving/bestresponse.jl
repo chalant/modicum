@@ -119,16 +119,35 @@ function bestresponse!(
     reach_probs::V) where {A, P, C<:games.ChanceAction, I<:Integer, T<:AbstractFloat, V<:StaticVector{3, T}, G<:AbstractGameState{A, FullSolving, P}, N<:Node, K1<:Integer, K2<:Integer, H<:History{N, K1, K2}}
 
     if terminal!(gs) == true
-        return computeutility!(gs, pl, chance_action)
+        return computeutility!(T, gs, pl, chance_action)
     
     elseif chance!(gs) == true
 
         node_util = T(0)
 
         #todo: we need to initialize for chance actions...
+
+        iter = chanceactions!(gs, chance_action)
+        next = iterate(iter)
+
+        (a, state) = next
+
+        ha = History(h, a.idx)
+
+        p = chanceprobability!(T, gs, chance_action)
+
+        bestresponse!(
+            performchance!(a, gs, gs.player), 
+            ha,
+            a, 
+            pl,
+            @SVector [reach_probs[1], reach_probs[2], reach_probs[3] * p]) * p
         
-        for a in chanceactions!(gs, chance_action)
-            ha = History(h, a)
+        next = iterate(iter, state)
+        
+        while next !== nothing
+
+            (a, state) = next
 
             p = chanceprobability!(T, gs, chance_action)
 
@@ -139,21 +158,24 @@ function bestresponse!(
             
             node_util += bestresponse!(
                 performchance!(a, gs, gs.player), 
-                ha,
-                chance_action, 
+                History(h, a.idx, ha.infosets),
+                a, 
                 pl,
-                @SVector [probs[1], probs[2], probs[3] * p]) * p
-
+                @SVector [reach_probs[1], reach_probs[2], reach_probs[3] * p]) * p
+            
+            next = iterate(iter, state)
         end
 
         return node_util
     
     end
 
-    actions_mask = actionsmask!(gs)
+    # actions_mask = actionsmask!(gs)
 
-    n_actions = sum(actions_mask)
-    actions = actions!(gs)
+    lgs, n_actions = legalactions!(K2, gs)
+
+    # n_actions = sum(actions_mask)
+    # actions = actions!(gs)
 
     info = infoset(h, infosetkey(gs, gs.player))
     cum_regrets = cumulativeregrets!(info, gs.player)
@@ -167,12 +189,12 @@ function bestresponse!(
     end
     
     norm = (norm > 0) * norm + n_actions * (norm <= 0)
-    lgs = legalactions!(K2, actions_mask, n_actions)
+    # lgs = legalactions!(K2, actions_mask, n_actions)
 
     #create best response strategy for history and infoset
     if pl == gs.player
 
-        max_action = 1
+        # max_action = 1
         
         idx = lgs[1]
 
@@ -184,7 +206,7 @@ function bestresponse!(
         # state = perform!(actions[a], ha.game_state, game_state.player)
         
         val = bestresponse!(
-            perform(actions[idx], gs, gs.player), 
+            perform(action(gs, idx), gs, gs.player), 
             History(h, K2(1)),
             chance_action,
             pl,
@@ -201,7 +223,7 @@ function bestresponse!(
             # state = perform!(actions[a], ha.game_state, game_state.player)
             
             util = bestresponse!(
-                perform(actions[idx], gs, gs.player), 
+                perform(action(gs, idx), gs, gs.player), 
                 History(h, i, h.infosets),
                 chance_action,
                 pl,
@@ -212,7 +234,7 @@ function bestresponse!(
             #set maximum value
             val = cond * util + !cond * val
 
-            max_action += cond * 1 + !cond * 0
+            # max_action += cond * 1 + !cond * 0
 
         end
 
@@ -227,12 +249,12 @@ function bestresponse!(
 
     idx = lgs[1]
 
-    stg::T = cum_strategy[1]/norm
+    stg = cum_strategy[1]/norm
 
     ha = History(h, K2(1))
     
     util = bestresponse!(
-        perform(actions[idx], gs, gs.player),
+        perform(action(gs, idx), gs, gs.player),
         ha,
         chance_action,
         pl,
@@ -251,7 +273,7 @@ function bestresponse!(
         stg = cum_strategy[i]/norm
 
         util += bestresponse!(
-            perform(actions[idx], gs, gs.player), 
+            perform(action(gs, idx), gs, gs.player), 
             History(h, i, ha.infosets),
             chance_action, 
             pl,

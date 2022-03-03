@@ -1,6 +1,8 @@
 module kuhn
 
 using StaticArrays
+using TimerOutputs
+using FunctionWrappers
 
 using games
 using actions
@@ -26,11 +28,15 @@ export CALL_ID
 export CHECK_ID
 export FOLD_ID
 
-const NULL_ID = UInt8(0)
+export T2
+
 const BET_ID = UInt8(1)
 const CALL_ID = UInt8(2)
 const CHECK_ID = UInt8(3)
 const FOLD_ID = UInt8(4)
+const NULL_ID = UInt8(5)
+
+const T2 = TimerOutput()
 
 struct KUHNChanceAction{T<:Integer} <: games.ChanceAction
     idx::T
@@ -114,22 +120,22 @@ KUHNGame{T}(deck) where {U<:Integer, T<:AbstractVector{U}} = _creategame(deck)
 struct KUHNGameState{S<:GameSetup} <: AbstractGameState{4, S, 2}
     action::UInt8
     position::UInt8
-    pot::UInt8
+    pot::Float32
     player::UInt8
     game_state::UInt8
     
-    players_states::MVector{2, Bool}
-    bets::MVector{2, UInt8}
+    players_states::SVector{2, Bool}
+    bets::SVector{2, Float32}
     
-    game::KUHNGame
+    game::KUHNGame{MVector{3, UInt8}}
 
 end
 
 KUHNGameState{S}(game::KUHNGame) where S <: GameSetup = _creategamestate(S, game)
 
 @inline function _creategamestate(::Type{S}, game) where S <: GameSetup
-    states = @MVector Bool[1, 1]
-    bets = @MVector zeros(UInt8, 2)
+    states = @SVector Bool[1, 1]
+    bets = @SVector zeros(Float32, 2)
     
     return KUHNGameState{S}(
         NULL_ID,
@@ -150,31 +156,64 @@ end
     return @MVector Bool[1, 0, 1, 0]
 end
 
-@inline function games.actionsmask!(gs::KUHNGameState{S}) where S<:GameSetup
-    mask = @MVector zeros(Bool, 4)
+
+@inline function _actionmask!(bet_cond::I, call_cond::I, reset_cond::I, aid::K, i::L) where {I<:Integer, K<:Integer, L<:Integer}
+    # return bet_cond && ((aid == BET_ID) || (aid == CHECK_ID)) ||
+    #     call_cond && ((aid == CALL_ID) || (aid == FOLD_ID)) ||
+    #     reset_cond && ((i == 1) || (i != 2) || (i == 3) || (i != 4))
+    if bet_cond == true
+        return (aid == BET_ID) + (aid == CHECK_ID)
+    elseif call_cond == true
+        return (aid == CALL_ID) + (aid == FOLD_ID)
+    elseif reset_cond == true
+        return (i == 1) + (i == 2) * false + (i == 3) + (i == 4) * false
+    else
+        return false 
+    end
+end
+
+function games.action(gs::KUHNGameState{S}, idx::I) where {S<:GameSetup, I<:Integer}
+    return KUHNAction{I}(idx)
+end
+
+# const f = FunctionWrappers.FunctionWrapper{Bool, Tuple{UInt8, UInt8, UInt8, UInt8, Int}}(_actionmask!)
+
+function games.legalactions!(::Type{K}, gs::KUHNGameState{S}) where {S<:GameSetup, K<:Integer}
+    mask = @SVector zeros(K, 4)
 
     action = gs.action
 
-    bet_cond = action == CHECK_ID
-    call_cond = action == BET_ID
-    reset_cond = action == NULL_ID
+    bet_cond = (action == CHECK_ID)
+    call_cond = (action == BET_ID)
+    reset_cond = (action == NULL_ID)
 
-    action_set = actions!(gs)
+    j = 1
 
-    for i in 1:4
-        aid = action_set[i].id
-        
-        mask[i] = bet_cond * ((aid == BET_ID) + (aid == CHECK_ID)) +
-            call_cond * ((aid == CALL_ID) + (aid == FOLD_ID)) + 
-            reset_cond * ((i == 1) + (i == 2) * 0 + (i == 3) + (i == 4) * 0)
-            # * ((is_bet && pa == CALL_ID) +
-            # (is_bet && p_is_bet) +
-            # (is_bet && pa == FOLD_ID) +
-            # (is_check && p_is_check) +
-            # (is_check && p_is_bet))
+    # action_set = actions!(gs)
+
+    for i in 1:5
+        if (bet_cond == true && (i == BET_ID || i == CHECK_ID)) || (call_cond == true && (i == CALL_ID || i == FOLD_ID)) || (reset_cond == true && (i == 1 || i == 3))
+            mask = setindex(mask, i, j)
+            j += 1
+        end
+        # if bet_cond == true && (i == BET_ID || i == CHECK_ID)
+        #     # mask[j] = i
+        #     mask = setindex(mask, i, j)
+        #     j += 1
+        # elseif call_cond == true && (i == CALL_ID || i == FOLD_ID)
+        #     # mask[j] = i
+        #     mask = setindex(mask, i, j)
+        #     j += 1
+        # elseif reset_cond == true && (i == 1 || i == 3)
+        #     mask = setindex(mask, i, j)
+        #     # mask[j] = i
+        #     j += 1
+        # end
     end
 
-    return mask
+    # println("MASK!! ", mask)
+
+    return (mask, j - 1)
 
 end
 
@@ -212,12 +251,17 @@ end
 @inline function Base.iterate(pt::KUHNPublicTree{T}, state::Tuple{T, T, T}) where T<:Integer
     idx, p_idx, opp_idx = state
 
-    if p_idx >= pt.n
+    if p_idx > pt.n
         return nothing
     end
     
     if opp_idx >= pt.n
         i  = p_idx + 1
+        
+        if i > pt.n
+            return nothing
+        end
+        
         j = 1
     else
         i = p_idx
@@ -229,7 +273,7 @@ end
 end
 
 @inline function games.chanceactions!(gs::KUHNGameState, a::KUHNChanceAction{T}) where T<:Integer
-    return KUHNPublicTree{T}(length(deck!(gs)), a)
+    return KUHNPublicTree{T}(3, a)
 end
 
 @inline games.players!(g::KUHNGame) = g.players 
@@ -252,11 +296,17 @@ end
     return gs.game_state == ENDED_ID
 end
 
-@inline games.actions!(g::KUHNGame) = g.action_set
-@inline games.actions!(gs::KUHNGameState) = actions!(gs.game)
+
+function games.actions!(g::KUHNGame) 
+     return g.action_set
+end
+
+function games.actions!(gs::KUHNGameState)
+    return actions!(gs.game)
+end
 
 @inline game!(gs::KUHNGameState) = gs.game
-@inline privatecards!(g::KUHNGame) = g.private_cards
+@inline privatecards!(g::KUHNGame{T}) where T <: AbstractVector = g.private_cards
 @inline privatecards!(gs::KUHNGameState) = privatecards!(game!(gs))
 @inline deck!(g::KUHNGame) = g.deck
 @inline deck!(gs::KUHNGameState) = deck!(game!(gs))
@@ -288,7 +338,27 @@ end
 
 end
 
-@inline function games.perform(
+@inline function increment!(arr::V, pl::I, i::I, p::T) where {V<:StaticVector, I<:Integer, T<:Real}
+    return arr[pl] + (p * (pl == i) + (pl != i) * 0)
+end
+
+@inline function set!(arr::V, pl::I, i::I, p::T) where {V<:StaticVector, I<:Integer, T<:Real}
+    return p * (pl == i) + (pl != i) * arr[pl]
+end
+
+
+function incrementforplayer!(arr::V, pl::I, value::F) where {A, F<:Real, V<:StaticVector{A, F}, I<:Integer}
+    m = MVector{A, F}(arr)
+    m[pl] += value
+    return SVector{A, F}(m)
+end
+
+function setforplayer!(arr::V, pl::I, value::Bool) where {A, V<:StaticVector{A, Bool}, I<:Integer}
+    return setindex(arr, value, pl)
+end
+
+
+function games.perform(
     a::KUHNAction, 
     gs::KUHNGameState{S}, 
     pl::UInt8) where {S<:GameSetup}
@@ -301,24 +371,24 @@ end
     p_is_bet = pa == BET_ID
     p_is_check = pa == CHECK_ID
     folded = id_ == FOLD_ID
-
-    players_states = copy(gs.players_states)
-    players_states[pl] = folded * false + !folded * true
+    
+    players_states = setindex(gs.players_states, !folded, Int64(pl))
+    # players_states[pl] = folded * false + !folded * true
 
     is_bet = id_ == BET_ID
     is_call = id_ == CALL_ID
 
-    bet = (is_bet || is_call) * UInt8(1)
+    bet = (is_bet || is_call) * oneunit(Float32)
 
     # gs.pot += bet
     # gs.bets[p] += bet
 
-    bets = copy(gs.bets)
-    bets[pl] += bet
+    bets = incrementforplayer!(gs.bets, pl, bet)
 
     position = nextplayer!(gs.position)
     # gs.action = id_
 
+    #todo: make function for this
     end_cond = (p_is_bet && (id_ == BET_ID || folded || is_call)) || (p_is_check && id_ == CHECK_ID) 
 
     # return end_cond * ENDED_ID + !end_cond * STARTED_ID 

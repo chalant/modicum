@@ -15,7 +15,7 @@ abstract type Action end
 abstract type ChanceAction end
 
 mutable struct ActionSet{N, T<:Action}
-    actions::SVector{N, T}
+    actions::SizedVector{N, T}
     mapping::Set{T}
 end
 
@@ -31,12 +31,12 @@ end
     return a.id
 end
 
-@inline function Base.in(action::T, actions::ActionSet{N, T}) where {N, T<:Action}
+function Base.in(action::T, actions::ActionSet{N, T}) where {N, T<:Action}
     return in(action, keys(actions.mapping))
 end
 
-@inline function Base.getindex(actions::ActionSet{N, T}, index::I) where {N, I<:Integer, T<:Action}
-    return actions.actions[index]
+function Base.getindex(action_set::ActionSet{N, T}, index::I) where {N, I<:Integer, T<:Action}
+    return action_set.actions[index]
 end
 
 @inline function Base.length(actions::ActionSet)
@@ -44,7 +44,7 @@ end
 end
 
 @inline function sortandconvert(arr::V) where {N, T<:Action, V<:SizedVector{N, T}}
-    return SVector{N, T}(sort!(arr))
+    return sort!(arr)
 end
 
 @inline function Base.sort!(s::ActionSet{N, T}) where {N, T<:Action}

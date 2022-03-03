@@ -69,11 +69,11 @@ struct FullSolving{T<:Solver} <: GameSetup
 end
 
 @inline function computeutility!(gs::AbstractGameState, pl::T) where T<:Integer
-    throw(NotImplementeError())
+    throw(NotImplementedError())
 end
 
 @inline function computeutility!(gs::AbstractGameState, pl::T, chance_action::games.ChanceAction) where T<:Integer
-    throw(NotImplementeError())
+    throw(NotImplementedError())
 end
 
 end

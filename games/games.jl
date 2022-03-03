@@ -22,12 +22,15 @@ export players!
 export legalactions!
 export chanceactions!
 export chanceprobability!
+export action
 
 export INIT_ID
 export STARTED_ID
 export ENDED_ID
 export TERM_ID
 export CHANCE_ID
+
+export ChanceAction
 
 include("actions.jl")
 
@@ -122,15 +125,27 @@ end
 @inline function players!(gs::AbstractGameState)
 end
 
-@inline function legalactions!(::Type{K}, mask::MVector{A, Bool}, n_actions::T) where {A, K<:Integer, T<:Integer}
+function action(gs::AbstractGameState, idx::I) where I<:Integer
+    throw(NotImplementedError())
+end
+
+function legalactions!(::Type{K}, mask::SVector{A, UInt8}, n_actions::T) where {A, K<:Integer, T<:Integer}
     # sorts actions such that the active ones are at the top 
 
-    idx = StaticArrays.sacollect(MVector{A, K}, 1:A)
+    idx = StaticArrays.sacollect(SVector{A, K}, 1:A)
     
     #todo we might not need to copy the mask, since it gets overwritten anyway
-    
-    i = 1
 
+    # j = K(1)
+
+    # for i in 1:A
+    #     m = mask[i]
+    #     idx[j] = i * (m == 1) + (m == 0) * mask[j]
+    #     j += m
+    # end
+
+    i = 1
+    
     while i < n_actions + 1
         
         if mask[i] == 0
@@ -141,10 +156,14 @@ end
                 if mask[j] == 1
                     #permute index
                     k = idx[i]
-                    idx[i] = idx[j]
-                    idx[j] = k
-                    mask[i] = 1
-                    mask[j] = 0
+                    # idx[i] = idx[j]
+                    # idx[j] = k
+
+                    idx = setindex(idx, idx[j], i)
+                    idx = setindex(idx, k, j)
+                    
+                    mask = setindex(mask, 1, i)
+                    mask = setindex(mask, 0, j)
                     
                     break
                 

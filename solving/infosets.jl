@@ -30,7 +30,7 @@ Node(::Type{T}) where {A, P, N<:AbstractFloat, U<:StaticVector{A, N}, T<:StaticV
     StaticArrays.sacollect(T, StaticArrays.sacollect(U, 1/A for _ in 1:A) for _ in 1:P), 
     StaticArrays.sacollect(T, StaticArrays.sacollect(U, 0 for _ in 1:A) for _ in 1:P))
 
-struct History{U<:AbstractNode, K1<:Integer, K2<:Integer} <: AbstractHistory
+mutable struct History{U<:AbstractNode, K1<:Integer, K2<:Integer} <: AbstractHistory
     infosets::Dict{K1, U}
     histories::Dict{K2, History{U, K1, K2}}
 end
@@ -116,27 +116,27 @@ end
     end
 end
 
-@inline function getutils(h::CachingVHistory{T, U, V, N, K}) where {T<:AbstractGameState, U<:AbstractArray, V<:AbstractFloat, N, K<:Unsigned}
+function getutils(h::CachingVHistory{T, U, V, N, K}) where {T<:AbstractGameState, U<:AbstractArray, V<:AbstractFloat, N, K<:Unsigned}
     return h.utils
 end
 
-@inline function getutils(h::VHistory{T, U, V, N, K}) where {T<:AbstractGameState, U<:AbstractMatrix, V<:AbstractFloat, N, K<:Unsigned}
+function getutils(h::VHistory{T, U, V, N, K}) where {T<:AbstractGameState, U<:AbstractMatrix, V<:AbstractFloat, N, K<:Unsigned}
     return @MVector zeros(V, N)
 end
 
-@inline function getutils(h::H) where {A, K1<:Integer, K2<:Integer, T<:AbstractFloat, U<:StaticVector{A, T}, N<:Node{U}, H<:History{N, K1, K2}}
+function getutils(h::H) where {A, K1<:Integer, K2<:Integer, T<:AbstractFloat, U<:StaticVector{A, T}, N<:Node{U}, H<:History{N, K1, K2}}
     return @MVector zeros(T, A)
 end
 
-@inline function getutils(h::H) where {A, P, K1<:Integer, K2<:Integer, T<:AbstractFloat, U<:StaticVector{A, T}, V<:StaticVector{P, U}, N<:Node{V}, H<:History{N, K1, K2}}
+function getutils(h::H) where {A, P, K1<:Integer, K2<:Integer, T<:AbstractFloat, U<:StaticVector{A, T}, V<:StaticVector{P, U}, N<:Node{V}, H<:History{N, K1, K2}}
     return @MVector zeros(T, A)
 end
 
-@inline function getprobs(h::CachingVHistory{T, U, V, N, K}) where {T<:AbstractGameState, U<:AbstractMatrix, V<:AbstractFloat, N, K<:Unsigned}
+function getprobs(h::CachingVHistory{T, U, V, N, K}) where {T<:AbstractGameState, U<:AbstractMatrix, V<:AbstractFloat, N, K<:Unsigned}
     return h.opp_probs
 end
 
-@inline function getprobs(h::VHistory{T, U, V, N, K}) where {T<:AbstractGameState, U<:AbstractMatrix, V<:AbstractFloat, N, K<:Unsigned}
+function getprobs(h::VHistory{T, U, V, N, K}) where {T<:AbstractGameState, U<:AbstractMatrix, V<:AbstractFloat, N, K<:Unsigned}
     @MVector zeros(V, N)
 end
 
