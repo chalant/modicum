@@ -15,8 +15,7 @@ mutable struct Test <: GameSetup
     chips::Float32
 end
 
-@inline function message(action::KUHNAction)
-    id = action.id
+@inline function message(id::UInt8)
 
     if id == CHECK_ID
         return string("Check")
@@ -29,7 +28,7 @@ end
     end
 end
 
-@inline function chooseaction!(gs::KUHNGameState{Test}, mask::MVector{4, Bool})
+@inline function chooseaction!(gs::KUHNGameState{Test}, mask::SVector{4, UInt8})
     # todo provide a function for displaying actions names
     println("Choose action ")
     acts = actions!(gs)
@@ -37,9 +36,9 @@ end
     println(mask)
 
     #display available actions
-    for (i, (act, j)) in enumerate(zip(acts, mask))
+    for (i, j) in enumerate(mask)
         if j == 1
-            println("Press ", i, " to ", message(act))
+            println("Press ", i, " to ", message(j))
         end
     end
 
@@ -49,12 +48,32 @@ end
             println("Invalid input ")
             return chooseaction!(gs, mask)
         else
-            return acts[i]
+            return action(gs, mask[i])
         end
     catch
         println("Invalid input")
         return chooseaction!(gs, mask)
     end
+end
+
+@inline function sampleaction!(acts::SVector{4, UInt8})
+    t = rand()
+
+    a = 1
+    cum_prob = 0.0
+
+    while a < 2
+        cum_prob += 0.5
+
+        if t < cum_prob
+            break
+        end
+
+        a += 1
+    end
+
+    return acts[a]
+
 end
 
 @inline function sampleaction!(wv::AbstractVector{Bool})
@@ -88,20 +107,19 @@ end
 
 function start()
 
-    game = KUHNGame()
+    game = KUHNGame{MVector{3, UInt8}}(MVector{3, UInt8}(1, 2, 3))
 
     stp = Test(10)
-    gs = KUHNGameState{Test}(game)
 
     mp = game.players[1]
 
     shuffle!(game.players)
 
-    gs.player = game.players[1]
+    gs = KUHNGameState{Test}(game)
     
     acts = actions!(game)
 
-    deck = game.deck
+    deck = copy(game.deck)
 
     shuffle!(deck)
     
@@ -110,6 +128,8 @@ function start()
     private_cards = game.private_cards
 
     sample!(deck, cards)
+
+    println("Cards ", cards)
 
     i = 1
     
@@ -121,8 +141,7 @@ function start()
 
     println("Cards: ", private_cards[1], " ", private_cards[2])
     
-    state = initialstate()
-    mask = actionsmask!(gs)
+    mask, n_actions = legalactions!(UInt8, gs)
 
     while true
 
@@ -133,14 +152,14 @@ function start()
         if cp == mp
             a = chooseaction!(gs, mask)
         else
-            a = acts[sampleaction!(mask)]
+            a = action(gs, sampleaction!(mask))
         end
 
-        println("Performed ", message(a))
+        println("Performed ", a)
 
-        state = perform(a, gs, cp)
+        gs = perform(a, gs, cp)
 
-        if terminal!(state) == true
+        if terminal!(gs) == true
 
             states = gs.players_states
 
@@ -155,11 +174,11 @@ function start()
                 println("Draw! ", gs.pot/2)
             end
             
-            rotateplayers!(game)
+            gs = rotateplayers!(gs)
 
             sample!(deck, cards)
 
-            reset!(gs)
+            gs = reset!(gs)
     
             i = 1
             
@@ -170,8 +189,8 @@ function start()
             end
         end
 
-        mask = actionsmask!(gs)
-    
+        mask, n_actions = legalactions!(UInt8, gs)
+
     end
     
 

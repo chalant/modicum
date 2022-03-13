@@ -170,25 +170,23 @@ function bestresponse!(
     
     end
 
-    # actions_mask = actionsmask!(gs)
-
     lgs, n_actions = legalactions!(K2, gs)
 
     # n_actions = sum(actions_mask)
     # actions = actions!(gs)
 
-    info = infoset(h, infosetkey(gs, gs.player))
-    cum_regrets = cumulativeregrets!(info, gs.player)
+    info = infoset(h, infosetkey(gs, chance_action))
+    # cum_regrets = cumulativeregrets!(info, gs.player)
     
     # br_strategy = getstrategy(br_h, key, pl)
 
-    norm = T(0)
+    # norm = T(0)
 
-    for cr in cum_regrets
-        norm += (cr > 0) * cr
-    end
+    # for cr in cum_regrets
+    #     norm += (cr > 0) * cr
+    # end
     
-    norm = (norm > 0) * norm + n_actions * (norm <= 0)
+    # norm = (norm > 0) * norm + n_actions * (norm <= 0)
     # lgs = legalactions!(K2, actions_mask, n_actions)
 
     #create best response strategy for history and infoset
@@ -207,12 +205,12 @@ function bestresponse!(
         
         val = bestresponse!(
             perform(action(gs, idx), gs, gs.player), 
-            History(h, K2(1)),
+            History(h, K2(idx)),
             chance_action,
             pl,
             reach_probs)
 
-        for i::K2 in 2:n_actions
+        for i in 2:n_actions
             idx = lgs[i]
 
             # br_ha = history(br_h, idx, br_h.infosets)
@@ -224,7 +222,7 @@ function bestresponse!(
             
             util = bestresponse!(
                 perform(action(gs, idx), gs, gs.player), 
-                History(h, i, h.infosets),
+                History(h, K2(idx), h.infosets),
                 chance_action,
                 pl,
                 reach_probs)
@@ -251,7 +249,7 @@ function bestresponse!(
 
     stg = cum_strategy[1]/norm
 
-    ha = History(h, K2(1))
+    ha = History(h, K2(idx))
     
     util = bestresponse!(
         perform(action(gs, idx), gs, gs.player),
@@ -260,7 +258,7 @@ function bestresponse!(
         pl,
         updatereachprobs!(reach_probs, pl, stg)) * stg
 
-    for i::K2 in 2:n_actions
+    for i in 2:n_actions
         idx = lgs[i]
 
         # ha = history(h, idx)
@@ -274,7 +272,7 @@ function bestresponse!(
 
         util += bestresponse!(
             perform(action(gs, idx), gs, gs.player), 
-            History(h, i, ha.infosets),
+            History(h, K2(idx)),
             chance_action, 
             pl,
             updatereachprobs!(reach_probs, pl, stg)) * stg
