@@ -14,6 +14,7 @@ export getprobs
 export infosetkey
 export cumulativeregrets!
 export cumulativestrategy!
+export history
 
 abstract type AbstractHistory end
 abstract type AbstractNode end
@@ -90,7 +91,7 @@ end
     throw(NotImplementedError())
 end
 
-function infoset(h::H, key::I) where {K<:Integer, I<:Integer, V<:StaticVector, N<:Node{V}, H<:History{N, K, I}}
+function infoset(h::H, key::I) where {K<:Integer, K2<:Integer, I<:Integer, V<:StaticVector, N<:Node{V}, H<:History{N, K, K2}}
     info = h.infosets
 
     if haskey(info, key)

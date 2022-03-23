@@ -17,6 +17,22 @@ export solve
 struct CFR <: Solver
 end
 
+function getstrategy(cum_strategy::S, cum_regrets::S, prob::T) where {A, T<:AbstractFloat, S<:StaticVector{A, T}}
+    strategy = @MVector zeros(T, A)
+
+    for i in eachindex(cum_regrets)
+        strategy[i] = cum_regrets[i] > 0 ? cum_regrets[i] : 0
+    end
+
+    norm = sum(strategy)
+
+    strategy = norm > 0 ? strategy/norm : T(1/length(cum_regrets))
+    cum_strategy += prob * strategy 
+
+    return strategy
+
+end
+
 function playerreachprob!(arr::V, pl::I, i::I, p::T) where {V<:StaticVector, I<:Integer, T<:AbstractFloat}
     return arr[pl] * (p * (pl == i) + (pl != i) * 1)
 end
@@ -179,7 +195,7 @@ function solve(
         return computeutility!(T, gs, pl)
     end
 
-    info = infoset(h, infosetkey(gs, pl))
+    info = infoset(h, infosetkey(gs, gs.player))
 
     (lga, n_actions) = games.legalactions!(K2, gs)
 
@@ -190,8 +206,6 @@ function solve(
     for i in cum_regrets
         norm += (i > 0) * i
     end
-    
-    norm = (norm != 0) * norm + n_actions * (norm == 0)
 
     utils = getutils(h)
 
@@ -199,8 +213,13 @@ function solve(
     
     ha = History(h, K2(idx))
 
-    nr = cum_regrets[1]/norm
-    stg = ((norm != n_actions) * nr * (nr > 0) + (norm == n_actions) * T(1/n_actions))
+    norm = (norm == 0) * n_actions + (norm != 0) * norm
+    
+    nr = (cum_regrets[1] > 0) * cum_regrets[1]
+    stg = (norm != n_actions) * nr/norm + (norm == n_actions) * T(1/n_actions)
+
+    strat = @MVector zeros(T, 2)
+    strat[1] = stg 
 
     util = solve(
         solver, 
@@ -208,15 +227,20 @@ function solve(
         ha, 
         pl,
         updatereachprobs!(reach_probs, gs.player, stg))
+    
+    utils[1] = util[gs.player]
 
     node_util = util * stg
-    utils[1] = util
+
+    # println("Value ", util[gs.player], " action ", idx, " ", strat, " ", stg, " ", cum_regrets)
 
     for i in 2:n_actions
         idx = lga[i]
         
-        nr = cum_regrets[i]/norm  
-        stg = ((norm != n_actions) * nr * (nr > 0) + (norm == n_actions) * T(1/n_actions))
+        nr = (cum_regrets[i] > 0) * cum_regrets[i]
+        stg = (norm != n_actions) * nr/norm + (norm == n_actions) * T(1/n_actions)
+
+        strat[i] = stg
 
         util = solve(
             solver, 
@@ -226,42 +250,35 @@ function solve(
             updatereachprobs!(reach_probs, gs.player, stg))
         
         node_util += util * stg
-        utils[i] = util
+        utils[i] = util[gs.player]
+
+        # println("Value ", util[gs.player], " action ", idx, " ", strat, " ", stg, " ", cum_regrets)
 
     end
 
     #todo: update cumulative regrets and cumulative strategy
-    if pl == gs.player
-        cum_stg = cumulativestrategy!(info, pl)
-        p0 = reach_probs[pl]
+    # if pl == gs.player
+
+        cum_stg = cumulativestrategy!(info, gs.player)
+        p0 = reach_probs[gs.player]
 
         #update cumulative strategy
 
         for i in 1:n_actions
-            nr = cum_regrets[i]/norm
-            cum_stg[i] += ((norm != n_actions) * nr * (nr > 0) + (norm == n_actions) * T(1/n_actions)) * p0
-            # println("norm ", norm, " cum ", cum_regrets[i], " utils ", utils[i])
+            cum_stg[i] += ((norm != n_actions) * ((cum_regrets[i] > 0) * cum_regrets[i])/norm + (norm == n_actions) * T(1/n_actions)) * p0
         end
 
         # norm = T(0)
-
-        #todo: we need a better way to get the opponent index
         
-        p1 = reach_probs[(pl == 1) * 2 + (pl == 2) * 1]
+        p1 = reach_probs[(gs.player == 1) * 2 + (gs.player == 2) * 1]
 
         # println("PREVIOUS ", cum_regrets)
 
         for i in 1:n_actions
-            cum_regrets[i] += (utils[i] - node_util) * p1
-            # norm += cum_regrets[i]
-            # println("DIFF ", utils[i] - node_util)
+            cum_regrets[i] += (utils[i] - node_util[gs.player]) * p1
+            # norm += (cum_regrets[i] > 0) * cum_regrets[i]
         end
-
-        # println("STG ", cum_stg)
-        # println("REGRETS ", cum_regrets)
-        # println("UTILS ", utils)
-
-    end
+    # end
 
     return node_util
 

@@ -29,15 +29,14 @@ export CHECK_ID
 export FOLD_ID
 
 const BET_ID = UInt8(1)
-const CALL_ID = UInt8(2)
-const CHECK_ID = UInt8(3)
-const FOLD_ID = UInt8(4)
-const NULL_ID = UInt8(5)
+# const CALL_ID = UInt8(2)
+const CHECK_ID = UInt8(2)
+# const FOLD_ID = UInt8(4)
+const NULL_ID = UInt8(3)
 
 struct KUHNChanceAction{T<:Integer} <: games.ChanceAction
     idx::T
-    p_idx::T
-    opp_idx::T
+    arr::Tuple{T, T}
 end
 
 @inline function getdeck(::Type{T}) where {U<:Integer, T<:AbstractVector{U}}
@@ -85,7 +84,7 @@ end
 Base.hash(a::KUHNAction, h::UInt) = hash(a.id, hash(:KUHNAction, h))
 
 mutable struct KUHNGame{T<:AbstractVector}
-    action_set::ActionSet{4, KUHNAction}
+    action_set::ActionSet{2, KUHNAction}
 
     players::MVector{2, UInt8}
     
@@ -94,10 +93,8 @@ mutable struct KUHNGame{T<:AbstractVector}
 end
 
 @inline function _creategame(deck::T) where {U<:Integer, T<:AbstractVector{U}}
-    action_set = ActionSet(SizedVector{4, KUHNAction}(
-        KUHNAction(CALL_ID), 
+    action_set = ActionSet(SizedVector{2, KUHNAction}(
         KUHNAction(BET_ID),
-        KUHNAction(FOLD_ID),
         KUHNAction(CHECK_ID)))
     
     players = @MVector UInt8[1, 2]
@@ -113,7 +110,7 @@ end
 KUHNGame{T}() where {U<:Integer, T<:AbstractVector{U}} = _creategame(getdeck(T))
 KUHNGame{T}(deck) where {U<:Integer, T<:AbstractVector{U}} = _creategame(deck)
 
-struct KUHNGameState{S<:GameSetup} <: AbstractGameState{4, S, 2}
+struct KUHNGameState{S<:GameSetup} <: AbstractGameState{2, S, 2}
     action::UInt8
     position::UInt8
     pot::Float32
@@ -134,7 +131,7 @@ KUHNGameState{S}(game::KUHNGame) where S <: GameSetup = _creategamestate(S, game
 
 @inline function _creategamestate(::Type{S}, game) where S <: GameSetup
     states = @SVector Bool[1, 1]
-    bets = @SVector zeros(Float32, 2)
+    bets = @SVector ones(Float32, 2)
     
     return KUHNGameState{S}(
         NULL_ID,
@@ -180,26 +177,30 @@ end
 # const f = FunctionWrappers.FunctionWrapper{Bool, Tuple{UInt8, UInt8, UInt8, UInt8, Int}}(_actionmask!)
 
 function games.legalactions!(::Type{K}, gs::KUHNGameState{S}) where {S<:GameSetup, K<:Integer}
-    mask = @SVector zeros(K, 4)
+    # mask = @SVector zeros(K, 2)
 
-    action = gs.action
+    # action = gs.action
 
-    bet_cond = (action == CHECK_ID)
-    call_cond = (action == BET_ID)
-    reset_cond = (action == NULL_ID)
+    # bet_cond = (action == CHECK_ID)
+    # call_cond = (action == BET_ID)
+    # reset_cond = (action == NULL_ID)
 
-    j = 1
+    # j = 1
 
-    # action_set = actions!(gs)
+    # # action_set = actions!(gs)
 
-    for i in 1:4
-        if (bet_cond == true && (i == BET_ID || i == CHECK_ID)) || (call_cond == true && (i == CALL_ID || i == FOLD_ID)) || (reset_cond == true && (i == 1 || i == 3))
-            mask = setindex(mask, i, j)
-            j += 1
-        end
-    end
+    # for i in 1:2
+    #     if (bet_cond == true && (i == BET_ID || i == CHECK_ID)) || (call_cond == true && (i == BET_ID || i == CHECK_ID)) || (reset_cond == true && (i == 1 || i == 2))
+    #         mask = setindex(mask, i, j)
+    #         j += 1
+    #     end
+    # end
 
-    return (mask, j - 1)
+    # println("Mask ", mask)
+
+    # return (mask, j - 1)
+
+    return (SVector{2, UInt8}(1, 2), 2)
 
 end
 
@@ -209,10 +210,24 @@ struct KUHNPublicTree{T<:Integer}
 end
 
 @inline function games.initialchanceaction(::Type{T}, gs::KUHNGameState) where T<:Integer
-    return KUHNChanceAction{T}(1, 1, 2)
+    return KUHNChanceAction{T}(1, (1, 2))
 end
 
 @inline function games.performchance!(a::KUHNChanceAction{T}, gs::KUHNGameState{S}, pl::T) where {T<:Integer, S<:GameSetup}
+    return KUHNGameState{S}(
+        gs.action,
+        gs.position,
+        gs.pot,
+        gs.player,
+        STARTED_ID,
+        UInt8(0),
+        gs.action_sequence,
+        copy(gs.players_states),
+        copy(gs.bets),
+        gs.game)
+end
+
+@inline function games.performchance!(gs::KUHNGameState{S}) where {T<:Integer, S<:GameSetup}
     return KUHNGameState{S}(
         gs.action,
         gs.position,
@@ -230,14 +245,16 @@ end
     return gs.game_state == CHANCE_ID
 end
 
-@inline function games.chanceprobability!(::Type{T}, gs::KUHNGameState, ca::KUHNChanceAction) where T <: AbstractFloat
+@inline function games.chanceprobability!(::Type{T}, gs::KUHNGameState, ca::KUHNChanceAction) where {I<:Integer, T <: AbstractFloat}
     return T(1/6)
 end
 
-@inline Base.iterate(pt::KUHNPublicTree{T}) where T<:Integer = (pt.chance_action, (T(1), T(1), T(3)))
+@inline Base.iterate(pt::KUHNPublicTree{T}) where T<:Integer = (pt.chance_action, (T(1), (T(1), T(3))))
 
-@inline function Base.iterate(pt::KUHNPublicTree{T}, state::Tuple{T, T, T}) where T<:Integer
-    idx, p_idx, opp_idx = state
+@inline function Base.iterate(pt::KUHNPublicTree{T}, state::Tuple{T, Tuple{T, T}}) where T<:Integer
+    idx, arr = state
+
+    p_idx, opp_idx = arr
 
     if p_idx > pt.n
         return nothing
@@ -257,7 +274,7 @@ end
         j = (j == i) * (j + 1) + (j != i) * j
     end
 
-    return (KUHNChanceAction{T}(idx, p_idx, opp_idx), (T(idx), T(i), T(j)))
+    return (KUHNChanceAction{T}(idx, arr), (idx, (T(i), T(j))))
 end
 
 @inline function games.chanceactions!(gs::KUHNGameState, a::KUHNChanceAction{T}) where T<:Integer
@@ -374,14 +391,14 @@ function games.perform(
 
     p_is_bet = pa == BET_ID
     p_is_check = pa == CHECK_ID
-    folded = id_ == FOLD_ID
+    folded = p_is_bet && id_ == CHECK_ID
     
     players_states = setindex(gs.players_states, !folded, Int64(pl))
     # players_states[pl] = folded * false + !folded * true
-    action_sequence = setindex(gs.action_sequence, id_, Int64(num_actions))
+    action_sequence = setindex(gs.action_sequence, id_ , Int64(num_actions))
 
     is_bet = id_ == BET_ID
-    is_call = id_ == CALL_ID
+    # is_call = id_ == CALL_ID
 
     # bet = (is_bet || is_call) * oneunit(Float32)
     bet = Float32(0)
@@ -400,13 +417,17 @@ function games.perform(
     #     bet -= 1
     # end
 
-    # bets = incrementforplayer!(gs.bets, pl, bet)
-
     position = nextplayer!(gs.position)
     # gs.action = id_
 
+    if is_bet
+        bets = incrementforplayer!(gs.bets, gs.player, Float32(1))
+    else
+        bets = gs.bets
+    end
+
     #todo: make function for this
-    end_cond = (p_is_bet && is_call) || (p_is_check && id_ == CHECK_ID) || folded
+    end_cond = (p_is_bet && is_bet) || (p_is_check && id_ == CHECK_ID) || folded
 
     # if p_is_check && id_ == CHECK_ID
     #     println("Ended! ", p_is_bet && (id_ == BET_ID || folded || is_call))
@@ -425,7 +446,7 @@ function games.perform(
         num_actions,
         action_sequence,
         players_states,
-        gs.bets,
+        bets,
         game!(gs))
 
 end
