@@ -356,9 +356,7 @@ end
         SVector{3, UInt8}(0, 0, 0),
         SVector{2, Bool}(true, true),
         SVector{2, Float32}(0, 0),
-        game!(gs)
-    )
-
+        game!(gs))
 end
 
 @inline function increment!(arr::V, pl::I, i::I, p::T) where {V<:StaticVector, I<:Integer, T<:Real}

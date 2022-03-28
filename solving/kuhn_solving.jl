@@ -23,8 +23,31 @@ using infosets
 using exploitability
 using iterationstyles
 using bestresponse
+using simulation
 
-#todo: compute for the case where the last round was not reached! (one player folded)
+@inline function solving.computeutility!(
+    ::Type{F},
+    h::H,
+    gs::KUHNGameState{DepthLimited},
+    pl::T) where {}
+
+    stp = setup(gs)
+
+    # todo: randomly select a bias in the depth limited
+    bias = selectrandom(stp.biases)
+
+    vals = @SVector zeros(F, 2)
+
+    # run a simulation for a certain amount of iterations to get an approximation
+    # of the value a depth limited game.
+
+    for _ in 1:stp.iterations
+        vals += simulate(h, gs, pl, bias)
+    end
+
+    return vals/stp.iterations
+
+end
 
 @inline function solving.computeutility!(
     ::Type{F},
@@ -39,7 +62,6 @@ using bestresponse
     winnings = minimum(gs.bets)
 
     pot = gs.bets
-    opp_pl = (pl==2)*1 + (pl==1)*2
 
     if pot[1] > pot[2]
         util = SVector{2, F}(winnings, -winnings)

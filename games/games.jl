@@ -23,6 +23,8 @@ export legalactions!
 export chanceactions!
 export chanceprobability!
 export action
+export ended
+export depthlimit
 
 export INIT_ID
 export STARTED_ID
@@ -76,7 +78,15 @@ end
     throw(NotImplementedError())
 end
 
-@inline function terminal!(gs::AbstractGameState)
+@inline function terminal!(gs::G) where G <: AbstractGameState
+    throw(NotImplementedError())
+end
+
+@inline function ended(gs::AbstractGameState)
+    throw(NotImplementedError())
+end
+
+@inline function depthlimit(gs::AbstractGameState)
     throw(NotImplementedError())
 end
 

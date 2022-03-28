@@ -17,55 +17,26 @@ using StaticArrays
 
 using games
 using hermes_exceptions
-
-# # todo add compression data to resources folder
-# # filter for private cards
-# const PreFlopFilter = Filter(indexdata(
-#     IndexData, 
-#     "/resources/lossless/pre_flop"))
-
-# function key(pr::Vector{UInt64}, cc::Vector{UInt64})
-#     #returns a unique key for a combination of private and public hands
-#     if length(cc) == 0
-#         # return equivalent index (after compression)
-#         return filterindex(PreFlopFilter, pr)
-#     end
-#     return evaluate(pr, cc)
-# end
-
-# export epsilongreedysample!
-# export limit!
-# export showdown!
-# export key
+using value_estimation
 
 abstract type Solver end
-# abstract type Solving end
 
-# # todo add compression data to resources folder
-# # filter for private cards
-# const PreFlopFilter = Filter(indexdata(
-#     IndexData, 
-#     "/resources/lossless/pre_flop"))
-
-# @inline function key(pr::MVector{P, UInt64}, pc::MVector{B, UInt64}) where {B, P}
-#     #returns a unique key for a combination of private and public hands
-
-#     #if no public cards
-#     if length(pc) == 0
-#         # return equivalent index (after compression)
-#         return filterindex(PreFlopFilter, pr)
-#     end
-
-#     return evaluate(binomial(length(pr) + length(pc), 2), pr, pc)
-# end
-
-struct DepthLimited{T<:Solver, V<:StaticVector, L<:Integer} <: GameSetup
-    strategy_index::V # oppenent will randomly chose a strategy to play at the depth
+struct DepthLimited{T<:Solver, V<:StaticVector, L<:Integer, I<:Integer} <: GameSetup
+    biases::V # oppenent will randomly chose a strategy to play at the depth
     limit::L
+    iterations::I
 end
 
 struct FullSolving{T<:Solver} <: GameSetup
 
+end
+
+@inline function computeutility!(::Type{T}, h::H, gs::G, pl::I) where {A, P, T<:AbstractFloat, I<:Integer, H<:History, G<:AbstractGameState{A, DepthLimited, P}}
+    if ended(gs)
+        return computeutility!(T, gs, pl)
+    elseif depthlimit(gs)
+        return estimatevalue(T, h, gs, pl)
+    end
 end
 
 @inline function computeutility!(gs::AbstractGameState, pl::T) where T<:Integer
