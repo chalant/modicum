@@ -25,6 +25,7 @@ export chanceprobability!
 export action
 export ended
 export depthlimit
+export chanceid
 
 export INIT_ID
 export STARTED_ID
@@ -47,9 +48,12 @@ const ENDED_ID = UInt8(2)
 const TERM_ID = UInt8(3)
 const CHANCE_ID = UInt8(4)
 
+abstract type ChanceAction end
 abstract type State end
 
 abstract type GameSetup end
+
+#A: number of actions, S: game setup, P: number of players
 abstract type AbstractGameState{A, S, P} end
 
 # @inline playersstates!(gs::AbstractGameState) = gs.players_states
@@ -115,6 +119,10 @@ end
 
 @inline function chance!(gs::AbstractGameState)
     return false
+end
+
+@inline function chanceid(a::ChanceAction)
+    throw(NotImplementedError())
 end
 
 @inline function chanceprobability!(::Type{T}, gs::AbstractGameState, ca::Action) where T <: AbstractFloat

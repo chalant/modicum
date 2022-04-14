@@ -6,13 +6,11 @@ using actions
 
 export Action
 export ActionSet
-export ChanceAction
 
 export viewactions
 export id
 
 abstract type Action end
-abstract type ChanceAction end
 
 mutable struct ActionSet{N, T<:Action}
     actions::SizedVector{N, T}

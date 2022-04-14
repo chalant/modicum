@@ -18,6 +18,7 @@ using StaticArrays
 using games
 using hermes_exceptions
 using value_estimation
+using infosets
 
 abstract type Solver end
 

@@ -31,7 +31,6 @@ end
 @inline function chooseaction!(gs::KUHNGameState{Test}, mask::SVector{4, UInt8})
     # todo provide a function for displaying actions names
     println("Choose action ")
-    acts = actions!(gs)
 
     println(mask)
 

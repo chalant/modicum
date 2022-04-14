@@ -7,7 +7,13 @@ export LeDucGameState
 export LeDucPublicTree
 
 export rotateplayers!
-export reset!
+export setplayer
+export placebets
+export reset
+export chanceid
+export ranks
+export deck!
+export nextround!
 
 export NULL_ID
 export BET_ID
@@ -21,6 +27,7 @@ using StaticArrays
 using games
 using actions
 using playing
+using dataindex
 
 const NULL_ID = UInt8(0)
 const BET_ID = UInt8(1)
@@ -29,13 +36,8 @@ const CHECK_ID = UInt8(3)
 const RAISE_ID = UInt8(4)
 const FOLD_ID = UInt8(5)
 
-struct LeDucChanceAction{T<:Integer} <: ChanceAction
-    idx::T
-    public_idx::T
-end
-
-struct LeDucAction <: Action
-    id::UInt64
+struct LeDucAction{T<:Integer} <: Action
+    id::T
 end
 
 @inline function Base.isless(a::LeDucAction, b::LeDucAction)
@@ -52,113 +54,105 @@ end
 
 Base.hash(a::LeDucAction, h::UInt) = hash(a.id, hash(:LeDucAction, h))
 
-mutable struct LeDucGame{T<:AbstractVector{<:Integer}}
-    action_set::ActionSet{5}
+mutable struct LeDucGame
+    action_set::ActionSet{5, LeDucAction{UInt8}}
     players::MVector{2, UInt8}
 
-    deck::T
-    pc_idx::UInt8
+    deck::SizedVector{6, UInt8}
     private_cards::MVector{2, UInt8}
 end
 
-@inline function _creategame(deck::T) where {U<:Integer, T<:AbstractVector{U}}
-    action_set = ActionSet{5, LeDucAction}(MVector{5, LeDucAction}([
-        LeDucAction(CALL_ID), 
-        LeDucAction(BET_ID),
-        LeDucAction(FOLD_ID),
-        LeDucAction(CHECK_ID),
-        LeDucAction(RAISE_ID)]))
+@inline function _creategame(::Type{V}, deck::T) where {V<:Integer, U<:Integer, T<:AbstractVector{U}}
+    action_set = ActionSet(SizedVector{5, LeDucAction{V}}(
+        LeDucAction{V}(CALL_ID), 
+        LeDucAction{V}(BET_ID),
+        LeDucAction{V}(FOLD_ID),
+        LeDucAction{V}(CHECK_ID),
+        LeDucAction{V}(RAISE_ID)))
     
     players = @MVector UInt8[1, 2]
     private_cards = @MVector zeros(UInt8, 2)
     
-    return LeDucGame{T}(
+    return LeDucGame(
         action_set, 
         players, 
         deck,
-        UInt8(0), 
         private_cards)
 end
 
-LeDucGame{T}(deck) where T<:AbstractVector{<:Integer} = _creategame(deck)
+LeDucGame(::Type{V}, deck::T) where {V<:Integer, T<:AbstractVector{<:Integer}} = _creategame(V, deck)
 
-mutable struct LeDucGameState{S<:GameSetup} <: AbstractGameState{5, 2, S}
-    action::UInt64
+struct LeDucGameState{S<:GameSetup} <: AbstractGameState{5, S, 2}
+    action::UInt8
     position::UInt8
     pot::UInt8
 
+    state::UInt8
     round::UInt8
 
-    players_states::MVector{2, Bool}
-    bets::MVector{2, UInt8}
+    players_states::SVector{2, Bool}
+    bets::SVector{2, UInt8}
 
     player::UInt8
-    public_card::UInt8
     
     game::LeDucGame
+    setup::S
 
 end
 
-LeDucGameState{S}(game) where S<:GameSetup = _creategamestate(S, game)
+LeDucGameState(game::LeDucGame, setup::S) where S<:GameSetup = _creategamestate(game, setup)
 
-@inline function _creategamestate(::Type{S}, game) where S <: GameSetup
-    states = @MVector [true, true]
-    bets = @MVector zeros(UInt8, 2)
+@inline function _creategamestate(game::LeDucGame, setup::S) where S <: GameSetup
+    states = @SVector [true, true]
+    bets = @SVector zeros(UInt8, 2)
     
     return LeDucGameState{S}(
         NULL_ID,
         UInt8(1),
         UInt8(0),
-        UInt8(1),
+        CHANCE_ID,
+        UInt8(0),
         states,
         bets,
         players!(game)[1],
-        UInt8(0),
-        game)
+        game,
+        setup)
 end
 
-@inline function games.initialstate(gs::LeDucGameState)
-    return INIT_ID
+function ranks(::Type{T}) where T <: Integer
+    return Vector{T}(T(1), T(1), T(2), T(2), T(3), T(3))
 end
 
-struct LeDucPublicTree{T<:Integer}
-    n::T
-    private_idx::T
-    chance_action::LeDucChanceAction{T}
+struct LeDucChanceAction{T<:Integer} <: ChanceAction
+    id::T
+    cards_idx::SVector{3, T}
+    index::Union{Index{SVector{3, T}}, LeafIndex{SVector{3, T}}, Nothing}
 end
 
-@inline Base.iterate(pt::LeDucPublicTree{T}) where T<:Integer = pt.chance_action
+# LeDucChanceAction(id::T, cards_idx::SVector{3, T}, index::Union{Index{SVector{3, T}}, LeafIndex{SVector{3, T}}}) where T<:Integer = LeDucChanceAction{T}(id, cards_idx, index)
 
-@inline function Base.iterate(pt::LeDucPublicTree{T}, a::LeDucChanceAction{T}) where T<:Integer
-    if a.public_idx >= pt.n
-        return nothing
-    end
-    
-    i = a.public_idx + 1
-    
-    #exclude main player private card
-    if pt.private_idx != i
-        return KUHNChanceAction{T}(a.idx + 1, i)
-    else
-        i += 1
-        return KUHNChanceAction{T}(a.idx + 2, i)
-    end
-end
-
-@inline function games.chanceactions!(gs::LeDucGameState, a::LeDucChanceAction, pl::T) where T<:Integer
-    return LeDucPublicTree(6, privatecards!(gs)[pl], a)
-end
-
-@inline function games.terminal!(gs::LeDucGameState, state::T) where T <: Integer
-    return state == ENDED_ID
+@inline function games.terminal!(gs::LeDucGameState)
+    return gs.state == ENDED_ID
 end
 
 @inline game!(gs::LeDucGameState) = gs.game
 @inline games.actions!(g::LeDucGame) = g.action_set
 @inline games.actions!(gs::LeDucGameState) = actions!(gs.game)
 
-@inline function games.actionsmask!(gs::LeDucGameState)
-    mask = @MVector zeros(Bool, 5)
+@inline deck!(g::LeDucGame) = g.deck
+@inline deck!(gs::LeDucGameState) = deck!(game!(gs))
+
+@inline function games.chanceid(gs::LeDucGameState, a::LeDucChanceAction{T}) where T<:Integer
+    if a.id == 0
+        return a.id
+    end
+    return deck!(gs)[a.id]
+end
+
+@inline function games.legalactions!(::Type{K}, gs::LeDucGameState{S}) where {K<:Integer, S<:GameSetup}
+    #todo: accessing action_set index allocates memory!
+
+    mask = @SVector zeros(K, 5)
 
     action = gs.action
 
@@ -167,24 +161,33 @@ end
     raise_cond = action == BET_ID
     reset_cond = action == NULL_ID
 
-    action_set = actions!(gs)
+    # action_set = actions!(gs)
 
     #todo: first player to act at the start of any round cannot fold
 
+    j = 1
+
     for i in 1:5
-        aid = action_set[i].id
-        mask[i] = bet_cond * ((aid == BET_ID) + (aid == CHECK_ID)) +
-            call_cond * ((aid == CALL_ID) + (aid == FOLD_ID)) +
-            raise_cond * (aid == RAISE_ID) + 
-            reset_cond * ((i == 1) + (i == 2) * 0 + (i == 3) + (i == 4) * 0 + (i == 5) * 0)
-            # * ((is_bet && pa == CALL_ID) +
-            # (is_bet && p_is_bet) +
-            # (is_bet && pa == FOLD_ID) +
-            # (is_check && p_is_check) +
-            # (is_check && p_is_bet))
+        if ((bet_cond && (i == BET_ID || i == CHECK_ID)) || (call_cond && (i == CALL_ID || i == FOLD_ID)) || (raise_cond && i == RAISE_ID) || (reset_cond && (i == BET_ID || i == CHECK_ID)))
+            mask = setindex(mask, i, j)
+            j += 1
+        end
     end
 
-    return mask
+    # for i in 1:5
+    #     aid = action_set[i].id
+    #     mask[i] = bet_cond * ((aid == BET_ID) + (aid == CHECK_ID)) +
+    #         call_cond * ((aid == CALL_ID) + (aid == FOLD_ID)) +
+    #         raise_cond * (aid == RAISE_ID) + 
+    #         reset_cond * ((i == 1) * 1 + (i == 2) * 0 + (i == 3) * 1 + (i == 4) * 0 + (i == 5) * 0)
+    #         # * ((is_bet && pa == CALL_ID) +
+    #         # (is_bet && p_is_bet) +
+    #         # (is_bet && pa == FOLD_ID) +
+    #         # (is_check && p_is_check) +
+    #         # (is_check && p_is_bet))
+    # end
+
+    return (mask, j - 1)
 
 end
 
@@ -194,32 +197,94 @@ end
 @inline players!(g::LeDucGame) = g.players 
 @inline players!(gs::LeDucGameState) = players!(gs.game)
 
-@inline function nextplayer!(gs::LeDucGameState)
-    n = gs.position 
+@inline function reset(gs::LeDucGameState{S}) where {S<:GameSetup}
+    return LeDucGameState{S}(
+        NULL_ID,
+        UInt8(1),
+        UInt8(0),
+        INIT_ID,
+        UInt8(1),
+        SVector{2, Bool}(false, false),
+        SVector{2, UInt8}(0, 0),
+        players!(gs)[1],
+        gs.game,
+        gs.setup
+    )
+end
 
-    n = (n == 2) * 1 + (n == 1) * 2
+@inline function setplayer(gs::LeDucGameState{S}, pl::I) where {S<:GameSetup, I<:Integer}
+    return LeDucGameState{S}(
+        gs.action,
+        gs.position,
+        gs.pot,
+        gs.state,
+        gs.round,
+        gs.players_states,
+        gs.bets,
+        pl,
+        gs.game,
+        gs.setup
+    )
+end
 
-    gs.position = n
+@inline function placebets(gs::LeDucGameState{S}, values::SVector{2, UInt8}) where {S<:GameSetup}
+    return LeDucGameState{S}(
+        gs.action,
+        gs.position,
+        gs.pot + sum(values),
+        gs.state,
+        gs.round,
+        gs.players_states,
+        gs.bets + values,
+        gs.player,
+        gs.game,
+        gs.setup
+    )
+end
 
-    return players!(gs)[n]
+function games.action(gs::LeDucGameState{S}, idx::I) where {S<:GameSetup, I<:Integer}
+    return LeDucAction{I}(idx)
+end
 
+@inline function nextplayer!(position::I) where I <: Integer
+    return I((position == 2) * 1 + (position == 1) * 2)
 end
 
 @inline function nextround!(gs::LeDucGameState{S}, pl::T) where {S<:GameSetup, T<:Integer}
-    gs.round += 1
-    gs.action = NULL_ID
+    #todo: who is the next player? (reset players?)
+
+    return LeDucGameState{S}(
+        NULL_ID,
+        UInt8(1),
+        gs.pot,
+        (gs.round == 1) * INIT_ID + (gs.round > 1) * STARTED_ID,
+        gs.round + 1,
+        gs.players_states,
+        gs.bets,
+        players!(gs)[1],
+        gs.game,
+        gs.setup)
 end
 
-@inline function games.performchance!(a::LeDucChanceAction, gs::LeDucGameState{S}, pl::U) where {S<:GameSetup, U<:Integer}
-    gs.public_card = game!(gs).deck[a.public_idx]
-    nextround!(gs, pl)
+@inline function games.performchance!(a::LeDucChanceAction, gs::LeDucGameState{S}, pl::U) where {S<:GameSetup, U<:Integer}  
+    return LeDucGameState{S}(
+        NULL_ID,
+        UInt8(1),
+        gs.pot,
+        (gs.round == 0) * INIT_ID + (gs.round > 0) * STARTED_ID,
+        gs.round + 1,
+        gs.players_states,
+        gs.bets,
+        players!(gs)[1],
+        gs.game,
+        gs.setup)
 end
 
-@inline function games.chance!(gs::LeDucGameState, state::T) where T <: Integer
-    return state == CHANCE_ID
+@inline function games.chance!(gs::LeDucGameState)
+    return gs.state == CHANCE_ID
 end
 
-@inline function playing.perform!(
+@inline function games.perform(
     a::LeDucAction, 
     gs::LeDucGameState{S}, 
     pl::T) where {S<:GameSetup, T<:Integer}
@@ -234,8 +299,6 @@ end
     p_is_check = pa == CHECK_ID
     folded = id_ == FOLD_ID
 
-    gs.players_states[pl] = folded * false + !folded * true
-
     is_raise = id_ == RAISE_ID
     is_bet = id_ == BET_ID
     is_call = id_ == CALL_ID
@@ -246,18 +309,13 @@ end
 
     bet = (is_bet || is_call || is_raise) * amount
 
-    gs.pot += bet
-    gs.bets[pl] += bet
-
     both_checked = (p_is_check && id_ == CHECK_ID)
 
     nr_cond = (((p_is_raise || p_is_bet) && is_call) || both_checked) && not_last_round
 
     #todo: we need to return chance id as state!
 
-    gs.action = id_
-
-    gs.player = nextplayer!(gs)
+    position = nextplayer!(gs.position)
 
     # gs.round += nr_cond * 1
 
@@ -265,8 +323,17 @@ end
 
     end_cond = (((p_is_raise || p_is_bet) && (folded || (is_call && ended))) || (both_checked && ended))
 
-    return end_cond * ENDED_ID + !end_cond * (!nr_cond * STARTED_ID + nr_cond * CHANCE_ID)
-
+    return LeDucGameState{S}(
+        id_,
+        position,
+        UInt8(gs.pot + bet),
+        end_cond * ENDED_ID + !end_cond * (!nr_cond * STARTED_ID + nr_cond * CHANCE_ID),
+        gs.round,
+        setindex(gs.players_states, folded * false + !folded * true, Int64(pl)),
+        setindex(gs.bets, gs.bets[pl] + bet, Int64(pl)),
+        players!(gs)[position],
+        gs.game,
+        gs.setup)
 end
 
 @inline function rotateplayers!(game::LeDucGame)
@@ -276,22 +343,6 @@ end
     players[1] = players[2]
     players[2] = ps
 
-end
-
-@inline function reset!(gs::LeDucGameState)
-    gs.pot = 0
-    
-    bets = gs.bets
-    
-    for i in eachindex(bets)
-        bets[i] = 0
-    end
-
-    gs.player = players!(gs)[1]
-    gs.action = NULL_ID
-    gs.round = 1
-    
-    gs.position = 1
 end
 
 @inline function Base.copy!(dest::LeDucGameState{S}, src::LeDucGameState{S}) where S <: GameSetup

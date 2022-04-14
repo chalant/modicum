@@ -1,16 +1,52 @@
 push!(LOAD_PATH, join([pwd(), "utils"], "/"))
 # push!(LOAD_PATH, pwd())
 push!(LOAD_PATH, join([pwd(), "games"], "/"))
+push!(LOAD_PATH, join([pwd(), "solving"], "/"))
 
 using StaticArrays
 using Random
+using Setfield
 
 using leduc
 using games
 using playing
 
-mutable struct Test <: GameSetup
-    chips::Float32
+struct Test <: GameSetup
+end
+
+@inline function message(id::UInt8, gs::LeDucGameState)
+
+    if id == CHECK_ID
+        return string("Check")
+    elseif id == FOLD_ID
+        return string("Fold")
+    elseif id == CALL_ID
+        return string("Call ")
+    elseif id == BET_ID
+        return string("Bet ", gs.round * 2)
+    elseif id == RAISE_ID
+        return string("Raise ", gs.round * 2)
+    end
+end
+
+@inline function sampleaction!(acts::StaticVector{A, T}) where {A, T<:Integer}
+    t = rand()
+
+    a = 1
+    cum_prob = 0.0
+
+    while a < 2
+        cum_prob += 0.5
+
+        if t < cum_prob
+            break
+        end
+
+        a += 1
+    end
+
+    return acts[a]
+
 end
 
 @inline function sampleaction!(wv::AbstractVector{Bool})
@@ -57,7 +93,7 @@ end
     end
 end
 
-@inline function chooseaction!(gs::LeDucGameState{Test}, mask::MVector{5, Bool})
+@inline function chooseaction!(gs::LeDucGameState{Test}, mask::SVector{5, UInt8})
     # todo provide a function for displaying actions names
     println("Choose action ")
     acts = actions!(gs)
@@ -65,9 +101,9 @@ end
     println(mask)
 
     #display available actions
-    for (i, (act, j)) in enumerate(zip(acts, mask))
-        if j == 1
-            println("Press ", i, " to ", message(act, gs))
+    for (i, j) in enumerate(mask)
+        if j != 0
+            println("Press ", i, " to ", message(j, gs))
         end
     end
 
@@ -77,7 +113,7 @@ end
             println("Invalid input ")
             return chooseaction!(gs, mask)
         else
-            return acts[i]
+            return mask[i]
         end
     catch
         println("Invalid input")
@@ -85,20 +121,21 @@ end
     end
 end
 
-function start()
-    stp = Test(10)
-    deck = @SVector UInt8[1, 1, 2, 2, 3, 3]
+const RANKS = Dict{UInt8, UInt8}(1=>1, 2=>1, 3=>2, 4=>2, 5=>3, 6=>3)
 
-    game = LeDucGame{SVector{6, UInt8}}(deck)
-    gs = LeDucGameState{Test}(game)
+function start()
+    deck = @SVector UInt8[1, 1, 2, 2, 2, 2]
+
+    game = LeDucGame(UInt8, deck)
+    gs = LeDucGameState(game, Test())
 
     mp = game.players[1]
 
-    shuffle!(game.players)
+    game.players = shuffle(game.players)
 
-    gs.player = game.players[1]
-    
-    acts = actions!(game)
+    println("Players ", game.players)
+
+    gs = setplayer(gs, game.players[1])
 
     deck_idx = collect(1:6)
 
@@ -111,23 +148,20 @@ function start()
     for ps in game.players
         private_cards[ps] = deck[deck_idx[i]]
 
-        if ps == mp
-            game.pc_idx = deck_idx[i]
-        end
+        # if ps == mp
+        #     game.pc_idx = deck_idx[i]
+        # end
         
         i += 1
     end
 
     println("Cards: ", private_cards[1], " ", private_cards[2])
     
-    state = initialstate(gs)
-    mask = actionsmask!(gs)
+    actions, n_actions = legalactions!(UInt8, gs)
 
-    gs.pot += 2
-    
-    for i in eachindex(gs.bets)
-        gs.bets[i] += 1
-    end
+    gs = placebets(gs, SVector{2, UInt8}(1, 1))
+
+    public_card = UInt8(0)
 
     #todo: must post blinds!
 
@@ -135,36 +169,23 @@ function start()
 
         cp = gs.player
 
-        if cp == mp
-            a = chooseaction!(gs, mask)
-        else
-            a = acts[sampleaction!(mask)]
-        end
-
-        println("Player ", Int(cp), " Performed ", message(a, gs))
-
-        state = perform!(a, gs, cp)
-
-        if terminal!(gs, state) == true
+        if terminal!(gs) == true
             states = gs.players_states
 
             c1 = private_cards[1]
             c2 = private_cards[2]
-            public_card = gs.public_card
 
             println("Board ", public_card)
 
-            if c1 == public_card || states[1] == true && states[2] == false || c1 > c2
-                println("You Won! ", Int(gs.pot))
+            if RANKS[c1] == RANKS[public_card] || states[1] == true && states[2] == false || RANKS[c1] > RANKS[c2]
+                println("You Won! ", Int(gs.pot), " Opponent Lost ", Int(gs.bets[2]))
             elseif c2 == public_card || states[1] == false && states[2] == true || c1 < c2
-                println("You Lost! ", Int(gs.bets[1]))
+                println("You Lost! ", Int(gs.bets[1]), " Opponent Won ", Int(gs.pot))
             elseif c1 == c2
                 println("Draw! ", gs.pot/2)
             end
             
             rotateplayers!(game)
-
-            reset!(gs)
     
             shuffle!(deck_idx)
             
@@ -173,25 +194,36 @@ function start()
             for ps in game.players
                 private_cards[ps] = deck[deck_idx[i]]
 
-                if ps == mp
-                    game.pc_idx = deck_idx[i]
-                end
+                # if ps == mp
+                #     game.pc_idx = deck_idx[i]
+                # end
                 
                 i += 1
             end
 
-            gs.pot += 2
-            
-            for i in eachindex(gs.bets)
-                gs.bets[i] += 1
+            #each player places a bet    
+            gs = placebets(leduc.reset(gs), SVector{2, UInt8}(1, 1))
+
+        elseif chance!(gs) == true
+            println("Next Round! ")
+            gs = leduc.nextround!(gs, cp)
+        
+        else
+            if cp == mp
+                a = chooseaction!(gs, actions)
+            else
+                a = chooseaction!(gs, actions)
             end
+    
+            gs = perform(action(gs, a), gs, cp)
+
+            println("Pot ", gs.pot)
+            println("Player ", Int(cp), " Performed ", message(a, gs))
 
         end
 
-        if chance!(gs, state) == true
-            performchance!(LeDucChanceAction(1, deck_idx[4]), gs, cp)
-        end
+        public_card = deck[deck_idx[4]]
+        actions, n_actions = legalactions!(UInt8, gs)
 
-        mask = actionsmask!(gs)
     end
 end

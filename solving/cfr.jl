@@ -8,7 +8,6 @@ using TimerOutputs
 using games
 using solving
 using infosets
-using kuhn
 
 export CFR
 
@@ -50,31 +49,33 @@ function solve(
     h::H,
     chance_action::C,
     pl::I,
-    reach_probs::P) where {A, I<:Integer, C<:games.ChanceAction, T<:AbstractFloat, P<:StaticVector{3, T}, G<:AbstractGameState{A, FullSolving, 2}, N<:Node, K1<:Integer, K2<:Integer, H<:History{N, K1, K2}}
+    reach_probs::P) where {A, I<:Integer, C<:games.ChanceAction, T<:AbstractFloat, P<:StaticVector{3, T}, S<:GameSetup, G<:AbstractGameState{A, S, 2}, N<:Node, K1<:Integer, K2<:Integer, H<:History{N, K1, K2}}
 
-    if terminal!(gs) == true       
+    if terminal!(gs) == true
+        # println("Deck ", computeutility!(T, gs, pl, chance_action))
         return computeutility!(T, gs, pl, chance_action)
     
-    elseif chance!(gs) == true        
+    elseif chance!(gs) == true     
         iter = chanceactions!(gs, chance_action)
+        
         next = iterate(iter)
 
         (a, state) = next
-
-        ha = History(h, a.idx)
 
         p = chanceprobability!(T, gs, chance_action)
 
         ev = solve(
             solver, 
             performchance!(a, gs, gs.player), 
-            ha, 
+            History(h, chanceid(gs, a)), 
             a, pl, 
             SVector{3, T}(reach_probs[1], reach_probs[2], reach_probs[3] * p)) * p
         
         next = iterate(iter, state)
         
         while next !== nothing
+
+            
             # ha = history(h, a.idx)
 
             (a, state) = next
@@ -84,7 +85,7 @@ function solve(
             ev += solve(
                 solver, 
                 performchance!(a, gs, gs.player), 
-                ha, 
+                History(h, chanceid(gs, a)), 
                 a, pl, 
                 SVector{3, T}(reach_probs[1], reach_probs[2], reach_probs[3] * p)) * p
             
@@ -114,8 +115,8 @@ function solve(
     
     ha = History(h, K2(idx))
 
-    nr = cum_regrets[1]/norm
-    stg = ((norm != n_actions) * nr * (nr > 0) + (norm == n_actions) * T(1/n_actions))
+    nr = (cum_regrets[1] > 0) * cum_regrets[1]
+    stg = (norm != n_actions) * nr/norm + (norm == n_actions) * T(1/n_actions)
 
     util = solve(
         solver, 
@@ -126,13 +127,13 @@ function solve(
         updatereachprobs!(reach_probs, gs.player, stg))
 
     node_util = util * stg
-    utils[1] = util
+    utils[1] = util[gs.player]
 
     for i in 2:n_actions
         idx = lga[i]
         
-        nr = cum_regrets[i]/norm  
-        stg = ((norm != n_actions) * nr * (nr > 0) + (norm == n_actions) * T(1/n_actions))
+        nr = (cum_regrets[i] > 0) * cum_regrets[i]
+        stg = (norm != n_actions) * nr/norm + (norm == n_actions) * T(1/n_actions)
 
         util = solve(
             solver, 
@@ -143,7 +144,7 @@ function solve(
             updatereachprobs!(reach_probs, gs.player, stg))
         
         node_util += util * stg
-        utils[i] = util
+        utils[i] = util[gs.player]
 
     end
 
@@ -155,8 +156,7 @@ function solve(
         #update cumulative strategy
 
         for i in 1:n_actions
-            nr = cum_regrets[i]/norm
-            cum_stg[i] += ((norm != n_actions) * nr * (nr > 0) + (norm == n_actions) * T(1/n_actions)) * p0
+            cum_stg[i] += ((norm != n_actions) * ((cum_regrets[i] > 0) * cum_regrets[i])/norm + (norm == n_actions) * T(1/n_actions)) * p0
             # println("norm ", norm, " cum ", cum_regrets[i], " utils ", utils[i])
         end
 
@@ -169,15 +169,9 @@ function solve(
         # println("PREVIOUS ", cum_regrets)
 
         for i in 1:n_actions
-            cum_regrets[i] += (utils[i] - node_util) * p1
+            cum_regrets[i] += (utils[i] - node_util[gs.player]) * p1
             # norm += cum_regrets[i]
-            # println("DIFF ", utils[i] - node_util)
         end
-
-        # println("STG ", cum_stg)
-        # println("REGRETS ", cum_regrets)
-        # println("UTILS ", utils)
-
     end
 
     return node_util
@@ -189,7 +183,7 @@ function solve(
     gs::G,
     h::H,
     pl::I,
-    reach_probs::P) where {A, I<:Integer, T<:AbstractFloat, P<:StaticVector{2, T}, G<:AbstractGameState{A, FullSolving, 2}, N<:Node, K1<:Integer, K2<:Integer, H<:History{N, K1, K2}}
+    reach_probs::P) where {A, I<:Integer, T<:AbstractFloat, P<:StaticVector{2, T}, G<:AbstractGameState{A, GameSetup, 2}, N<:Node, K1<:Integer, K2<:Integer, H<:History{N, K1, K2}}
 
     if terminal!(gs) == true       
         return computeutility!(T, gs, pl)
@@ -218,9 +212,6 @@ function solve(
     nr = (cum_regrets[1] > 0) * cum_regrets[1]
     stg = (norm != n_actions) * nr/norm + (norm == n_actions) * T(1/n_actions)
 
-    strat = @MVector zeros(T, 2)
-    strat[1] = stg 
-
     util = solve(
         solver, 
         perform(action(gs, idx), gs, gs.player), 
@@ -239,8 +230,6 @@ function solve(
         
         nr = (cum_regrets[i] > 0) * cum_regrets[i]
         stg = (norm != n_actions) * nr/norm + (norm == n_actions) * T(1/n_actions)
-
-        strat[i] = stg
 
         util = solve(
             solver, 
@@ -283,7 +272,5 @@ function solve(
     return node_util
 
 end
-
-function solve
 
 end

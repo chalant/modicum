@@ -5,7 +5,6 @@ using StaticArrays
 using games
 using solving
 using infosets
-using kuhn
 
 export CFRPlus
 
@@ -45,7 +44,7 @@ function solve(
 
         (a, state) = next
 
-        ha = History(h, a.idx)
+        ha = History(h, a.id)
 
         p = chanceprobability!(T, gs, chance_action)
 

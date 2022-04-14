@@ -23,30 +23,51 @@ using infosets
 using exploitability
 using iterationstyles
 using bestresponse
-using simulation
 
-@inline function solving.computeutility!(
-    ::Type{F},
-    h::H,
-    gs::KUHNGameState{DepthLimited},
-    pl::T) where {}
 
-    stp = setup(gs)
+struct KUHNPublicTree{T<:Integer}
+    n::T
+    chance_action::KUHNChanceAction{T}
+end
 
-    # todo: randomly select a bias in the depth limited
-    bias = selectrandom(stp.biases)
+@inline function games.initialchanceaction(::Type{T}, gs::KUHNGameState) where T<:Integer
+    return KUHNChanceAction{T}(0, (1, 2))
+end
 
-    vals = @SVector zeros(F, 2)
+@inline function games.chanceprobability!(::Type{T}, gs::KUHNGameState, ca::KUHNChanceAction) where {I<:Integer, T <: AbstractFloat}
+    return T(1/6)
+end
 
-    # run a simulation for a certain amount of iterations to get an approximation
-    # of the value a depth limited game.
+@inline Base.iterate(pt::KUHNPublicTree{T}) where T<:Integer = (pt.chance_action, (T(0), (T(1), T(3))))
 
-    for _ in 1:stp.iterations
-        vals += simulate(h, gs, pl, bias)
+@inline function Base.iterate(pt::KUHNPublicTree{T}, state::Tuple{T, Tuple{T, T}}) where T<:Integer
+    idx, arr = state
+
+    p_idx, opp_idx = arr
+
+    if p_idx > pt.n
+        return nothing
+    end
+    
+    if opp_idx >= pt.n
+        i  = p_idx + 1
+        
+        if i > pt.n
+            return nothing
+        end
+        
+        j = 1
+    else
+        i = p_idx
+        j = opp_idx + 1
+        j = (j == i) * (j + 1) + (j != i) * j
     end
 
-    return vals/stp.iterations
+    return (KUHNChanceAction{T}(0, arr), (idx , (T(i), T(j))))
+end
 
+@inline function games.chanceactions!(gs::KUHNGameState, a::KUHNChanceAction{T}) where T<:Integer
+    return KUHNPublicTree{T}(3, a)
 end
 
 @inline function solving.computeutility!(
@@ -102,20 +123,10 @@ function solving.computeutility!(
 
     deck = deck!(gs)
 
-    # opp_pl = (pl==2)*1 + (pl==1)*2
-
     mpc = deck[cha.arr[1]] # main player private card
     opp = deck[cha.arr[2]] # opponent private card
-    last_player = gs.player
-
-    # folded = gs.players_states[pl] == false
-    # opp_folded = gs.players_states[(pl==2)*1 + (pl==1)*2] == false
-    
-    # bet = gs.bets[pl]
 
     winnings = minimum(gs.bets)
-
-    # println(winnings)
 
     pot = gs.bets
 
@@ -128,8 +139,6 @@ function solving.computeutility!(
     elseif opp > mpc
         util = SVector{2, F}(-winnings, winnings)
     end
-
-    # println(util, " ", mpc, " ", opp, " ", winnings, " ", pl, " ", opp_pl)
 
     return util
 
@@ -190,7 +199,6 @@ function solvekuhn(solver::CFR, itr::IterationStyle)
     
     init_probs = @SVector ones(Float32, 2)
 
-    util = Float32(0)
     utils = @SVector zeros(Float32, 2)
 
     k = 1
@@ -222,14 +230,14 @@ function solvekuhn(solver::CFR, itr::IterationStyle)
 
         # for pl in players
 
-            utils += cfr.solve(
-                solver, 
-                gs, 
-                root_h,
-                players[1],
-                init_probs)
+        utils += cfr.solve(
+            solver, 
+            gs, 
+            root_h,
+            players[1],
+            init_probs)
 
-            n += 1
+        n += 1
 
         # end
 
@@ -299,7 +307,7 @@ function solvekuhn(solver::CFR, itr::IterationStyle)
 
 end
 
-function solvekuhn(solver::CFRPlus{true}, itr::IterationStyle)
+function solvekuhnchance(solver::CFR, itr::IterationStyle)    
     game = KUHNGame{MVector{3, UInt8}}(MVector{3, UInt8}(1, 2, 3))
 
     #todo: we need to remove the distributed private cards from the deck!
@@ -308,62 +316,38 @@ function solvekuhn(solver::CFRPlus{true}, itr::IterationStyle)
 
     #create root history
     root_h = History(History{Node{MVector{2, MVector{2, Float32}}}, UInt64, UInt8})
+    # root_brh = BRHistory(History{Node{MVector{2, MVector{2, Float32}}}, UInt64, UInt8})
     #to avoid looping over a changing array
+    
     players = copy(game.players)
 
     n = 0
     
     inc = initialchanceaction(UInt8, gs)
+
     init_probs = @SVector ones(Float32, 3)
 
-    util = Float32(0)
-    utils = @MVector zeros(Float32, 2)
+    utils = @SVector zeros(Float32, 2)
 
-    for i in itr
+    for _ in itr
         for pl in players
-            utils[pl] += cfrplus.solve(
+            utils += cfr.solve(
                 solver, 
                 gs, 
                 root_h,
                 inc, 
                 pl,
-                init_probs, i)
+                init_probs)
+
+            n += 1
+            
         end
-
-        # gs = rotateplayers!(gs)
-
-        n += 1
-
-        # # compute and display exploitability each 10 iterations
-
-        # println(
-        #     "Exploitability ", 
-        #     computeexploitability!(Float32, gs, root_h, inc)/2, 
-        #     " Milli Big Blind")
 
     end
 
-    # println(
-    #     "Final Exploitability ", 
-    #     computeexploitability!(Float32, gs, root_h, inc)/6, 
-    #     " Milli Big Blind")
     
     println("Average Utility ", utils/n)
     
     printtree(root_h)
 
 end
-
-# function solvekuhn(solver::MCCFR{T}, itr::IterationStyle)
-#     deck = getdeck(Vector{UInt8})
-
-#     game = KUHNGame{Vector{UInt8}}(getcompresseddeck(Vector{UInt8}))
-
-#     #todo: we need to remove the distributed private cards from the deck!
-
-#     gs = KUHNGameState{FullTraining}(game)
-
-#     h = history(History{typeof(gs), MVector{4, T}, T, 13}, gs)()
-
-
-# end

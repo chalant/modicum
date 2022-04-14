@@ -34,11 +34,6 @@ const CHECK_ID = UInt8(2)
 # const FOLD_ID = UInt8(4)
 const NULL_ID = UInt8(3)
 
-struct KUHNChanceAction{T<:Integer} <: games.ChanceAction
-    idx::T
-    arr::Tuple{T, T}
-end
-
 @inline function getdeck(::Type{T}) where {U<:Integer, T<:AbstractVector{U}}
     res = zeros(U, 52)
     
@@ -84,7 +79,7 @@ end
 Base.hash(a::KUHNAction, h::UInt) = hash(a.id, hash(:KUHNAction, h))
 
 mutable struct KUHNGame{T<:AbstractVector}
-    action_set::ActionSet{2, KUHNAction}
+    action_set::ActionSet{2, KUHNAction{UInt8}}
 
     players::MVector{2, UInt8}
     
@@ -93,9 +88,10 @@ mutable struct KUHNGame{T<:AbstractVector}
 end
 
 @inline function _creategame(deck::T) where {U<:Integer, T<:AbstractVector{U}}
-    action_set = ActionSet(SizedVector{2, KUHNAction}(
-        KUHNAction(BET_ID),
-        KUHNAction(CHECK_ID)))
+
+    action_set = ActionSet(SizedVector{2, KUHNAction{UInt8}}(
+        KUHNAction{UInt8}(BET_ID),
+        KUHNAction{UInt8}(CHECK_ID)))
     
     players = @MVector UInt8[1, 2]
     private_cards = @MVector zeros(UInt8, 2)
@@ -108,7 +104,7 @@ end
 end
 
 KUHNGame{T}() where {U<:Integer, T<:AbstractVector{U}} = _creategame(getdeck(T))
-KUHNGame{T}(deck) where {U<:Integer, T<:AbstractVector{U}} = _creategame(deck)
+KUHNGame{T}(deck::T) where {U<:Integer, T<:AbstractVector{U}} = _creategame(deck)
 
 struct KUHNGameState{S<:GameSetup} <: AbstractGameState{2, S, 2}
     action::UInt8
@@ -200,17 +196,17 @@ function games.legalactions!(::Type{K}, gs::KUHNGameState{S}) where {S<:GameSetu
 
     # return (mask, j - 1)
 
-    return (SVector{2, UInt8}(1, 2), 2)
+    return (SVector{2, K}(1, 2), 2)
 
 end
 
-struct KUHNPublicTree{T<:Integer}
-    n::T
-    chance_action::KUHNChanceAction{T}
+struct KUHNChanceAction{T<:Integer} <: games.ChanceAction
+    idx::T
+    arr::Tuple{T, T}
 end
 
-@inline function games.initialchanceaction(::Type{T}, gs::KUHNGameState) where T<:Integer
-    return KUHNChanceAction{T}(1, (1, 2))
+@inline function games.chanceid(a::KUHNChanceAction)
+    return a.idx
 end
 
 @inline function games.performchance!(a::KUHNChanceAction{T}, gs::KUHNGameState{S}, pl::T) where {T<:Integer, S<:GameSetup}
@@ -222,8 +218,8 @@ end
         STARTED_ID,
         UInt8(0),
         gs.action_sequence,
-        copy(gs.players_states),
-        copy(gs.bets),
+        gs.players_states,
+        gs.bets,
         gs.game)
 end
 
@@ -243,42 +239,6 @@ end
 
 @inline function games.chance!(gs::KUHNGameState)
     return gs.game_state == CHANCE_ID
-end
-
-@inline function games.chanceprobability!(::Type{T}, gs::KUHNGameState, ca::KUHNChanceAction) where {I<:Integer, T <: AbstractFloat}
-    return T(1/6)
-end
-
-@inline Base.iterate(pt::KUHNPublicTree{T}) where T<:Integer = (pt.chance_action, (T(1), (T(1), T(3))))
-
-@inline function Base.iterate(pt::KUHNPublicTree{T}, state::Tuple{T, Tuple{T, T}}) where T<:Integer
-    idx, arr = state
-
-    p_idx, opp_idx = arr
-
-    if p_idx > pt.n
-        return nothing
-    end
-    
-    if opp_idx >= pt.n
-        i  = p_idx + 1
-        
-        if i > pt.n
-            return nothing
-        end
-        
-        j = 1
-    else
-        i = p_idx
-        j = opp_idx + 1
-        j = (j == i) * (j + 1) + (j != i) * j
-    end
-
-    return (KUHNChanceAction{T}(idx, arr), (idx, (T(i), T(j))))
-end
-
-@inline function games.chanceactions!(gs::KUHNGameState, a::KUHNChanceAction{T}) where T<:Integer
-    return KUHNPublicTree{T}(3, a)
 end
 
 @inline games.players!(g::KUHNGame) = g.players 
