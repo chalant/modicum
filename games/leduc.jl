@@ -90,8 +90,10 @@ struct LeDucGameState{S<:GameSetup} <: AbstractGameState{5, S, 2}
     state::UInt8
     round::UInt8
 
+    #per player data
     players_states::SVector{2, Bool}
     bets::SVector{2, UInt8}
+    money::SVector{2, UInt8}
 
     player::UInt8
     
@@ -114,6 +116,7 @@ LeDucGameState(game::LeDucGame, setup::S) where S<:GameSetup = _creategamestate(
         UInt8(0),
         states,
         bets,
+        SVector{2, UInt8}(0, 0),
         players!(game)[1],
         game,
         setup)
@@ -146,6 +149,7 @@ end
     if a.id == 0
         return a.id
     end
+
     return deck!(gs)[a.id]
 end
 
@@ -158,7 +162,8 @@ end
 
     bet_cond = action == CHECK_ID
     call_cond = action == BET_ID || action == RAISE_ID
-    raise_cond = action == BET_ID
+    raise_cond = action == BET_ID || action == CALL_ID
+    check_cond = action == CALL_ID 
     reset_cond = action == NULL_ID
 
     # action_set = actions!(gs)
@@ -168,7 +173,7 @@ end
     j = 1
 
     for i in 1:5
-        if ((bet_cond && (i == BET_ID || i == CHECK_ID)) || (call_cond && (i == CALL_ID || i == FOLD_ID)) || (raise_cond && i == RAISE_ID) || (reset_cond && (i == BET_ID || i == CHECK_ID)))
+        if ((bet_cond && (i == BET_ID || i == CHECK_ID)) || (call_cond && (i == CALL_ID || i == FOLD_ID)) || (raise_cond && (i == RAISE_ID || i == FOLD_ID)) || (reset_cond && (i == BET_ID || i == CHECK_ID))) || (check_cond && i == CHECK_ID)
             mask = setindex(mask, i, j)
             j += 1
         end
@@ -206,6 +211,7 @@ end
         UInt8(1),
         SVector{2, Bool}(false, false),
         SVector{2, UInt8}(0, 0),
+        SVector{2, UInt8}(100, 100),
         players!(gs)[1],
         gs.game,
         gs.setup
@@ -221,6 +227,7 @@ end
         gs.round,
         gs.players_states,
         gs.bets,
+        gs.money,
         pl,
         gs.game,
         gs.setup
@@ -236,6 +243,7 @@ end
         gs.round,
         gs.players_states,
         gs.bets + values,
+        gs.money + values,
         gs.player,
         gs.game,
         gs.setup
@@ -261,6 +269,7 @@ end
         gs.round + 1,
         gs.players_states,
         gs.bets,
+        gs.money,
         players!(gs)[1],
         gs.game,
         gs.setup)
@@ -275,6 +284,7 @@ end
         gs.round + 1,
         gs.players_states,
         gs.bets,
+        (gs.money * 0) * (gs.round > 0) + gs.money * (gs.round == 0),
         players!(gs)[1],
         gs.game,
         gs.setup)
@@ -297,6 +307,7 @@ end
     p_is_bet = pa == BET_ID
     p_is_raise = pa == RAISE_ID
     p_is_check = pa == CHECK_ID
+    p_is_call = pa == CALL_ID
     folded = id_ == FOLD_ID
 
     is_raise = id_ == RAISE_ID
@@ -307,11 +318,11 @@ end
 
     amount = gs.round * 2
 
-    bet = (is_bet || is_call || is_raise) * amount
+    bet = (is_bet || is_call) * amount + is_raise * (amount * 2)
 
     both_checked = (p_is_check && id_ == CHECK_ID)
 
-    nr_cond = (((p_is_raise || p_is_bet) && is_call) || both_checked) && not_last_round
+    nr_cond = ((p_is_raise && is_call) || both_checked || (p_is_call && id_ == CHECK_ID)) && not_last_round
 
     #todo: we need to return chance id as state!
 
@@ -321,7 +332,7 @@ end
 
     ended = gs.round >= 2
 
-    end_cond = (((p_is_raise || p_is_bet) && (folded || (is_call && ended))) || (both_checked && ended))
+    end_cond = (((p_is_raise || p_is_bet) && folded) || (p_is_raise && (is_call && ended)) || (both_checked && ended) || (p_is_call && (folded || (id_ == CHECK_ID && ended))))
 
     return LeDucGameState{S}(
         id_,
@@ -331,6 +342,7 @@ end
         gs.round,
         setindex(gs.players_states, folded * false + !folded * true, Int64(pl)),
         setindex(gs.bets, gs.bets[pl] + bet, Int64(pl)),
+        gs.money,
         players!(gs)[position],
         gs.game,
         gs.setup)

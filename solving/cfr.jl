@@ -55,29 +55,26 @@ function solve(
         # println("Deck ", computeutility!(T, gs, pl, chance_action))
         return computeutility!(T, gs, pl, chance_action)
     
-    elseif chance!(gs) == true     
+    elseif chance!(gs) == true
+        
         iter = chanceactions!(gs, chance_action)
         
         next = iterate(iter)
 
         (a, state) = next
 
-        p = chanceprobability!(T, gs, chance_action)
+        p = chanceprobability!(T, gs, chance_action) * reach_probs[3]
 
         ev = solve(
             solver, 
             performchance!(a, gs, gs.player), 
             History(h, chanceid(gs, a)), 
             a, pl, 
-            SVector{3, T}(reach_probs[1], reach_probs[2], reach_probs[3] * p)) * p
+            SVector{3, T}(reach_probs[1], reach_probs[2], p)) * p
         
         next = iterate(iter, state)
         
         while next !== nothing
-
-            
-            # ha = history(h, a.idx)
-
             (a, state) = next
 
             p = chanceprobability!(T, gs, chance_action)
@@ -87,7 +84,7 @@ function solve(
                 performchance!(a, gs, gs.player), 
                 History(h, chanceid(gs, a)), 
                 a, pl, 
-                SVector{3, T}(reach_probs[1], reach_probs[2], reach_probs[3] * p)) * p
+                SVector{3, T}(reach_probs[1], reach_probs[2], p)) * p
             
             next = iterate(iter, state)
         end
@@ -102,38 +99,49 @@ function solve(
     cum_regrets = cumulativeregrets!(info, gs.player)
     
     norm = T(0)
+    stg = @MVector zeros(T, A)
 
-    for i in cum_regrets
-        norm += (i > 0) * i
+    for i in 1:n_actions
+        cr = cum_regrets[i]
+        stg[i] = (cr > 0) ? cr : 0
+        norm += stg[i]
     end
     
-    norm = (norm != 0) * norm + n_actions * (norm == 0)
+    # norm = (norm > 0) * norm + n_actions * (norm == 0)
 
     utils = getutils(h)
 
     idx = lga[1]
-    
-    ha = History(h, K2(idx))
+    # nr = (cum_regrets[1] > 0) * cum_regrets[1]
 
-    nr = (cum_regrets[1] > 0) * cum_regrets[1]
-    stg = (norm != n_actions) * nr/norm + (norm == n_actions) * T(1/n_actions)
+    if norm > 0
+        stg[1] = stg[1]/norm
+    else
+        stg[1] = T(1/n_actions)
+    end
 
     util = solve(
         solver, 
         perform(action(gs, idx), gs, gs.player), 
-        ha, 
+        History(h, K2(idx)), 
         chance_action, 
         pl,
-        updatereachprobs!(reach_probs, gs.player, stg))
+        updatereachprobs!(reach_probs, gs.player, stg[1]))
 
-    node_util = util * stg
+    node_util = util * stg[1]
     utils[1] = util[gs.player]
 
     for i in 2:n_actions
         idx = lga[i]
         
-        nr = (cum_regrets[i] > 0) * cum_regrets[i]
-        stg = (norm != n_actions) * nr/norm + (norm == n_actions) * T(1/n_actions)
+        # nr = (cum_regrets[i] > 0) * cum_regrets[i] + 1 * (norm == n_actions)
+        # stg = nr/norm
+
+        if norm > 0
+            stg[i] = stg[i]/norm
+        else
+            stg[i] = T(1/n_actions)
+        end
 
         util = solve(
             solver, 
@@ -141,12 +149,17 @@ function solve(
             History(h, K2(idx)), 
             chance_action, 
             pl,
-            updatereachprobs!(reach_probs, gs.player, stg))
+            updatereachprobs!(reach_probs, gs.player, stg[i]))
         
-        node_util += util * stg
+        node_util += util * stg[i]
         utils[i] = util[gs.player]
 
     end
+
+    # if stg == @MVector zeros(T, A)
+    #     println(norm, " ", nr)
+    #     throw("Zero! ")
+    # end
 
     #todo: update cumulative regrets and cumulative strategy
     if pl == gs.player
@@ -156,7 +169,7 @@ function solve(
         #update cumulative strategy
 
         for i in 1:n_actions
-            cum_stg[i] += ((norm != n_actions) * ((cum_regrets[i] > 0) * cum_regrets[i])/norm + (norm == n_actions) * T(1/n_actions)) * p0
+            cum_stg[i] += stg[i] * p0
             # println("norm ", norm, " cum ", cum_regrets[i], " utils ", utils[i])
         end
 
@@ -172,6 +185,7 @@ function solve(
             cum_regrets[i] += (utils[i] - node_util[gs.player]) * p1
             # norm += cum_regrets[i]
         end
+        
     end
 
     return node_util

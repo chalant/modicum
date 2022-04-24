@@ -205,7 +205,7 @@ struct KUHNChanceAction{T<:Integer} <: games.ChanceAction
     arr::Tuple{T, T}
 end
 
-@inline function games.chanceid(a::KUHNChanceAction)
+@inline function games.chanceid(gs::KUHNGameState, a::KUHNChanceAction)
     return a.idx
 end
 

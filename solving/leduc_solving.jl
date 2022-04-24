@@ -4,6 +4,7 @@ push!(LOAD_PATH, join([pwd(), "solving"], "/"))
 
 using IterTools
 using StaticArrays
+using Plots
 
 using solving
 using cfrplus
@@ -15,6 +16,8 @@ using leduc
 using unionfind
 using dataindex
 using iterationstyles
+
+const SMoney = UInt8(100)
 
 struct LeDucFullSolving{T} <: GameSetup
     index::Index{T}
@@ -32,9 +35,13 @@ end
 
 LeDucFullSolving(index::Index{T}) where T <: Integer = LeDucFullSolving{T}(index)
 
-@inline Base.iterate(pt::LeDucPublicTree{T, U}) where {T<:Integer, U<:Integer} = (pt.chance_action, 0)
+function Base.iterate(pt::LeDucPublicTree{T, U}) where {T<:Integer, U<:Integer}
+    index = pt.chance_action.index
+    ind = indice!(index, 1)
+    return (LeDucChanceAction{U}(ind[3], ind, index!(index, 1)), 1)
+end
 
-@inline function Base.iterate(pt::LeDucPublicTree{T, U}, idx::Int64) where {T<:Integer, U<:Integer}    
+function Base.iterate(pt::LeDucPublicTree{T, U}, idx::Int64) where {T<:Integer, U<:Integer}    
 
     index = pt.chance_action.index
 
@@ -168,7 +175,7 @@ function createindex(deck::T) where T<:AbstractVector
 
 end
 
-function printsubtree(h::History{Node{MVector{2, MVector{2, T}}}, UInt64, UInt8}, a::String) where T <: AbstractFloat
+function printsubtree(h::History{Node{MVector{2, MVector{N, T}}}, I, J}, a::String) where {N, T<:AbstractFloat, I<:Integer, J<:Integer}
     for (i, s) in h.infosets
         println("info ", i, " action ", a, " " , 
         s.cum_strategy[1]./sum(s.cum_strategy[1]), " ", 
@@ -180,7 +187,7 @@ function printsubtree(h::History{Node{MVector{2, MVector{2, T}}}, UInt64, UInt8}
     end
 end
 
-function printtree(root_h::History{Node{MVector{2, MVector{2, T}}}, UInt64, UInt8}) where T <: AbstractFloat
+function printtree(root_h::History{Node{MVector{2, MVector{N, T}}}, I, J}) where {N, T<:AbstractFloat, I<:Integer, J<:Integer}
     for (i, s) in root_h.infosets
         println("info ", i, " " , 
         s.cum_strategy[1]./sum(s.cum_strategy[1]), " ", 
@@ -193,6 +200,12 @@ function printtree(root_h::History{Node{MVector{2, MVector{2, T}}}, UInt64, UInt
 end
 
 @inline function infosets.infosetkey(gs::LeDucGameState, cha::LeDucChanceAction)
+    pub = cha.cards_idx[3]
+
+    if pub != 0
+        return deck!(gs)[cha.cards_idx[gs.player]] * 10 + deck!(gs)[pub]
+    end
+
     return deck!(gs)[cha.cards_idx[gs.player]]
 end
 
@@ -209,6 +222,18 @@ end
     mpc = deck[cha.cards_idx[1]] # p1 private card
     opp = deck[cha.cards_idx[2]] # p2 private card
 
+    # if (mpc - 1) % 10 == 0
+    #     mpc = (mpc - 1) / 10
+    # else
+    #     mpc = (mpc - 2) / 10
+    # end
+
+    # if (opp - 1) % 10 == 0
+    #     opp = (opp - 1) / 10
+    # else
+    #     opp = (opp - 2) / 10
+    # end    
+
     reached = cha.cards_idx[3] != 0
 
     pub = 0
@@ -219,15 +244,42 @@ end
 
     states = gs.players_states
 
-    # println("Pot ", gs.pot, " States ", states)
+    money = gs.money
+    pot = gs.pot
 
-    if (mpc == pub || mpc > opp || states[2] == false)
+    # println("Pot ", gs.pot, " States ", states)
+    if states[2] == false
+        # println("Player Two Folded! ", mpc, " ", opp, " ", pub, " ", states)
         return SVector{2, F}(F(gs.bets[2]), -F(gs.bets[2]))
-    elseif (opp == pub || opp > mpc || states[1] == false)
+    elseif states[1] == false
+        # println("Player One Folded! ", mpc, " ", opp, " ", pub, " ", states)
+        return SVector{2, F}(-F(gs.bets[1]), F(gs.bets[1]))
+    elseif mpc == pub
+        # println("Player One Won! ", mpc, " ", opp, " ", pub, " ", states)
+        return SVector{2, F}(F(gs.bets[2]), -F(gs.bets[2]))
+    elseif opp == pub
+        return SVector{2, F}(-F(gs.bets[1]), F(gs.bets[1]))
+    elseif mpc > opp
+        # println("Player One Won! ", mpc, " ", opp, " ", pub, " ", states)
+        return SVector{2, F}(F(gs.bets[2]), -F(gs.bets[2]))
+    elseif opp > mpc
+        # println("Player Two Won! ", mpc, " ", opp, " ", pub, " ", states)
         return SVector{2, F}(-F(gs.bets[1]), F(gs.bets[1]))
     elseif (mpc == opp)
-        return SVector{2, F}(F(gs.bets[1]/2), F(gs.bets[1]/2))
+        # println("Tie! ", mpc, " ", opp, " ", pub, " ", states)
+        return SVector{2, F}(0, 0)
     end
+
+    # if (mpc == pub || mpc > opp || states[2] == false)
+    #     # println("Player One Won! ", mpc, " ", opp, " ", pub)
+    #     return SVector{2, F}(F(gs.bets[2]), -F(gs.bets[2]))
+    # elseif (opp == pub || opp > mpc || states[1] == false)
+    #     # println("Player Two Won! ", mpc, " ", opp, " ", pub)
+    #     return SVector{2, F}(-F(gs.bets[1]), F(gs.bets[1]))
+    # elseif (mpc == opp)
+    #     # println("Tie! ", mpc, " ", opp, " ", pub)
+    #     return SVector{2, F}(F(gs.bets[1]/2), F(gs.bets[1]/2))
+    # end
     
 
 end
@@ -260,16 +312,15 @@ function solveleduc(solver::CFR, itr::IterationStyle)
     setup = LeDucFullSolving(createindex(UInt8[1, 1, 2, 2, 3, 3]))
 
     game = LeDucGame(UInt8, UInt8[1, 1, 2, 2, 3, 3])
-    root_gs = LeDucGameState(game, setup)
 
-    root_h = History(History{Node{MVector{2, MVector{5, Float32}}}, UInt64, UInt8})
+    root_h = History(History{Node{MVector{2, MVector{3, Float32}}}, UInt64, UInt8})
 
-    root_gs = placebets(root_gs, SVector{2, UInt8}(1, 1))
+    root_gs = placebets(LeDucGameState(game, setup), SVector{2, UInt8}(1, 1))
 
     #initial chance action
     inc = LeDucChanceAction(
         UInt8(0), 
-        indice!(setup.index, 1), 
+        SVector{3, UInt8}(0, 0, 0), 
         setup.index)
 
     utils = @SVector zeros(Float32, 2)
@@ -277,21 +328,31 @@ function solveleduc(solver::CFR, itr::IterationStyle)
 
     n = 0
 
+    points = Vector{Float32}()
+
     for _ in itr
         for pl in game.players
-            utils += cfr.solve(
+            ut = cfr.solve(
                 solver, 
                 root_gs, 
                 root_h, 
                 inc,
                 pl,
                 init_probs)
-            
+                
+            utils += ut
+
+            push!(points, ut[1])
+
             n += 1
         end
     end
 
     println("Average Utility ", utils/n)
+
+    # x = 1:length(points)
+    
+    # plot(x, points)
     
     # printtree(root_h)
     
